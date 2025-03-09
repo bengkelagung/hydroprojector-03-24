@@ -22,12 +22,14 @@ export interface Device {
   lastSeen?: string;
 }
 
+export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'custom';
+
 export interface Pin {
   id: string;
   deviceId: string;
   pinNumber: number;
   dataType: 'analog' | 'digital';
-  signalType: 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'custom';
+  signalType: SignalType;
   mode: 'input' | 'output';
   name: string;
   value?: string;
@@ -47,7 +49,7 @@ interface HydroContextType {
     deviceId: string, 
     pinNumber: number, 
     dataType: 'analog' | 'digital', 
-    signalType: string, 
+    signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
     unit?: string
@@ -152,7 +154,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     deviceId: string, 
     pinNumber: number, 
     dataType: 'analog' | 'digital', 
-    signalType: string, 
+    signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
     unit?: string
