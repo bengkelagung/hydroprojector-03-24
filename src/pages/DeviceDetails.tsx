@@ -1,7 +1,6 @@
-
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power } from 'lucide-react';
+import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -22,8 +21,15 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle, 
+  DialogFooter,
+  DialogTrigger
+} from '@/components/ui/dialog';
 import { toast } from "@/components/ui/use-toast";
-import PinDetailsDialog from '@/components/PinDetailsDialog';
 
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -36,7 +42,11 @@ const DeviceDetails = () => {
     updateDevice, 
     deleteDevice, 
     deletePin,
-    togglePinValue 
+    configurePin,
+    togglePinValue,
+    signalTypes,
+    dataTypes,
+    pinModes
   } = useHydro();
   
   const device = devices.find(d => d.id === deviceId);
@@ -45,6 +55,13 @@ const DeviceDetails = () => {
   const [editName, setEditName] = useState(device?.name || '');
   const [editDescription, setEditDescription] = useState(device?.description || '');
   const [editProjectId, setEditProjectId] = useState(device?.projectId || '');
+  
+  // Pin editing state
+  const [selectedPin, setSelectedPin] = useState<typeof pins[0] | null>(null);
+  const [editPinName, setEditPinName] = useState('');
+  const [editPinSignalType, setEditPinSignalType] = useState<string>('');
+  const [editPinDataType, setEditPinDataType] = useState<string>('');
+  const [editPinUnit, setEditPinUnit] = useState<string>('');
   
   if (!device) {
     return (
@@ -58,11 +75,6 @@ const DeviceDetails = () => {
     );
   }
 
-  const project = projects.find(p => p.id === device.projectId);
-  const devicePins = getPinsByDevice(device.id);
-  const inputPins = devicePins.filter(p => p.mode === 'input');
-  const outputPins = devicePins.filter(p => p.mode === 'output');
-  
   // Helper function to get a color based on signal type
   const getSignalColor = (signalType: string) => {
     switch (signalType) {
@@ -75,6 +87,11 @@ const DeviceDetails = () => {
       default: return 'bg-gray-500';
     }
   };
+
+  const project = projects.find(p => p.id === device.projectId);
+  const devicePins = getPinsByDevice(device.id);
+  const inputPins = devicePins.filter(p => p.mode === 'input');
+  const outputPins = devicePins.filter(p => p.mode === 'output');
   
   const handleSaveEdit = () => {
     if (editName.trim() === '') {
@@ -122,6 +139,52 @@ const DeviceDetails = () => {
       title: `${currentValue === "1" ? "Turned off" : "Turned on"}`,
       description: `${pinName} has been ${currentValue === "1" ? "turned off" : "turned on"}`,
     });
+  };
+
+  const handleOpenPinEdit = (pin: typeof pins[0]) => {
+    setSelectedPin(pin);
+    setEditPinName(pin.name);
+    setEditPinSignalType(pin.signalType);
+    setEditPinDataType(pin.dataType);
+    setEditPinUnit(pin.unit || '');
+  };
+
+  const handleSavePinEdit = async () => {
+    if (!selectedPin) return;
+    
+    if (editPinName.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Pin name cannot be empty",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      await configurePin(
+        selectedPin.deviceId,
+        selectedPin.pinNumber,
+        editPinDataType,
+        editPinSignalType as any,
+        selectedPin.mode,
+        editPinName,
+        editPinUnit || undefined
+      );
+      
+      toast({
+        title: "Success",
+        description: "Pin updated successfully"
+      });
+      setSelectedPin(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update pin",
+        variant: "destructive"
+      });
+      console.error(error);
+    }
   };
   
   return (
@@ -300,6 +363,40 @@ const DeviceDetails = () => {
                         
                         const value = pin.value || mockValue;
                         
+                        // Determine alert status
+                        let alert = false;
+                        let statusText = "Normal";
+                        if (pin.signalType === 'pH') {
+                          if (parseFloat(value) < 5.5) {
+                            alert = true;
+                            statusText = "Too Acidic";
+                          } else if (parseFloat(value) > 7.5) {
+                            alert = true;
+                            statusText = "Too Alkaline";
+                          }
+                        } else if (pin.signalType === 'temperature') {
+                          if (parseFloat(value) < 18) {
+                            alert = true;
+                            statusText = "Too Cold";
+                          } else if (parseFloat(value) > 28) {
+                            alert = true;
+                            statusText = "Too Hot";
+                          }
+                        } else if (pin.signalType === 'water-level') {
+                          if (parseFloat(value) < 40) {
+                            alert = true;
+                            statusText = "Low Water";
+                          }
+                        } else if (pin.signalType === 'humidity') {
+                          if (parseFloat(value) < 30) {
+                            alert = true;
+                            statusText = "Too Dry";
+                          } else if (parseFloat(value) > 80) {
+                            alert = true;
+                            statusText = "Too Humid";
+                          }
+                        }
+                        
                         return (
                           <div key={pin.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
@@ -310,17 +407,178 @@ const DeviceDetails = () => {
                               </div>
                             </div>
                             <div className="flex items-center">
-                              <div className="font-semibold text-gray-800 mr-3">
-                                {value}{pin.unit}
+                              <div className="mr-3 text-right">
+                                <div className="font-semibold text-gray-800">
+                                  {value}{pin.unit}
+                                </div>
+                                <div className={`text-xs ${alert ? 'text-amber-500 font-medium' : 'text-green-600'}`}>
+                                  {statusText}
+                                </div>
                               </div>
-                              <PinDetailsDialog 
-                                pin={pin} 
-                                trigger={
-                                  <Button size="sm" variant="outline" className="text-blue-600 hover:bg-blue-50">
-                                    View Details
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="text-blue-600 hover:bg-blue-50 mr-1"
+                                    onClick={() => handleOpenPinEdit(pin)}
+                                  >
+                                    <Pencil className="h-4 w-4" />
                                   </Button>
-                                }
-                              />
+                                </DialogTrigger>
+                                <DialogContent className="sm:max-w-md">
+                                  <DialogHeader>
+                                    <DialogTitle>Pin Details: {selectedPin?.name}</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Name:</label>
+                                      <Input
+                                        value={editPinName}
+                                        onChange={(e) => setEditPinName(e.target.value)}
+                                        className="col-span-3"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Signal Type:</label>
+                                      <Select 
+                                        value={editPinSignalType} 
+                                        onValueChange={setEditPinSignalType}
+                                      >
+                                        <SelectTrigger className="col-span-3">
+                                          <SelectValue placeholder="Select signal type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {signalTypes.map(type => (
+                                            <SelectItem key={type} value={type}>
+                                              {type}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Data Type:</label>
+                                      <Select 
+                                        value={editPinDataType} 
+                                        onValueChange={setEditPinDataType}
+                                      >
+                                        <SelectTrigger className="col-span-3">
+                                          <SelectValue placeholder="Select data type" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          {dataTypes.map(type => (
+                                            <SelectItem key={type} value={type}>
+                                              {type}
+                                            </SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Unit:</label>
+                                      <Input
+                                        value={editPinUnit}
+                                        onChange={(e) => setEditPinUnit(e.target.value)}
+                                        className="col-span-3"
+                                        placeholder="°C, %, pH, etc."
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Pin:</label>
+                                      <div className="col-span-3">
+                                        <span className="text-gray-700">{selectedPin?.pinNumber}</span>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Mode:</label>
+                                      <div className="col-span-3">
+                                        <span className="text-gray-700 capitalize">{selectedPin?.mode}</span>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Status:</label>
+                                      <div className="col-span-3">
+                                        <Badge 
+                                          variant="outline" 
+                                          className={alert ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-green-50 text-green-600 border-green-200"}
+                                        >
+                                          {statusText}
+                                        </Badge>
+                                      </div>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <label className="text-right text-sm font-medium">Last Reading:</label>
+                                      <div className="col-span-3">
+                                        <span className="font-medium">{value}{pin.unit}</span>
+                                        <span className="text-xs text-gray-500 ml-2">
+                                          (Updated {new Date().toLocaleTimeString()})
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                  <DialogFooter className="flex justify-between">
+                                    <AlertDialog>
+                                      <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" type="button">
+                                          <Trash2 className="h-4 w-4 mr-2" />
+                                          Delete
+                                        </Button>
+                                      </AlertDialogTrigger>
+                                      <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                          <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                          <AlertDialogDescription>
+                                            This will permanently delete the pin and all associated data.
+                                          </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                          <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                          <AlertDialogAction 
+                                            onClick={() => {
+                                              if (selectedPin) {
+                                                handleDeletePin(selectedPin.id, selectedPin.name);
+                                                setSelectedPin(null);
+                                              }
+                                            }} 
+                                            className="bg-red-600 hover:bg-red-700"
+                                          >
+                                            Delete
+                                          </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                      </AlertDialogContent>
+                                    </AlertDialog>
+                                    <Button type="button" onClick={handleSavePinEdit}>
+                                      <Pencil className="h-4 w-4 mr-2" />
+                                      Save
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove the pin "{pin.name}" and all its historical data.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeletePin(pin.id, pin.name)} 
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                         );
@@ -350,9 +608,144 @@ const DeviceDetails = () => {
                             </div>
                           </div>
                           <div className="flex items-center">
-                            <Badge variant={pin.value === "1" ? "default" : "outline"} className="mr-3">
-                              {pin.value === "1" ? "ON" : "OFF"}
-                            </Badge>
+                            <div className="mr-3">
+                              <Badge variant={pin.value === "1" ? "default" : "outline"} className="mr-2">
+                                {pin.value === "1" ? "ON" : "OFF"}
+                              </Badge>
+                              <span className="text-xs text-gray-500">
+                                Last toggled: {new Date().toLocaleTimeString()}
+                              </span>
+                            </div>
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-blue-600 hover:bg-blue-50 mr-1"
+                                  onClick={() => handleOpenPinEdit(pin)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Pin Details: {selectedPin?.name}</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Name:</label>
+                                    <Input
+                                      value={editPinName}
+                                      onChange={(e) => setEditPinName(e.target.value)}
+                                      className="col-span-3"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Signal Type:</label>
+                                    <Select 
+                                      value={editPinSignalType} 
+                                      onValueChange={setEditPinSignalType}
+                                    >
+                                      <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Select signal type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {signalTypes.map(type => (
+                                          <SelectItem key={type} value={type}>
+                                            {type}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Data Type:</label>
+                                    <Select 
+                                      value={editPinDataType} 
+                                      onValueChange={setEditPinDataType}
+                                    >
+                                      <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Select data type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {dataTypes.map(type => (
+                                          <SelectItem key={type} value={type}>
+                                            {type}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Unit:</label>
+                                    <Input
+                                      value={editPinUnit}
+                                      onChange={(e) => setEditPinUnit(e.target.value)}
+                                      className="col-span-3"
+                                      placeholder="°C, %, pH, etc."
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Pin:</label>
+                                    <div className="col-span-3">
+                                      <span className="text-gray-700">{selectedPin?.pinNumber}</span>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Mode:</label>
+                                    <div className="col-span-3">
+                                      <span className="text-gray-700 capitalize">{selectedPin?.mode}</span>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Status:</label>
+                                    <div className="col-span-3">
+                                      <Badge 
+                                        variant={pin.value === "1" ? "default" : "outline"}
+                                      >
+                                        {pin.value === "1" ? "ON" : "OFF"}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                                <DialogFooter className="flex justify-between">
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button variant="destructive" type="button">
+                                        <Trash2 className="h-4 w-4 mr-2" />
+                                        Delete
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          This will permanently delete the pin and all associated data.
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                        <AlertDialogAction 
+                                          onClick={() => {
+                                            if (selectedPin) {
+                                              handleDeletePin(selectedPin.id, selectedPin.name);
+                                              setSelectedPin(null);
+                                            }
+                                          }} 
+                                          className="bg-red-600 hover:bg-red-700"
+                                        >
+                                          Delete
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                  <Button type="button" onClick={handleSavePinEdit}>
+                                    <Pencil className="h-4 w-4 mr-2" />
+                                    Save
+                                  </Button>
+                                </DialogFooter>
+                              </DialogContent>
+                            </Dialog>
                             <Button 
                               size="sm" 
                               variant={pin.value === "1" ? "default" : "outline"} 
@@ -361,14 +754,30 @@ const DeviceDetails = () => {
                             >
                               <Power className="h-4 w-4" />
                             </Button>
-                            <PinDetailsDialog 
-                              pin={pin} 
-                              trigger={
-                                <Button size="sm" variant="outline" className="text-blue-600 hover:bg-blue-50">
-                                  View Details
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
+                                  <Trash2 className="h-4 w-4" />
                                 </Button>
-                              }
-                            />
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will remove the pin "{pin.name}" and all its historical data.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeletePin(pin.id, pin.name)} 
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       ))}
@@ -412,55 +821,4 @@ const DeviceDetails = () => {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link to={`/devices/${device.id}/config`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Configure Pins
-                </Button>
-              </Link>
-              <Link to={`/devices/${device.id}/code`}>
-                <Button variant="outline" className="w-full justify-start">
-                  <Code className="mr-2 h-4 w-4" />
-                  View Code
-                </Button>
-              </Link>
-              <Button 
-                variant="outline" 
-                className="w-full justify-start"
-                onClick={() => setIsEditing(true)}
-              >
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Device
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Device
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete the device
-                      "{device.name}" and all associated pins and data.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteDevice} className="bg-red-600 hover:bg-red-700">
-                      Yes, delete device
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default DeviceDetails;
+              <Link to={`/devices/${device.id}/
