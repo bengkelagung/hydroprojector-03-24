@@ -2,6 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 
 export interface Project {
   id: string;
@@ -22,13 +23,13 @@ export interface Device {
   lastSeen?: string;
 }
 
-export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'custom';
+export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'analog' | 'digital' | 'custom';
 
 export interface Pin {
   id: string;
   deviceId: string;
   pinNumber: number;
-  dataType: 'analog' | 'digital';
+  dataType: string;
   signalType: SignalType;
   mode: 'input' | 'output';
   name: string;
@@ -48,7 +49,7 @@ interface HydroContextType {
   configurePin: (
     deviceId: string, 
     pinNumber: number, 
-    dataType: 'analog' | 'digital', 
+    dataType: string, 
     signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
@@ -61,6 +62,12 @@ interface HydroContextType {
   updateDeviceConnection: (deviceId: string, isConnected: boolean) => void;
   updatePinValue: (pinId: string, value: string) => void;
   generateDeviceCode: (deviceId: string) => string;
+  dataTypes: string[];
+  signalTypes: SignalType[];
+  pinModes: ('input' | 'output')[];
+  fetchDataTypes: () => Promise<void>;
+  fetchSignalTypes: () => Promise<void>;
+  fetchPinModes: () => Promise<void>;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -80,46 +87,199 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [pins, setPins] = useState<Pin[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [dataTypes, setDataTypes] = useState<string[]>([]);
+  const [signalTypes, setSignalTypes] = useState<SignalType[]>([]);
+  const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
 
-  // Load data from localStorage on component mount
+  // Fetch data when user changes
   useEffect(() => {
     if (user) {
-      const storedProjects = localStorage.getItem(`hydro_projects_${user.id}`);
-      const storedDevices = localStorage.getItem(`hydro_devices_${user.id}`);
-      const storedPins = localStorage.getItem(`hydro_pins_${user.id}`);
-
-      if (storedProjects) setProjects(JSON.parse(storedProjects));
-      if (storedDevices) setDevices(JSON.parse(storedDevices));
-      if (storedPins) setPins(JSON.parse(storedPins));
+      fetchProjects();
+      fetchDevices();
+      fetchPins();
+      fetchDataTypes();
+      fetchSignalTypes();
+      fetchPinModes();
+    } else {
+      // Clear data when logged out
+      setProjects([]);
+      setDevices([]);
+      setPins([]);
     }
   }, [user]);
 
-  // Save data to localStorage whenever it changes
-  useEffect(() => {
-    if (user) {
-      localStorage.setItem(`hydro_projects_${user.id}`, JSON.stringify(projects));
-      localStorage.setItem(`hydro_devices_${user.id}`, JSON.stringify(devices));
-      localStorage.setItem(`hydro_pins_${user.id}`, JSON.stringify(pins));
+  const fetchProjects = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      setProjects(data.map(project => ({
+        id: project.id,
+        name: project.name,
+        description: project.description || '',
+        userId: project.user_id,
+        createdAt: project.created_at
+      })));
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+      toast.error('Failed to load projects');
     }
-  }, [user, projects, devices, pins]);
+  };
+
+  const fetchDevices = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('devices')
+        .select(`
+          *,
+          projects!inner (
+            user_id
+          )
+        `)
+        .eq('projects.user_id', user.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      
+      setDevices(data.map(device => ({
+        id: device.id,
+        name: device.name,
+        description: device.description || '',
+        projectId: device.project_id,
+        type: device.type,
+        isConnected: device.is_connected,
+        lastSeen: device.last_seen,
+        createdAt: device.created_at
+      })));
+    } catch (error) {
+      console.error('Error fetching devices:', error);
+      toast.error('Failed to load devices');
+    }
+  };
+
+  const fetchPins = async () => {
+    if (!user) return;
+    
+    try {
+      const { data, error } = await supabase
+        .from('pin_configs')
+        .select(`
+          *,
+          devices!inner (
+            id,
+            projects!inner (
+              user_id
+            )
+          )
+        `)
+        .eq('devices.projects.user_id', user.id);
+      
+      if (error) throw error;
+      
+      setPins(data.map(pin => ({
+        id: pin.id,
+        deviceId: pin.device_id,
+        pinNumber: pin.pin_number,
+        dataType: pin.data_type,
+        signalType: pin.signal_type as SignalType,
+        mode: pin.mode as 'input' | 'output',
+        name: pin.name,
+        unit: pin.unit
+      })));
+    } catch (error) {
+      console.error('Error fetching pins:', error);
+      toast.error('Failed to load pin configurations');
+    }
+  };
+
+  const fetchDataTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('data_types')
+        .select('name')
+        .order('id', { ascending: true });
+      
+      if (error) throw error;
+      
+      setDataTypes(data.map(type => type.name));
+    } catch (error) {
+      console.error('Error fetching data types:', error);
+      toast.error('Failed to load data types');
+    }
+  };
+
+  const fetchSignalTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('signal_types')
+        .select('name')
+        .order('id', { ascending: true });
+      
+      if (error) throw error;
+      
+      setSignalTypes(data.map(type => type.name as SignalType));
+    } catch (error) {
+      console.error('Error fetching signal types:', error);
+      toast.error('Failed to load signal types');
+    }
+  };
+
+  const fetchPinModes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pin_modes')
+        .select('name')
+        .order('id', { ascending: true });
+      
+      if (error) throw error;
+      
+      setPinModes(data.map(mode => mode.name as 'input' | 'output'));
+    } catch (error) {
+      console.error('Error fetching pin modes:', error);
+      toast.error('Failed to load pin modes');
+    }
+  };
 
   const createProject = async (name: string, description: string): Promise<Project> => {
     if (!user) throw new Error('User must be logged in to create a project');
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newProject: Project = {
-      id: `project_${Date.now()}`,
-      name,
-      description,
-      userId: user.id,
-      createdAt: new Date().toISOString()
-    };
-    
-    setProjects(prev => [...prev, newProject]);
-    toast.success('Project created successfully!');
-    return newProject;
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .insert([{
+          name,
+          description,
+          user_id: user.id
+        }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      const newProject: Project = {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        userId: data.user_id,
+        createdAt: data.created_at
+      };
+      
+      setProjects(prev => [newProject, ...prev]);
+      toast.success('Project created successfully!');
+      return newProject;
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast.error('Failed to create project');
+      throw error;
+    }
   };
 
   const createDevice = async (
@@ -128,75 +288,120 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     projectId: string, 
     type: string
   ): Promise<Device> => {
-    // Validate project exists
-    const project = projects.find(p => p.id === projectId);
-    if (!project) throw new Error('Project not found');
-
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    const newDevice: Device = {
-      id: `device_${Date.now()}`,
-      name,
-      description,
-      projectId,
-      type,
-      isConnected: false,
-      createdAt: new Date().toISOString()
-    };
-    
-    setDevices(prev => [...prev, newDevice]);
-    toast.success('Device created successfully!');
-    return newDevice;
+    try {
+      const { data, error } = await supabase
+        .from('devices')
+        .insert([{
+          name,
+          description,
+          project_id: projectId,
+          type
+        }])
+        .select()
+        .single();
+      
+      if (error) throw error;
+      
+      const newDevice: Device = {
+        id: data.id,
+        name: data.name,
+        description: data.description || '',
+        projectId: data.project_id,
+        type: data.type,
+        isConnected: data.is_connected,
+        lastSeen: data.last_seen,
+        createdAt: data.created_at
+      };
+      
+      setDevices(prev => [newDevice, ...prev]);
+      toast.success('Device created successfully!');
+      return newDevice;
+    } catch (error) {
+      console.error('Error creating device:', error);
+      toast.error('Failed to create device');
+      throw error;
+    }
   };
 
   const configurePin = async (
     deviceId: string, 
     pinNumber: number, 
-    dataType: 'analog' | 'digital', 
+    dataType: string, 
     signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
     unit?: string
   ): Promise<Pin> => {
-    // Validate device exists
-    const device = devices.find(d => d.id === deviceId);
-    if (!device) throw new Error('Device not found');
-
-    // Check if pin already exists
-    const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
-    if (existingPin) {
-      // Update existing pin
-      const updatedPin: Pin = {
-        ...existingPin,
-        dataType,
-        signalType,
-        mode,
-        name,
-        unit
+    try {
+      // Check if pin already exists
+      const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
+      
+      let pinData;
+      
+      if (existingPin) {
+        // Update existing pin
+        const { data, error } = await supabase
+          .from('pin_configs')
+          .update({
+            data_type: dataType,
+            signal_type: signalType,
+            mode,
+            name,
+            unit
+          })
+          .eq('id', existingPin.id)
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        pinData = data;
+        toast.success('Pin updated successfully!');
+      } else {
+        // Create new pin
+        const { data, error } = await supabase
+          .from('pin_configs')
+          .insert([{
+            device_id: deviceId,
+            pin_number: pinNumber,
+            data_type: dataType,
+            signal_type: signalType,
+            mode,
+            name,
+            unit
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        pinData = data;
+        toast.success('Pin configured successfully!');
+      }
+      
+      const newPin: Pin = {
+        id: pinData.id,
+        deviceId: pinData.device_id,
+        pinNumber: pinData.pin_number,
+        dataType: pinData.data_type,
+        signalType: pinData.signal_type as SignalType,
+        mode: pinData.mode as 'input' | 'output',
+        name: pinData.name,
+        unit: pinData.unit
       };
       
-      setPins(prev => prev.map(p => p.id === existingPin.id ? updatedPin : p));
-      toast.success('Pin updated successfully!');
-      return updatedPin;
+      if (existingPin) {
+        setPins(prev => prev.map(p => p.id === existingPin.id ? newPin : p));
+      } else {
+        setPins(prev => [...prev, newPin]);
+      }
+      
+      return newPin;
+    } catch (error) {
+      console.error('Error configuring pin:', error);
+      toast.error('Failed to configure pin');
+      throw error;
     }
-
-    // Create new pin
-    const newPin: Pin = {
-      id: `pin_${Date.now()}`,
-      deviceId,
-      pinNumber,
-      dataType,
-      signalType,
-      mode,
-      name,
-      unit,
-      lastUpdated: new Date().toISOString()
-    };
-    
-    setPins(prev => [...prev, newPin]);
-    toast.success('Pin configured successfully!');
-    return newPin;
   };
 
   const selectProject = (project: Project | null) => {
@@ -219,29 +424,61 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return pins.filter(pin => pin.deviceId === deviceId);
   };
 
-  const updateDeviceConnection = (deviceId: string, isConnected: boolean) => {
-    setDevices(prev => 
-      prev.map(device => 
-        device.id === deviceId 
-          ? { ...device, isConnected, lastSeen: isConnected ? new Date().toISOString() : device.lastSeen } 
-          : device
-      )
-    );
+  const updateDeviceConnection = async (deviceId: string, isConnected: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .update({ 
+          is_connected: isConnected,
+          last_seen: isConnected ? new Date().toISOString() : undefined
+        })
+        .eq('id', deviceId);
+      
+      if (error) throw error;
+      
+      setDevices(prev => 
+        prev.map(device => 
+          device.id === deviceId 
+            ? { ...device, isConnected, lastSeen: isConnected ? new Date().toISOString() : device.lastSeen } 
+            : device
+        )
+      );
+    } catch (error) {
+      console.error('Error updating device connection:', error);
+      toast.error('Failed to update device connection status');
+    }
   };
 
-  const updatePinValue = (pinId: string, value: string) => {
-    setPins(prev => 
-      prev.map(pin => 
-        pin.id === pinId 
-          ? { ...pin, value, lastUpdated: new Date().toISOString() } 
-          : pin
-      )
-    );
+  const updatePinValue = async (pinId: string, value: string) => {
+    try {
+      // Insert value into pin_data table
+      const { error } = await supabase
+        .from('pin_data')
+        .insert([{
+          pin_config_id: pinId,
+          value
+        }]);
+      
+      if (error) throw error;
+      
+      setPins(prev => 
+        prev.map(pin => 
+          pin.id === pinId 
+            ? { ...pin, value, lastUpdated: new Date().toISOString() } 
+            : pin
+        )
+      );
+    } catch (error) {
+      console.error('Error updating pin value:', error);
+      toast.error('Failed to update pin value');
+    }
   };
 
   const generateDeviceCode = (deviceId: string): string => {
     const device = devices.find(d => d.id === deviceId);
     if (!device) throw new Error('Device not found');
+    
+    const devicePins = pins.filter(p => p.deviceId === deviceId);
     
     // Generate Arduino code for ESP32
     return `
@@ -260,12 +497,13 @@ const char* password = "YOUR_WIFI_PASSWORD";
 const char* deviceId = "${device.id}";
 
 // API endpoint (replace with your actual endpoint in production)
-const char* apiEndpoint = "https://your-hydroponics-api.com/data";
+const char* apiEndpoint = "https://azgxttbpxelnlemnvenl.supabase.co/rest/v1/pin_data";
+const char* supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Z3h0dGJweGVsbmxlbW52ZW5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE2OTA5NzAsImV4cCI6MjA1NzI2Njk3MH0.Q5Niw0hZItt4KM-THiCOt9b4g7eDHsH5Wg4PoZ83m8U";
 
 // Function prototypes
 void setupWiFi();
 void sendSensorData();
-${pins.filter(p => p.deviceId === deviceId).map(pin => 
+${devicePins.map(pin => 
   `void setup${pin.name.replace(/\s+/g, '')}();
 void read${pin.name.replace(/\s+/g, '')}();`
 ).join('\n')}
@@ -275,7 +513,7 @@ void setup() {
   setupWiFi();
   
   // Setup pins
-${pins.filter(p => p.deviceId === deviceId).map(pin => 
+${devicePins.map(pin => 
   `  // Setup for ${pin.name} (${pin.signalType}) on pin ${pin.pinNumber}
   pinMode(${pin.pinNumber}, ${pin.mode === 'input' ? 'INPUT' : 'OUTPUT'});`
 ).join('\n')}
@@ -283,7 +521,7 @@ ${pins.filter(p => p.deviceId === deviceId).map(pin =>
 
 void loop() {
   // Read sensors and send data
-${pins.filter(p => p.deviceId === deviceId && p.mode === 'input').map(pin => 
+${devicePins.filter(p => p.mode === 'input').map(pin => 
   `  read${pin.name.replace(/\s+/g, '')}();`
 ).join('\n')}
   
@@ -314,41 +552,60 @@ void sendSensorData() {
     HTTPClient http;
     http.begin(apiEndpoint);
     http.addHeader("Content-Type", "application/json");
+    http.addHeader("apikey", supabaseKey);
+    http.addHeader("Prefer", "return=minimal");
     
     // Create JSON document
-    StaticJsonDocument<200> doc;
-    doc["deviceId"] = deviceId;
+    StaticJsonDocument<1024> doc;
     
     // Add sensor readings
-${pins.filter(p => p.deviceId === deviceId && p.mode === 'input').map(pin => 
-  `    doc["${pin.name}"] = ${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber});`
-).join('\n')}
-    
-    // Serialize JSON to string
-    String requestBody;
-    serializeJson(doc, requestBody);
-    
-    // Send HTTP POST request
-    int httpResponseCode = http.POST(requestBody);
-    
-    if (httpResponseCode > 0) {
-      String response = http.getString();
-      Serial.println("HTTP Response code: " + String(httpResponseCode));
-      Serial.println(response);
-    } else {
-      Serial.println("Error on HTTP request");
-    }
-    
-    http.end();
+${devicePins.filter(p => p.mode === 'input').map(pin => {
+  const readFunction = pin.dataType === 'float' ? 
+    `(float)analogRead(${pin.pinNumber}) / 4095.0 * 3.3` : 
+    `${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber})`;
+      
+  return `    // Send ${pin.name} data
+    {
+      JsonDocument pinData;
+      pinData["pin_config_id"] = "${pin.id}";
+      pinData["value"] = String(${readFunction});
+      
+      String jsonStr;
+      serializeJson(pinData, jsonStr);
+      
+      http.begin(apiEndpoint);
+      http.addHeader("Content-Type", "application/json");
+      http.addHeader("apikey", supabaseKey);
+      http.addHeader("Prefer", "return=minimal");
+      
+      int httpResponseCode = http.POST(jsonStr);
+      if (httpResponseCode > 0) {
+        Serial.print("${pin.name} data sent. HTTP Response code: ");
+        Serial.println(httpResponseCode);
+      }
+      else {
+        Serial.print("Error sending ${pin.name} data. HTTP Response code: ");
+        Serial.println(httpResponseCode);
+      }
+      
+      http.end();
+    }`;
+}).join('\n\n')}
   }
 }
 
-${pins.filter(p => p.deviceId === deviceId).map(pin => `
+${devicePins.map(pin => {
+  const readFunction = pin.dataType === 'float' ? 
+    `(float)analogRead(${pin.pinNumber}) / 4095.0 * 3.3` : 
+    `${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber})`;
+  
+  return `
 void read${pin.name.replace(/\s+/g, '')}() {
-  int ${pin.name.replace(/\s+/g, '')}Value = ${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber});
+  ${pin.dataType === 'float' ? 'float' : 'int'} ${pin.name.replace(/\s+/g, '')}Value = ${readFunction};
   Serial.print("${pin.name}: ");
   Serial.println(${pin.name.replace(/\s+/g, '')}Value);
-}`).join('\n')}
+}`;
+}).join('\n')}
 `;
   };
 
@@ -369,7 +626,13 @@ void read${pin.name.replace(/\s+/g, '')}() {
         getPinsByDevice,
         updateDeviceConnection,
         updatePinValue,
-        generateDeviceCode
+        generateDeviceCode,
+        dataTypes,
+        signalTypes,
+        pinModes,
+        fetchDataTypes,
+        fetchSignalTypes,
+        fetchPinModes
       }}
     >
       {children}

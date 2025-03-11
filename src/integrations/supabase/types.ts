@@ -9,7 +9,189 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      data_types: {
+        Row: {
+          id: number
+          name: string
+        }
+        Insert: {
+          id?: number
+          name: string
+        }
+        Update: {
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      devices: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_connected: boolean | null
+          last_seen: string | null
+          name: string
+          project_id: string
+          type: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_seen?: string | null
+          name: string
+          project_id: string
+          type?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_connected?: boolean | null
+          last_seen?: string | null
+          name?: string
+          project_id?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "devices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_configs: {
+        Row: {
+          created_at: string
+          data_type: string
+          device_id: string
+          id: string
+          mode: string
+          name: string
+          pin_number: number
+          signal_type: string
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          data_type: string
+          device_id: string
+          id?: string
+          mode: string
+          name: string
+          pin_number: number
+          signal_type: string
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          data_type?: string
+          device_id?: string
+          id?: string
+          mode?: string
+          name?: string
+          pin_number?: number
+          signal_type?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_configs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_data: {
+        Row: {
+          id: string
+          pin_config_id: string
+          timestamp: string
+          value: string
+        }
+        Insert: {
+          id?: string
+          pin_config_id: string
+          timestamp?: string
+          value: string
+        }
+        Update: {
+          id?: string
+          pin_config_id?: string
+          timestamp?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_data_pin_config_id_fkey"
+            columns: ["pin_config_id"]
+            isOneToOne: false
+            referencedRelation: "pin_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pin_modes: {
+        Row: {
+          id: number
+          name: string
+        }
+        Insert: {
+          id?: number
+          name: string
+        }
+        Update: {
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
+      projects: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      signal_types: {
+        Row: {
+          id: number
+          name: string
+        }
+        Insert: {
+          id?: number
+          name: string
+        }
+        Update: {
+          id?: number
+          name?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

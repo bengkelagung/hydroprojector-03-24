@@ -1,19 +1,21 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { Session, User } from '@supabase/supabase-js';
 
-interface User {
+interface AuthUser {
   id: string;
   email: string;
   name: string;
 }
 
 interface AuthContextType {
-  user: User | null;
+  user: AuthUser | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,37 +29,77 @@ export const useAuth = () => {
 };
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [session, setSession] = useState<Session | null>(null);
 
   useEffect(() => {
-    // Check if user is stored in localStorage
-    const storedUser = localStorage.getItem('hydro_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    // Set up auth listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        setSession(session);
+        setLoading(true);
+        
+        if (session?.user) {
+          const { id, email } = session.user;
+          // Use email name as fallback if no user metadata
+          const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
+          
+          setUser({
+            id,
+            email: email || '',
+            name
+          });
+        } else {
+          setUser(null);
+        }
+        
+        setLoading(false);
+      }
+    );
+
+    // Get initial session
+    const initializeAuth = async () => {
+      setLoading(true);
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { id, email } = session.user;
+        const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
+        
+        setUser({
+          id,
+          email: email || '',
+          name
+        });
+      }
+      
+      setLoading(false);
+    };
+
+    initializeAuth();
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   const login = async (email: string, password: string) => {
     try {
       setLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // For demo purposes, we'll accept any credentials
-      // In a real app, this would validate against a backend
-      const newUser = {
-        id: `user_${Date.now()}`,
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0]
-      };
-      
-      setUser(newUser);
-      localStorage.setItem('hydro_user', JSON.stringify(newUser));
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
       toast.success('Login successful!');
-    } catch (error) {
-      toast.error('Login failed. Please try again.');
+    } catch (error: any) {
+      toast.error(error.message || 'Login failed. Please try again.');
       throw error;
     } finally {
       setLoading(false);
@@ -67,30 +109,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (name: string, email: string, password: string) => {
     try {
       setLoading(true);
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      const newUser = {
-        id: `user_${Date.now()}`,
+
+      // Register user with Supabase
+      const { data, error } = await supabase.auth.signUp({
         email,
-        name
-      };
-      
-      setUser(newUser);
-      localStorage.setItem('hydro_user', JSON.stringify(newUser));
+        password,
+        options: {
+          data: {
+            name: name
+          }
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
       toast.success('Registration successful!');
-    } catch (error) {
-      toast.error('Registration failed. Please try again.');
+      
+      // For email confirmation flow, show appropriate message
+      if (!data.session) {
+        toast.info('Please check your email to confirm your account');
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Registration failed. Please try again.');
       throw error;
     } finally {
       setLoading(false);
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('hydro_user');
-    toast.success('Logged out successfully');
+  const logout = async () => {
+    try {
+      setLoading(true);
+      const { error } = await supabase.auth.signOut();
+      
+      if (error) {
+        throw error;
+      }
+      
+      setUser(null);
+      toast.success('Logged out successfully');
+    } catch (error: any) {
+      toast.error(error.message || 'Logout failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
