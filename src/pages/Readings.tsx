@@ -4,6 +4,8 @@ import { Activity, Droplet, ThermometerIcon, AlertTriangle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro } from '@/contexts/HydroContext';
 import { Link } from 'react-router-dom';
+import PinDetailsDialog from '@/components/PinDetailsDialog';
+import { Button } from '@/components/ui/button';
 
 const Readings = () => {
   const { pins, devices, projects } = useHydro();
@@ -137,9 +139,10 @@ const Readings = () => {
                         </div>
                       )}
                       <div className="mt-2">
-                        <Link to={`/devices/${device?.id}/details`} className="text-sm text-blue-600 hover:text-blue-800">
-                          View Details
-                        </Link>
+                        <PinDetailsDialog 
+                          pin={pin} 
+                          trigger={<Button variant="link" className="text-sm text-blue-600 hover:text-blue-800 px-0">View Details</Button>}
+                        />
                       </div>
                     </div>
                   </div>

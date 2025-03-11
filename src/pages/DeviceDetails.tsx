@@ -23,6 +23,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { toast } from "@/components/ui/use-toast";
+import PinDetailsDialog from '@/components/PinDetailsDialog';
 
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -312,30 +313,14 @@ const DeviceDetails = () => {
                               <div className="font-semibold text-gray-800 mr-3">
                                 {value}{pin.unit}
                               </div>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
-                                    <Trash2 className="h-4 w-4" />
+                              <PinDetailsDialog 
+                                pin={pin} 
+                                trigger={
+                                  <Button size="sm" variant="outline" className="text-blue-600 hover:bg-blue-50">
+                                    View Details
                                   </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will remove the pin "{pin.name}" and all its historical data.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                      onClick={() => handleDeletePin(pin.id, pin.name)} 
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                                }
+                              />
                             </div>
                           </div>
                         );
@@ -376,30 +361,14 @@ const DeviceDetails = () => {
                             >
                               <Power className="h-4 w-4" />
                             </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
-                                  <Trash2 className="h-4 w-4" />
+                            <PinDetailsDialog 
+                              pin={pin} 
+                              trigger={
+                                <Button size="sm" variant="outline" className="text-blue-600 hover:bg-blue-50">
+                                  View Details
                                 </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove the pin "{pin.name}" and all its historical data.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeletePin(pin.id, pin.name)} 
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                              }
+                            />
                           </div>
                         </div>
                       ))}
