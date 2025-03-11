@@ -1,25 +1,25 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { useHydro } from '@/contexts/HydroContext';
+import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import PinDetailsDialog from '@/components/PinDetailsDialog';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { projects, devices, pins, getDevicesByProject, getPinsByDevice } = useHydro();
+  const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
+  const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
 
-  // Mock some data if no real data exists for better demonstration
   useEffect(() => {
-    // This will only be used for visualization if there's no real data
     const mockDataUpdate = () => {
       if (pins.length > 0) {
         pins.forEach(pin => {
-          // Simulate random value changes for input pins
           if (pin.mode === 'input') {
             let value;
             switch (pin.signalType) {
@@ -39,8 +39,6 @@ const Dashboard = () => {
                 value = Math.floor(Math.random() * 100).toString();
             }
             
-            // This would normally update the pin value in state or backend
-            // For this demo, we're just showing how it would work
             console.log(`Updated ${pin.name} (${pin.signalType}) to ${value}`);
           }
         });
@@ -51,7 +49,6 @@ const Dashboard = () => {
     return () => clearInterval(interval);
   }, [pins]);
 
-  // Helper function to get a color based on signal type
   const getSignalColor = (signalType: string) => {
     switch (signalType) {
       case 'pH': return 'bg-purple-500';
@@ -64,7 +61,6 @@ const Dashboard = () => {
     }
   };
 
-  // Get a status icon based on device connection
   const getStatusIcon = (isConnected: boolean) => {
     return isConnected ? (
       <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 flex items-center">
@@ -79,7 +75,6 @@ const Dashboard = () => {
     );
   };
 
-  // Render a placeholder if no projects exist
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-20">
@@ -99,6 +94,11 @@ const Dashboard = () => {
       </div>
     );
   }
+
+  const handleOpenPinDetails = (pin: Pin) => {
+    setSelectedPin(pin);
+    setIsPinDetailsOpen(true);
+  };
 
   return (
     <div className="space-y-8">
@@ -290,12 +290,10 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {/* Display each input pin as a separate card */}
               {pins.filter(p => p.mode === 'input').map(pin => {
                 const device = devices.find(d => d.id === pin.deviceId);
                 const project = device ? projects.find(p => p.id === device.projectId) : null;
                 
-                // Generate mock value for demo purposes if none exists
                 let mockValue;
                 switch (pin.signalType) {
                   case 'pH':
@@ -316,7 +314,6 @@ const Dashboard = () => {
                 
                 const value = pin.value || mockValue;
                 
-                // Determine alert status (just for UI demonstration)
                 let alert = false;
                 if (pin.signalType === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
                   alert = true;
@@ -360,7 +357,6 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
-                          {/* Visual indicator appropriate to the type of sensor */}
                           {pin.signalType === 'pH' && (
                             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div 
@@ -386,9 +382,13 @@ const Dashboard = () => {
                             </div>
                           )}
                           <div className="mt-2">
-                            <Link to={`/devices/${device?.id}/details`} className="text-sm text-blue-600 hover:text-blue-800">
+                            <Button 
+                              variant="link" 
+                              className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
+                              onClick={() => handleOpenPinDetails(pin)}
+                            >
                               View Details
-                            </Link>
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -400,6 +400,12 @@ const Dashboard = () => {
           )}
         </TabsContent>
       </Tabs>
+
+      <PinDetailsDialog 
+        open={isPinDetailsOpen}
+        onOpenChange={setIsPinDetailsOpen}
+        pin={selectedPin}
+      />
     </div>
   );
 };
