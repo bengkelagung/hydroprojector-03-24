@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
@@ -174,7 +173,9 @@ const Dashboard = () => {
                         Add Device
                       </Button>
                     </Link>
-                    <Button variant="ghost" size="sm">View Details</Button>
+                    <Link to={`/projects/${project.id}/details`}>
+                      <Button variant="ghost" size="sm">View Details</Button>
+                    </Link>
                   </CardFooter>
                 </Card>
               );

@@ -1,19 +1,37 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { PlusCircle, Pencil, ChevronLeft, Cpu } from 'lucide-react';
+import { PlusCircle, Pencil, ChevronLeft, Cpu, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useHydro } from '@/contexts/HydroContext';
 import { Separator } from '@/components/ui/separator';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 const ProjectDetails = () => {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects, getDevicesByProject } = useHydro();
+  const { projects, getDevicesByProject, updateProject, deleteProject } = useHydro();
   
   const project = projects.find(p => p.id === projectId);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(project?.name || '');
+  const [editDescription, setEditDescription] = useState(project?.description || '');
   
   if (!project) {
     return (
@@ -29,6 +47,37 @@ const ProjectDetails = () => {
 
   const devices = getDevicesByProject(project.id);
   const connectedDevices = devices.filter(d => d.isConnected);
+  
+  const handleSaveEdit = () => {
+    if (editName.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Project name cannot be empty",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    updateProject(project.id, {
+      name: editName,
+      description: editDescription
+    });
+    
+    setIsEditing(false);
+    toast({
+      title: "Project updated",
+      description: "The project has been updated successfully",
+    });
+  };
+  
+  const handleDeleteProject = () => {
+    deleteProject(project.id);
+    toast({
+      title: "Project deleted",
+      description: "The project and all associated devices have been deleted",
+    });
+    navigate('/projects');
+  };
   
   return (
     <div className="space-y-8">
@@ -47,23 +96,82 @@ const ProjectDetails = () => {
               <CardTitle>Project Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Description</h3>
-                  <p className="text-gray-800 mt-1">{project.description}</p>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Name</h3>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Project name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Project description"
+                      rows={4}
+                    />
+                  </div>
                 </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Created</h3>
-                  <p className="text-gray-800 mt-1">{new Date(project.createdAt).toLocaleString()}</p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Description</h3>
+                    <p className="text-gray-800 mt-1">{project.description}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Created</h3>
+                    <p className="text-gray-800 mt-1">{new Date(project.createdAt).toLocaleString()}</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
             <CardFooter className="border-t pt-4">
-              <Button variant="outline" className="w-full sm:w-auto">
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Project
-              </Button>
+              {isEditing ? (
+                <div className="flex space-x-2 w-full">
+                  <Button variant="outline" className="w-full" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </Button>
+                  <Button className="w-full bg-hydro-blue hover:bg-blue-700" onClick={handleSaveEdit}>
+                    Save Changes
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex space-x-2 w-full">
+                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsEditing(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Project
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full sm:w-auto">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Project
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the project
+                          "{project.name}" and all associated devices and data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700">
+                          Yes, delete project
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </CardFooter>
           </Card>
           
@@ -91,7 +199,7 @@ const ProjectDetails = () => {
                         <div className="ml-3">
                           <h4 className="font-medium text-gray-800">{device.name}</h4>
                           <p className="text-xs text-gray-500">
-                            {device.description.substring(0, 60)}{device.description.length > 60 ? '...' : ''}
+                            {device.description?.substring(0, 60)}{device.description && device.description.length > 60 ? '...' : ''}
                           </p>
                         </div>
                       </div>
@@ -155,10 +263,37 @@ const ProjectDetails = () => {
                   Add New Device
                 </Button>
               </Link>
-              <Button variant="outline" className="w-full justify-start">
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={() => setIsEditing(true)}
+              >
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit Project
               </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Project
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the project
+                      "{project.name}" and all associated devices and data.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700">
+                      Yes, delete project
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </div>

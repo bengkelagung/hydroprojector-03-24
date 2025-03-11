@@ -1,20 +1,40 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil } from 'lucide-react';
+import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2 } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useHydro } from '@/contexts/HydroContext';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger
+} from "@/components/ui/alert-dialog";
+import { toast } from "@/components/ui/use-toast";
 
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
-  const { devices, projects, pins, getPinsByDevice } = useHydro();
+  const { devices, projects, pins, getPinsByDevice, updateDevice, deleteDevice, deletePin } = useHydro();
   
   const device = devices.find(d => d.id === deviceId);
+  
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(device?.name || '');
+  const [editDescription, setEditDescription] = useState(device?.description || '');
+  const [editProjectId, setEditProjectId] = useState(device?.projectId || '');
   
   if (!device) {
     return (
@@ -46,6 +66,46 @@ const DeviceDetails = () => {
     }
   };
   
+  const handleSaveEdit = () => {
+    if (editName.trim() === '') {
+      toast({
+        title: "Error",
+        description: "Device name cannot be empty",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    updateDevice(device.id, {
+      name: editName,
+      description: editDescription,
+      projectId: editProjectId
+    });
+    
+    setIsEditing(false);
+    toast({
+      title: "Device updated",
+      description: "The device has been updated successfully",
+    });
+  };
+  
+  const handleDeleteDevice = () => {
+    deleteDevice(device.id);
+    toast({
+      title: "Device deleted",
+      description: "The device and all associated pins have been deleted",
+    });
+    navigate('/devices');
+  };
+  
+  const handleDeletePin = (pinId: string, pinName: string) => {
+    deletePin(pinId);
+    toast({
+      title: "Pin deleted",
+      description: `The pin "${pinName}" has been deleted`,
+    });
+  };
+  
   return (
     <div className="space-y-8">
       <div className="flex items-center space-x-2">
@@ -70,36 +130,111 @@ const DeviceDetails = () => {
               <CardTitle>Device Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Description</h3>
-                  <p className="text-gray-800 mt-1">{device.description}</p>
+              {isEditing ? (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Name</h3>
+                    <Input
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      placeholder="Device name"
+                    />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
+                    <Textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      placeholder="Device description"
+                      rows={4}
+                    />
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Project</h3>
+                    <Select value={editProjectId} onValueChange={setEditProjectId}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select a project" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projects.map(project => (
+                          <SelectItem key={project.id} value={project.id}>
+                            {project.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Project</h3>
-                  <p className="text-gray-800 mt-1">
-                    {project ? (
-                      <Link to={`/projects/${project.id}/details`} className="text-hydro-blue hover:underline">
-                        {project.name}
-                      </Link>
-                    ) : 'Not assigned to a project'}
-                  </p>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Description</h3>
+                    <p className="text-gray-800 mt-1">{device.description}</p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Project</h3>
+                    <p className="text-gray-800 mt-1">
+                      {project ? (
+                        <Link to={`/projects/${project.id}/details`} className="text-hydro-blue hover:underline">
+                          {project.name}
+                        </Link>
+                      ) : 'Not assigned to a project'}
+                    </p>
+                  </div>
+                  
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Last Seen</h3>
+                    <p className="text-gray-800 mt-1">
+                      {device.lastSeen ? new Date(device.lastSeen).toLocaleString() : 'Never'}
+                    </p>
+                  </div>
                 </div>
-                
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Last Seen</h3>
-                  <p className="text-gray-800 mt-1">
-                    {device.lastSeen ? new Date(device.lastSeen).toLocaleString() : 'Never'}
-                  </p>
-                </div>
-              </div>
+              )}
             </CardContent>
             <CardFooter className="border-t pt-4">
-              <Button variant="outline" className="w-full sm:w-auto">
-                <Pencil className="mr-2 h-4 w-4" />
-                Edit Device
-              </Button>
+              {isEditing ? (
+                <div className="flex space-x-2 w-full">
+                  <Button variant="outline" className="w-full" onClick={() => setIsEditing(false)}>
+                    Cancel
+                  </Button>
+                  <Button className="w-full bg-hydro-blue hover:bg-blue-700" onClick={handleSaveEdit}>
+                    Save Changes
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex space-x-2 w-full">
+                  <Button variant="outline" className="w-full sm:w-auto" onClick={() => setIsEditing(true)}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit Device
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full sm:w-auto">
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Device
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This action cannot be undone. This will permanently delete the device
+                          "{device.name}" and all associated pins and data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteDevice} className="bg-red-600 hover:bg-red-700">
+                          Yes, delete device
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              )}
             </CardFooter>
           </Card>
           
@@ -156,8 +291,34 @@ const DeviceDetails = () => {
                                 <p className="text-xs text-gray-500 capitalize">{pin.signalType} Sensor (Pin {pin.pinNumber})</p>
                               </div>
                             </div>
-                            <div className="font-semibold text-gray-800">
-                              {value}{pin.unit}
+                            <div className="flex items-center">
+                              <div className="font-semibold text-gray-800 mr-3">
+                                {value}{pin.unit}
+                              </div>
+                              <AlertDialog>
+                                <AlertDialogTrigger asChild>
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </AlertDialogTrigger>
+                                <AlertDialogContent>
+                                  <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                      This will remove the pin "{pin.name}" and all its historical data.
+                                    </AlertDialogDescription>
+                                  </AlertDialogHeader>
+                                  <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction 
+                                      onClick={() => handleDeletePin(pin.id, pin.name)} 
+                                      className="bg-red-600 hover:bg-red-700"
+                                    >
+                                      Delete
+                                    </AlertDialogAction>
+                                  </AlertDialogFooter>
+                                </AlertDialogContent>
+                              </AlertDialog>
                             </div>
                           </div>
                         );
@@ -186,10 +347,34 @@ const DeviceDetails = () => {
                               <p className="text-xs text-gray-500 capitalize">{pin.signalType} Control (Pin {pin.pinNumber})</p>
                             </div>
                           </div>
-                          <div>
-                            <Badge variant={pin.value === "1" ? "default" : "outline"}>
+                          <div className="flex items-center">
+                            <Badge variant={pin.value === "1" ? "default" : "outline"} className="mr-3">
                               {pin.value === "1" ? "ON" : "OFF"}
                             </Badge>
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This will remove the pin "{pin.name}" and all its historical data.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction 
+                                    onClick={() => handleDeletePin(pin.id, pin.name)} 
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Delete
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </div>
                         </div>
                       ))}
@@ -245,6 +430,37 @@ const DeviceDetails = () => {
                   View Code
                 </Button>
               </Link>
+              <Button 
+                variant="outline" 
+                className="w-full justify-start"
+                onClick={() => setIsEditing(true)}
+              >
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit Device
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Device
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete the device
+                      "{device.name}" and all associated pins and data.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDeleteDevice} className="bg-red-600 hover:bg-red-700">
+                      Yes, delete device
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         </div>
