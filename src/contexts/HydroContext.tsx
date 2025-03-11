@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -68,6 +67,11 @@ interface HydroContextType {
   fetchDataTypes: () => Promise<void>;
   fetchSignalTypes: () => Promise<void>;
   fetchPinModes: () => Promise<void>;
+  updateProject: (projectId: string, data: Partial<Omit<Project, 'id' | 'userId' | 'createdAt'>>) => void;
+  deleteProject: (projectId: string) => void;
+  updateDevice: (deviceId: string, data: Partial<Omit<Device, 'id' | 'createdAt'>>) => void;
+  deleteDevice: (deviceId: string) => void;
+  deletePin: (pinId: string) => void;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -609,6 +613,127 @@ void read${pin.name.replace(/\s+/g, '')}() {
 `;
   };
 
+  const updateProject = async (projectId: string, data: Partial<Omit<Project, 'id' | 'userId' | 'createdAt'>>) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .update({
+          name: data.name,
+          description: data.description
+        })
+        .eq('id', projectId);
+      
+      if (error) throw error;
+      
+      setProjects(prev => prev.map(project => 
+        project.id === projectId 
+          ? { ...project, ...data } 
+          : project
+      ));
+      
+      toast.success('Project updated successfully!');
+    } catch (error) {
+      console.error('Error updating project:', error);
+      toast.error('Failed to update project');
+    }
+  };
+  
+  const deleteProject = async (projectId: string) => {
+    try {
+      // This will cascade and delete all devices, pins, and pin data associated with this project
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setProjects(prev => prev.filter(project => project.id !== projectId));
+      
+      // Also filter out devices and pins associated with this project
+      const projectDevices = devices.filter(device => device.projectId === projectId);
+      const projectDeviceIds = projectDevices.map(device => device.id);
+      
+      setDevices(prev => prev.filter(device => !projectDeviceIds.includes(device.id)));
+      setPins(prev => prev.filter(pin => !projectDeviceIds.includes(pin.deviceId)));
+      
+      toast.success('Project and all associated data deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error('Failed to delete project');
+    }
+  };
+  
+  const updateDevice = async (deviceId: string, data: Partial<Omit<Device, 'id' | 'createdAt'>>) => {
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .update({
+          name: data.name,
+          description: data.description,
+          project_id: data.projectId,
+          type: data.type,
+          is_connected: data.isConnected
+        })
+        .eq('id', deviceId);
+      
+      if (error) throw error;
+      
+      setDevices(prev => prev.map(device => 
+        device.id === deviceId 
+          ? { ...device, ...data } 
+          : device
+      ));
+      
+      toast.success('Device updated successfully!');
+    } catch (error) {
+      console.error('Error updating device:', error);
+      toast.error('Failed to update device');
+    }
+  };
+  
+  const deleteDevice = async (deviceId: string) => {
+    try {
+      // This will cascade and delete all pins and pin data associated with this device
+      const { error } = await supabase
+        .from('devices')
+        .delete()
+        .eq('id', deviceId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setDevices(prev => prev.filter(device => device.id !== deviceId));
+      setPins(prev => prev.filter(pin => pin.deviceId !== deviceId));
+      
+      toast.success('Device and all associated data deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting device:', error);
+      toast.error('Failed to delete device');
+    }
+  };
+  
+  const deletePin = async (pinId: string) => {
+    try {
+      // This will cascade and delete all pin data associated with this pin
+      const { error } = await supabase
+        .from('pin_configs')
+        .delete()
+        .eq('id', pinId);
+      
+      if (error) throw error;
+      
+      // Update local state
+      setPins(prev => prev.filter(pin => pin.id !== pinId));
+      
+      toast.success('Pin and all associated data deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting pin:', error);
+      toast.error('Failed to delete pin');
+    }
+  };
+
   return (
     <HydroContext.Provider
       value={{
@@ -632,7 +757,12 @@ void read${pin.name.replace(/\s+/g, '')}() {
         pinModes,
         fetchDataTypes,
         fetchSignalTypes,
-        fetchPinModes
+        fetchPinModes,
+        updateProject,
+        deleteProject,
+        updateDevice,
+        deleteDevice,
+        deletePin
       }}
     >
       {children}
