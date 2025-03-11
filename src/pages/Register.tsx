@@ -1,14 +1,13 @@
 
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Leaf, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { Leaf, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Register = () => {
   const [name, setName] = useState('');
@@ -16,45 +15,28 @@ const Register = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const { register } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-    setSuccess(null);
     
     if (!name || !email || !password || !confirmPassword) {
-      setError('Please fill in all fields');
+      toast.error('Please fill in all fields');
       return;
     }
     
     if (password !== confirmPassword) {
-      setError('Passwords do not match');
+      toast.error('Passwords do not match');
       return;
     }
     
     try {
       setIsSubmitting(true);
-      const { session } = await register(name, email, password);
-      
-      if (!session) {
-        // Email confirmation is required
-        setSuccess('Registration successful! Please check your email to confirm your account before logging in.');
-      } else {
-        // User is immediately logged in
-        navigate('/dashboard');
-      }
-    } catch (error: any) {
+      await register(name, email, password);
+      navigate('/dashboard');
+    } catch (error) {
       console.error('Registration error:', error);
-      
-      if (error.message.includes('already registered')) {
-        setError('This email is already registered. Please log in instead.');
-      } else {
-        setError(error.message || 'Registration failed. Please try again.');
-      }
     } finally {
       setIsSubmitting(false);
     }
@@ -76,20 +58,6 @@ const Register = () => {
             </Link>
           </p>
         </div>
-        
-        {error && (
-          <Alert variant="destructive" className="border-red-300 text-red-800 bg-red-50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
-        
-        {success && (
-          <Alert className="border-green-300 text-green-800 bg-green-50">
-            <CheckCircle className="h-4 w-4" />
-            <AlertDescription>{success}</AlertDescription>
-          </Alert>
-        )}
         
         <Card>
           <form onSubmit={handleSubmit}>
@@ -154,7 +122,7 @@ const Register = () => {
               <Button
                 type="submit"
                 className="w-full bg-hydro-blue hover:bg-blue-700"
-                disabled={isSubmitting || !!success}
+                disabled={isSubmitting}
               >
                 {isSubmitting ? (
                   <>

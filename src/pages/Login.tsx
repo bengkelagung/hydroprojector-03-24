@@ -1,38 +1,26 @@
 
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Leaf, Loader2, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { Leaf, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
-  // Check for error message in URL (for redirects from email verification)
-  useEffect(() => {
-    const errorMessage = searchParams.get('error');
-    if (errorMessage) {
-      setError(decodeURIComponent(errorMessage));
-    }
-  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
     
     if (!email || !password) {
-      setError('Please fill in all fields');
+      toast.error('Please fill in all fields');
       return;
     }
     
@@ -40,16 +28,8 @@ const Login = () => {
       setIsSubmitting(true);
       await login(email, password);
       navigate('/dashboard');
-    } catch (error: any) {
+    } catch (error) {
       console.error('Login error:', error);
-      
-      if (error.message.includes('Email not confirmed')) {
-        setError('Your email has not been confirmed. Please check your inbox for a confirmation email.');
-      } else if (error.message.includes('Invalid login credentials')) {
-        setError('Invalid email or password. Please try again.');
-      } else {
-        setError(error.message || 'Failed to login. Please try again.');
-      }
     } finally {
       setIsSubmitting(false);
     }
@@ -71,13 +51,6 @@ const Login = () => {
             </Link>
           </p>
         </div>
-        
-        {error && (
-          <Alert variant="destructive" className="border-red-300 text-red-800 bg-red-50">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        )}
         
         <Card>
           <form onSubmit={handleSubmit}>
