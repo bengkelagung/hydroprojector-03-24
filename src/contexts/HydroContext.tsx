@@ -775,5 +775,9 @@ void read${pin.name.replace(/\s+/g, '')}() {
         deletePin,
         togglePinValue,
         updatePin
-
-
+      }}
+    >
+      {children}
+    </HydroContext.Provider>
+  );
+};
