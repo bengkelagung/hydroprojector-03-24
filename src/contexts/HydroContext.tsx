@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -68,6 +67,12 @@ interface HydroContextType {
   fetchDataTypes: () => Promise<void>;
   fetchSignalTypes: () => Promise<void>;
   fetchPinModes: () => Promise<void>;
+  updateProject: (projectId: string, updates: Partial<Project>) => void;
+  updateDevice: (deviceId: string, updates: Partial<Device>) => void;
+  deleteProject: (projectId: string) => void;
+  deleteDevice: (deviceId: string) => void;
+  deletePin: (pinId: string) => void;
+  togglePinValue: (pinId: string) => void;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -91,7 +96,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [signalTypes, setSignalTypes] = useState<SignalType[]>([]);
   const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
 
-  // Fetch data when user changes
   useEffect(() => {
     if (user) {
       fetchProjects();
@@ -101,7 +105,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fetchSignalTypes();
       fetchPinModes();
     } else {
-      // Clear data when logged out
       setProjects([]);
       setDevices([]);
       setPins([]);
@@ -333,13 +336,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     unit?: string
   ): Promise<Pin> => {
     try {
-      // Check if pin already exists
       const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
       
       let pinData;
       
       if (existingPin) {
-        // Update existing pin
         const { data, error } = await supabase
           .from('pin_configs')
           .update({
@@ -358,7 +359,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pinData = data;
         toast.success('Pin updated successfully!');
       } else {
-        // Create new pin
         const { data, error } = await supabase
           .from('pin_configs')
           .insert([{
@@ -406,7 +406,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const selectProject = (project: Project | null) => {
     setSelectedProject(project);
-    // Clear selected device if it doesn't belong to this project
     if (project && selectedDevice && selectedDevice.projectId !== project.id) {
       setSelectedDevice(null);
     }
@@ -451,7 +450,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updatePinValue = async (pinId: string, value: string) => {
     try {
-      // Insert value into pin_data table
       const { error } = await supabase
         .from('pin_data')
         .insert([{
@@ -480,7 +478,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     const devicePins = pins.filter(p => p.deviceId === deviceId);
     
-    // Generate Arduino code for ESP32
     return `
 // Hydroprojector Auto-generated code for ${device.name}
 // Device ID: ${device.id}
@@ -609,6 +606,117 @@ void read${pin.name.replace(/\s+/g, '')}() {
 `;
   };
 
+  const updateProject = (projectId: string, updates: Partial<Project>) => {
+    setProjects(prev => 
+      prev.map(project => 
+        project.id === projectId ? { ...project, ...updates } : project
+      )
+    );
+  };
+
+  const updateDevice = (deviceId: string, updates: Partial<Device>) => {
+    setDevices(prev => 
+      prev.map(device => 
+        device.id === deviceId ? { ...device, ...updates } : device
+      )
+    );
+  };
+
+  const deleteProject = (projectId: string) => {
+    const projectDevices = devices.filter(d => d.projectId === projectId);
+    
+    const deviceIds = projectDevices.map(d => d.id);
+    const pinsToDelete = pins.filter(p => deviceIds.includes(p.deviceId));
+    pinsToDelete.forEach(pin => {
+      supabase
+        .from('pin_configs')
+        .delete()
+        .eq('id', pin.id)
+        .then(({ error }) => {
+          if (error) console.error('Error deleting pin:', error);
+        });
+    });
+    
+    projectDevices.forEach(device => {
+      supabase
+        .from('devices')
+        .delete()
+        .eq('id', device.id)
+        .then(({ error }) => {
+          if (error) console.error('Error deleting device:', error);
+        });
+    });
+    
+    supabase
+      .from('projects')
+      .delete()
+      .eq('id', projectId)
+      .then(({ error }) => {
+        if (error) console.error('Error deleting project:', error);
+      });
+    
+    setPins(prev => prev.filter(p => !deviceIds.includes(p.deviceId)));
+    setDevices(prev => prev.filter(d => d.projectId !== projectId));
+    setProjects(prev => prev.filter(p => p.id !== projectId));
+    
+    if (selectedProject?.id === projectId) {
+      setSelectedProject(null);
+    }
+    
+    if (selectedDevice && selectedDevice.projectId === projectId) {
+      setSelectedDevice(null);
+    }
+  };
+
+  const deleteDevice = (deviceId: string) => {
+    const devicePins = pins.filter(p => p.deviceId === deviceId);
+    devicePins.forEach(pin => {
+      supabase
+        .from('pin_configs')
+        .delete()
+        .eq('id', pin.id)
+        .then(({ error }) => {
+          if (error) console.error('Error deleting pin:', error);
+        });
+    });
+    
+    supabase
+      .from('devices')
+      .delete()
+      .eq('id', deviceId)
+      .then(({ error }) => {
+        if (error) console.error('Error deleting device:', error);
+      });
+    
+    setPins(prev => prev.filter(p => p.deviceId !== deviceId));
+    setDevices(prev => prev.filter(d => d.id !== deviceId));
+    
+    if (selectedDevice?.id === deviceId) {
+      setSelectedDevice(null);
+    }
+  };
+
+  const deletePin = (pinId: string) => {
+    supabase
+      .from('pin_configs')
+      .delete()
+      .eq('id', pinId)
+      .then(({ error }) => {
+        if (error) console.error('Error deleting pin:', error);
+      });
+    
+    setPins(prev => prev.filter(p => p.id !== pinId));
+  };
+
+  const togglePinValue = (pinId: string) => {
+    const pin = pins.find(p => p.id === pinId);
+    if (!pin) return;
+    
+    const newValue = pin.value === "1" ? "0" : "1";
+    
+    updatePinValue(pinId, newValue);
+  };
+
   return (
     <HydroContext.Provider
       value={{
@@ -632,7 +740,13 @@ void read${pin.name.replace(/\s+/g, '')}() {
         pinModes,
         fetchDataTypes,
         fetchSignalTypes,
-        fetchPinModes
+        fetchPinModes,
+        updateProject,
+        updateDevice,
+        deleteProject,
+        deleteDevice,
+        deletePin,
+        togglePinValue
       }}
     >
       {children}

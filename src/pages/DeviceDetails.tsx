@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -27,7 +27,16 @@ import { toast } from "@/components/ui/use-toast";
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
-  const { devices, projects, pins, getPinsByDevice, updateDevice, deleteDevice, deletePin } = useHydro();
+  const { 
+    devices, 
+    projects, 
+    pins, 
+    getPinsByDevice, 
+    updateDevice, 
+    deleteDevice, 
+    deletePin,
+    togglePinValue 
+  } = useHydro();
   
   const device = devices.find(d => d.id === deviceId);
   
@@ -103,6 +112,14 @@ const DeviceDetails = () => {
     toast({
       title: "Pin deleted",
       description: `The pin "${pinName}" has been deleted`,
+    });
+  };
+  
+  const handleTogglePin = (pinId: string, pinName: string, currentValue: string) => {
+    togglePinValue(pinId);
+    toast({
+      title: `${currentValue === "1" ? "Turned off" : "Turned on"}`,
+      description: `${pinName} has been ${currentValue === "1" ? "turned off" : "turned on"}`,
     });
   };
   
@@ -351,6 +368,14 @@ const DeviceDetails = () => {
                             <Badge variant={pin.value === "1" ? "default" : "outline"} className="mr-3">
                               {pin.value === "1" ? "ON" : "OFF"}
                             </Badge>
+                            <Button 
+                              size="sm" 
+                              variant={pin.value === "1" ? "default" : "outline"} 
+                              className={pin.value === "1" ? "bg-green-600 hover:bg-green-700 mr-2" : "text-gray-600 hover:bg-gray-100 mr-2"}
+                              onClick={() => handleTogglePin(pin.id, pin.name, pin.value || "0")}
+                            >
+                              <Power className="h-4 w-4" />
+                            </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
