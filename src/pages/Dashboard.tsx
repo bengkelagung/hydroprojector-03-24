@@ -1,9 +1,10 @@
 
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
+import { Plus } from 'lucide-react';
 import { useHydro } from '@/contexts/HydroContext';
 
 const Dashboard = () => {
@@ -18,22 +19,9 @@ const Dashboard = () => {
     projectDevices[device.projectId].push(device);
   });
 
-  // Calculate the number of sensors per device
-  const deviceSensors: { [deviceId: string]: any[] } = {};
-  pins.forEach(pin => {
-    if (!deviceSensors[pin.deviceId]) {
-      deviceSensors[pin.deviceId] = [];
-    }
-    deviceSensors[pin.deviceId].push(pin);
-  });
-
-  // Function to get the total number of sensors for a project
-  const getProjectSensors = (projectId: string) => {
-    let count = 0;
-    devices.filter(device => device.projectId === projectId).forEach(device => {
-      count += deviceSensors[device.id]?.length || 0;
-    });
-    return count;
+  // Calculate connected devices per project
+  const getConnectedDevices = (projectId: string) => {
+    return projectDevices[projectId]?.filter(device => device.isConnected).length || 0;
   };
 
   // Function to render project cards 
@@ -44,34 +32,56 @@ const Dashboard = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.slice(0, 3).map((project) => (
-          <Card key={project.id} className="hover:shadow-md transition-shadow duration-300">
-            <CardHeader>
-              <CardTitle>{project.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-muted-foreground mb-4">
-                {project.description?.substring(0, 100) || "No description provided."}
-                {project.description && project.description.length > 100 ? "..." : ""}
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Badge variant="outline" className="bg-slate-100">
-                  {projectDevices[project.id]?.length || 0} Devices
-                </Badge>
-                <Badge variant="outline" className="bg-slate-100">
-                  {getProjectSensors(project.id)} Sensors
-                </Badge>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Link to={`/projects/${project.id}/details`} className="w-full">
-                <Button className="w-full" variant="outline">View Details</Button>
-              </Link>
-            </CardFooter>
-          </Card>
-        ))}
+        {projects.map((project) => {
+          const deviceCount = projectDevices[project.id]?.length || 0;
+          const connectedCount = getConnectedDevices(project.id);
+          
+          return (
+            <Card key={project.id} className="overflow-hidden">
+              <CardHeader className="bg-hydro-blue text-white pb-4">
+                <CardTitle className="text-xl">{project.name}</CardTitle>
+                <p className="text-sm text-blue-100">
+                  Created on {new Date(project.createdAt).toLocaleDateString()}
+                </p>
+              </CardHeader>
+              <CardContent className="pt-6">
+                <p className="text-gray-700 mb-4">
+                  {project.description || project.name}
+                </p>
+                
+                <div>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>Connected Devices</span>
+                    <span>{connectedCount}/{deviceCount}</span>
+                  </div>
+                  <Progress 
+                    value={(connectedCount / Math.max(deviceCount, 1)) * 100} 
+                    className="h-2"
+                  />
+                </div>
+              </CardContent>
+              <CardFooter className="border-t flex justify-between py-4">
+                <Link to={`/devices/create?projectId=${project.id}`}>
+                  <Button variant="outline" size="sm" className="flex items-center gap-1">
+                    <Plus className="h-4 w-4" />
+                    Add Device
+                  </Button>
+                </Link>
+                <Link to={`/projects/${project.id}/details`}>
+                  <Button variant="ghost" size="sm">View Details</Button>
+                </Link>
+              </CardFooter>
+            </Card>
+          );
+        })}
       </div>
     );
+  };
+
+  // Get project name by projectId
+  const getProjectName = (projectId: string) => {
+    const project = projects.find(p => p.id === projectId);
+    return project ? project.name : 'Unknown Project';
   };
 
   // Function to render device cards
@@ -82,47 +92,44 @@ const Dashboard = () => {
 
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {devices.slice(0, 3).map((device) => {
-          const project = projects.find(p => p.id === device.projectId);
-
-          return (
-            <Card key={device.id} className="hover:shadow-md transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle className="flex justify-between items-center">
-                  {device.name}
-                  <Badge variant={device.isConnected ? "default" : "outline"} className={
-                    device.isConnected ? "bg-green-100 text-green-800 hover:bg-green-200" : "bg-red-100 text-red-800 hover:bg-red-200"
-                  }>
-                    {device.isConnected ? "Online" : "Offline"}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {device.description?.substring(0, 100) || "No description provided."}
-                  {device.description && device.description.length > 100 ? "..." : ""}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {project && (
-                    <Badge variant="outline" className="bg-slate-100">
-                      Project: {project.name}
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="bg-slate-100">
-                    {deviceSensors[device.id]?.length || 0} Sensors
-                  </Badge>
-                </div>
-              </CardContent>
-              <CardFooter>
-                <Link to={`/devices/${device.id}/details`} className="w-full">
-                  <Button className="w-full" variant="outline">View Details</Button>
-                </Link>
-              </CardFooter>
-            </Card>
-          );
-        })}
+        {devices.map((device) => (
+          <Card key={device.id} className="overflow-hidden">
+            <CardHeader className="bg-hydro-blue text-white pb-4">
+              <CardTitle className="text-xl">{device.name}</CardTitle>
+              <p className="text-sm text-blue-100">
+                Project: {getProjectName(device.projectId)}
+              </p>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <p className="text-gray-700 mb-4">
+                {device.description || device.name}
+              </p>
+              <div className="text-sm">
+                <span className={`px-2 py-1 rounded-full ${device.isConnected ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {device.isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </CardContent>
+            <CardFooter className="border-t flex justify-between py-4">
+              <Link to={`/devices/${device.id}/config`}>
+                <Button variant="outline" size="sm">
+                  Configure
+                </Button>
+              </Link>
+              <Link to={`/devices/${device.id}/details`}>
+                <Button variant="ghost" size="sm">View Details</Button>
+              </Link>
+            </CardFooter>
+          </Card>
+        ))}
       </div>
     );
+  };
+
+  // Get device name by deviceId
+  const getDeviceName = (deviceId: string) => {
+    const device = devices.find(d => d.id === deviceId);
+    return device ? device.name : 'Unknown Device';
   };
 
   // Function to render sensor cards
@@ -131,29 +138,65 @@ const Dashboard = () => {
       return <p>No sensors configured yet.</p>;
     }
 
+    // Only display input pins as sensors
+    const sensorPins = pins.filter(pin => pin.mode === 'input');
+
+    if (sensorPins.length === 0) {
+      return <p>No sensors configured yet.</p>;
+    }
+
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {pins.slice(0, 3).map((pin) => {
+        {sensorPins.map((pin) => {
           const device = devices.find(d => d.id === pin.deviceId);
+          const project = device ? projects.find(p => p.id === device.projectId) : null;
+          
+          // Generate mock value for demo purposes if none exists
+          let mockValue;
+          switch (pin.signalType) {
+            case 'pH':
+              mockValue = (5.5 + Math.random() * 2).toFixed(1);
+              break;
+            case 'temperature':
+              mockValue = (20 + Math.random() * 8).toFixed(1);
+              break;
+            case 'humidity':
+              mockValue = (50 + Math.random() * 30).toFixed(1);
+              break;
+            case 'water-level':
+              mockValue = (70 + Math.random() * 30).toFixed(1);
+              break;
+            default:
+              mockValue = Math.floor(Math.random() * 100).toString();
+          }
+          
+          const value = pin.value || mockValue;
           
           return (
-            <Card key={pin.id} className="hover:shadow-md transition-shadow duration-300">
-              <CardHeader>
-                <CardTitle>{pin.name}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Sensor Type: {pin.signalType}
+            <Card key={pin.id} className="overflow-hidden">
+              <CardHeader className="bg-hydro-blue text-white pb-4">
+                <CardTitle className="text-xl">{pin.name}</CardTitle>
+                <p className="text-sm text-blue-100">
+                  Device: {getDeviceName(pin.deviceId)}
                 </p>
-                {device && (
-                  <Badge variant="outline" className="bg-slate-100">
-                    Device: {device.name}
-                  </Badge>
-                )}
+              </CardHeader>
+              <CardContent className="pt-6">
+                <div className="flex justify-between items-center mb-4">
+                  <span className="text-gray-700">Type: {pin.signalType}</span>
+                  <span className="text-xl font-bold">{value}{pin.unit}</span>
+                </div>
+                <div>
+                  {pin.signalType === 'water-level' && (
+                    <Progress 
+                      value={parseFloat(value)} 
+                      className="h-2 bg-gray-200"
+                    />
+                  )}
+                </div>
               </CardContent>
-              <CardFooter>
-                <Link to={`/devices/${device?.id}/details`} className="w-full">
-                  <Button className="w-full" variant="outline">View Details</Button>
+              <CardFooter className="border-t flex justify-between py-4">
+                <Link to={`/devices/${pin.deviceId}/details`}>
+                  <Button variant="ghost" size="sm">View Details</Button>
                 </Link>
               </CardFooter>
             </Card>
@@ -164,38 +207,34 @@ const Dashboard = () => {
   };
 
   return (
-    <div className="container mx-auto py-10">
-      <h1 className="text-3xl font-bold mb-6">Dashboard</h1>
-
-      <section className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold">Projects</h2>
-          <Link to="/projects" className="text-blue-500 hover:underline">
-            View All
+    <div className="container mx-auto py-6">
+      <div className="flex justify-between items-center mb-8">
+        <h1 className="text-3xl font-bold">Hello, user</h1>
+        <div className="flex gap-2">
+          <Link to="/projects/create">
+            <Button className="flex items-center gap-1">
+              <Plus className="h-4 w-4" />
+              New Project
+            </Button>
+          </Link>
+          <Link to="/devices/create">
+            <Button className="flex items-center gap-1">
+              <Plus className="h-4 w-4" />
+              Add Device
+            </Button>
           </Link>
         </div>
+      </div>
+
+      <div className="bg-white rounded-lg p-6 shadow-sm mb-8">
+        <div className="flex space-x-8 border-b mb-6">
+          <button className="py-3 border-b-2 border-hydro-blue font-medium text-hydro-blue">Projects</button>
+          <button className="py-3 text-gray-500">Devices</button>
+          <button className="py-3 text-gray-500">Sensor Readings</button>
+        </div>
+
         {renderProjectCards()}
-      </section>
-
-      <section className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold">Devices</h2>
-          <Link to="/devices" className="text-blue-500 hover:underline">
-            View All
-          </Link>
-        </div>
-        {renderDeviceCards()}
-      </section>
-
-      <section className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-semibold">Sensors</h2>
-          <Link to="/readings" className="text-blue-500 hover:underline">
-            View All
-          </Link>
-        </div>
-        {renderSensorCards()}
-      </section>
+      </div>
     </div>
   );
 };
