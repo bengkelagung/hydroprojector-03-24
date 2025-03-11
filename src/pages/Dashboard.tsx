@@ -1,3 +1,4 @@
+
 import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -134,6 +135,7 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {pins.slice(0, 3).map((pin) => {
           const device = devices.find(d => d.id === pin.deviceId);
+          
           return (
             <Card key={pin.id} className="hover:shadow-md transition-shadow duration-300">
               <CardHeader>
@@ -150,7 +152,9 @@ const Dashboard = () => {
                 )}
               </CardContent>
               <CardFooter>
-                <Button className="w-full" variant="outline">View Details</Button>
+                <Link to={`/devices/${device?.id}/details`} className="w-full">
+                  <Button className="w-full" variant="outline">View Details</Button>
+                </Link>
               </CardFooter>
             </Card>
           );

@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2 } from 'lucide-react';
+import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power, Toggle } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { 
   AlertDialog,
   AlertDialogAction,
@@ -27,7 +28,7 @@ import { toast } from "@/components/ui/use-toast";
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
   const navigate = useNavigate();
-  const { devices, projects, pins, getPinsByDevice, updateDevice, deleteDevice, deletePin } = useHydro();
+  const { devices, projects, pins, getPinsByDevice, updateDevice, deleteDevice, deletePin, updatePinValue } = useHydro();
   
   const device = devices.find(d => d.id === deviceId);
   
@@ -103,6 +104,15 @@ const DeviceDetails = () => {
     toast({
       title: "Pin deleted",
       description: `The pin "${pinName}" has been deleted`,
+    });
+  };
+  
+  const handleTogglePin = (pin: any) => {
+    const newValue = pin.value === "1" ? "0" : "1";
+    updatePinValue(pin.id, newValue);
+    toast({
+      title: "Pin toggled",
+      description: `The pin "${pin.name}" has been turned ${newValue === "1" ? "ON" : "OFF"}`,
     });
   };
   
@@ -348,9 +358,24 @@ const DeviceDetails = () => {
                             </div>
                           </div>
                           <div className="flex items-center">
-                            <Badge variant={pin.value === "1" ? "default" : "outline"} className="mr-3">
-                              {pin.value === "1" ? "ON" : "OFF"}
-                            </Badge>
+                            <div className="flex items-center mr-3">
+                              <Switch
+                                checked={pin.value === "1"}
+                                onCheckedChange={() => handleTogglePin(pin)}
+                                className="mr-2"
+                              />
+                              <span className={pin.value === "1" ? "text-green-600 font-medium" : "text-gray-500"}>
+                                {pin.value === "1" ? "ON" : "OFF"}
+                              </span>
+                            </div>
+                            <Button 
+                              size="sm" 
+                              variant="outline" 
+                              className={pin.value === "1" ? "bg-green-50 text-green-600 border-green-200 mr-2" : "bg-gray-100 text-gray-600 mr-2"}
+                              onClick={() => handleTogglePin(pin)}
+                            >
+                              <Power className="h-4 w-4" />
+                            </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
                                 <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">

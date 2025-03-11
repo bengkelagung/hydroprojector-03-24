@@ -1,7 +1,9 @@
 
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Activity, Droplet, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useHydro } from '@/contexts/HydroContext';
 
 const Readings = () => {
@@ -21,6 +23,7 @@ const Readings = () => {
   };
 
   const inputPins = pins.filter(p => p.mode === 'input');
+  const signalTypes = ['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'custom'];
 
   return (
     <div className="space-y-8">
@@ -40,7 +43,7 @@ const Readings = () => {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'custom'].map(signalType => {
+          {signalTypes.map(signalType => {
             const matchingPins = pins.filter(p => p.signalType === signalType && p.mode === 'input');
             if (matchingPins.length === 0) return null;
             
@@ -95,6 +98,8 @@ const Readings = () => {
                         alert = true;
                       }
                       
+                      if (!device) return null;
+                      
                       return (
                         <div key={pin.id} className="pb-4 border-b border-gray-100 last:border-0 last:pb-0">
                           <div className="flex justify-between items-start mb-2">
@@ -139,6 +144,14 @@ const Readings = () => {
                               ></div>
                             </div>
                           )}
+                          
+                          <div className="mt-2 text-right">
+                            <Link to={`/devices/${device.id}/details`}>
+                              <Button variant="ghost" size="sm" className="text-blue-500 hover:text-blue-700">
+                                View Details
+                              </Button>
+                            </Link>
+                          </div>
                         </div>
                       );
                     })}
