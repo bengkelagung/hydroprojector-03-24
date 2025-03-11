@@ -1,6 +1,7 @@
+
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
-import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power, AlertTriangle, Info, CircleInfo } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -423,7 +424,7 @@ const DeviceDetails = () => {
                                     className="text-blue-600 hover:bg-blue-50 mr-1"
                                     onClick={() => handleOpenPinEdit(pin)}
                                   >
-                                    <Pencil className="h-4 w-4" />
+                                    <CircleInfo className="h-4 w-4" />
                                   </Button>
                                 </DialogTrigger>
                                 <DialogContent className="sm:max-w-md">
@@ -555,30 +556,17 @@ const DeviceDetails = () => {
                                   </DialogFooter>
                                 </DialogContent>
                               </Dialog>
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      This will remove the pin "{pin.name}" and all its historical data.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                      onClick={() => handleDeletePin(pin.id, pin.name)} 
-                                      className="bg-red-600 hover:bg-red-700"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                className="text-blue-600 hover:bg-blue-50"
+                                onClick={() => {
+                                  handleOpenPinEdit(pin);
+                                  document.querySelector('[data-trigger="dialog"]')?.click();
+                                }}
+                              >
+                                <Info className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         );
@@ -624,7 +612,7 @@ const DeviceDetails = () => {
                                   className="text-blue-600 hover:bg-blue-50 mr-1"
                                   onClick={() => handleOpenPinEdit(pin)}
                                 >
-                                  <Pencil className="h-4 w-4" />
+                                  <CircleInfo className="h-4 w-4" />
                                 </Button>
                               </DialogTrigger>
                               <DialogContent className="sm:max-w-md">
@@ -754,30 +742,17 @@ const DeviceDetails = () => {
                             >
                               <Power className="h-4 w-4" />
                             </Button>
-                            <AlertDialog>
-                              <AlertDialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </AlertDialogTrigger>
-                              <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Delete this pin?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This will remove the pin "{pin.name}" and all its historical data.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction 
-                                    onClick={() => handleDeletePin(pin.id, pin.name)} 
-                                    className="bg-red-600 hover:bg-red-700"
-                                  >
-                                    Delete
-                                  </AlertDialogAction>
-                                </AlertDialogFooter>
-                              </AlertDialogContent>
-                            </AlertDialog>
+                            <Button 
+                              size="sm" 
+                              variant="ghost" 
+                              className="text-blue-600 hover:bg-blue-50"
+                              onClick={() => {
+                                handleOpenPinEdit(pin);
+                                document.querySelector('[data-trigger="dialog"]')?.click();
+                              }}
+                            >
+                              <Info className="h-4 w-4" />
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -821,4 +796,24 @@ const DeviceDetails = () => {
               <CardTitle>Quick Actions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
-              <Link to={`/devices/${device.id}/
+              <Link to={`/devices/${device.id}/config`} className="block w-full">
+                <Button variant="outline" className="w-full text-left justify-start">
+                  <Settings className="mr-2 h-4 w-4" />
+                  Configure Device Pins
+                </Button>
+              </Link>
+              <Link to={`/devices/${device.id}/code`} className="block w-full">
+                <Button variant="outline" className="w-full text-left justify-start">
+                  <Code className="mr-2 h-4 w-4" />
+                  View Arduino Code
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default DeviceDetails;
