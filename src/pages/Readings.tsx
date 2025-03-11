@@ -1,16 +1,13 @@
-
 import React from 'react';
 import { Activity, Droplet, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro } from '@/contexts/HydroContext';
-import { Link } from 'react-router-dom';
 import PinDetailsDialog from '@/components/PinDetailsDialog';
 import { Button } from '@/components/ui/button';
 
 const Readings = () => {
   const { pins, devices, projects } = useHydro();
   
-  // Helper function to get a color based on signal type
   const getSignalColor = (signalType: string) => {
     switch (signalType) {
       case 'pH': return 'bg-purple-500';
@@ -23,7 +20,6 @@ const Readings = () => {
     }
   };
 
-  // Get all input pins
   const inputPins = pins.filter(p => p.mode === 'input');
 
   return (
@@ -48,7 +44,6 @@ const Readings = () => {
             const device = devices.find(d => d.id === pin.deviceId);
             const project = device ? projects.find(p => p.id === device.projectId) : null;
             
-            // Generate mock value for demo purposes if none exists
             let mockValue;
             switch (pin.signalType) {
               case 'pH':
@@ -69,7 +64,6 @@ const Readings = () => {
             
             const value = pin.value || mockValue;
             
-            // Determine alert status (just for UI demonstration)
             let alert = false;
             if (pin.signalType === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
               alert = true;
@@ -113,7 +107,6 @@ const Readings = () => {
                         </div>
                       </div>
                       
-                      {/* Visual indicator appropriate to the type of sensor */}
                       {pin.signalType === 'pH' && (
                         <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                           <div 

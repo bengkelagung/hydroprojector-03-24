@@ -73,6 +73,7 @@ interface HydroContextType {
   deleteDevice: (deviceId: string) => void;
   deletePin: (pinId: string) => void;
   togglePinValue: (pinId: string) => void;
+  updatePin: (pinId: string, updates: Partial<Pin>) => void;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -717,6 +718,32 @@ void read${pin.name.replace(/\s+/g, '')}() {
     updatePinValue(pinId, newValue);
   };
 
+  const updatePin = async (pinId: string, updates: Partial<Pin>) => {
+    try {
+      const { error } = await supabase
+        .from('pin_configs')
+        .update({
+          name: updates.name,
+          signal_type: updates.signalType,
+          unit: updates.unit
+        })
+        .eq('id', pinId);
+      
+      if (error) throw error;
+      
+      setPins(prev => 
+        prev.map(pin => 
+          pin.id === pinId ? { ...pin, ...updates } : pin
+        )
+      );
+      
+      toast.success('Pin updated successfully');
+    } catch (error) {
+      console.error('Error updating pin:', error);
+      toast.error('Failed to update pin');
+    }
+  };
+
   return (
     <HydroContext.Provider
       value={{
@@ -746,10 +773,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
         deleteProject,
         deleteDevice,
         deletePin,
-        togglePinValue
-      }}
-    >
-      {children}
-    </HydroContext.Provider>
-  );
-};
+        togglePinValue,
+        updatePin
+
+
