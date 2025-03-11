@@ -1,7 +1,6 @@
-
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Pencil, Trash2, Info } from 'lucide-react';
+import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,62 +8,41 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useHydro } from '@/contexts/HydroContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { 
-  Dialog, 
-  DialogContent, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogFooter,
-  DialogTrigger
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger
-} from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { projects, devices, pins, getDevicesByProject, getPinsByDevice, deletePin, configurePin, signalTypes, dataTypes, pinModes } = useHydro();
-  const [selectedPin, setSelectedPin] = useState<typeof pins[0] | null>(null);
-  const [editPinName, setEditPinName] = useState('');
-  const [editPinSignalType, setEditPinSignalType] = useState<string>('');
-  const [editPinDataType, setEditPinDataType] = useState<string>('');
-  const [editPinUnit, setEditPinUnit] = useState<string>('');
+  const { projects, devices, pins, getDevicesByProject, getPinsByDevice } = useHydro();
 
   // Mock some data if no real data exists for better demonstration
   useEffect(() => {
+    // This will only be used for visualization if there's no real data
     const mockDataUpdate = () => {
       if (pins.length > 0) {
         pins.forEach(pin => {
-          let value;
-          switch (pin.signalType) {
-            case 'pH':
-              value = (5.5 + Math.random() * 2).toFixed(1);
-              break;
-            case 'temperature':
-              value = (20 + Math.random() * 8).toFixed(1);
-              break;
-            case 'humidity':
-              value = (50 + Math.random() * 30).toFixed(1);
-              break;
-            case 'water-level':
-              value = (70 + Math.random() * 30).toFixed(1);
-              break;
-            default:
-              value = Math.floor(Math.random() * 100).toString();
+          // Simulate random value changes for input pins
+          if (pin.mode === 'input') {
+            let value;
+            switch (pin.signalType) {
+              case 'pH':
+                value = (5.5 + Math.random() * 2).toFixed(1);
+                break;
+              case 'temperature':
+                value = (20 + Math.random() * 8).toFixed(1);
+                break;
+              case 'humidity':
+                value = (50 + Math.random() * 30).toFixed(1);
+                break;
+              case 'water-level':
+                value = (70 + Math.random() * 30).toFixed(1);
+                break;
+              default:
+                value = Math.floor(Math.random() * 100).toString();
+            }
+            
+            // This would normally update the pin value in state or backend
+            // For this demo, we're just showing how it would work
+            console.log(`Updated ${pin.name} (${pin.signalType}) to ${value}`);
           }
-          
-          console.log(`Updated ${pin.name} (${pin.signalType}) to ${value}`);
         });
       }
     };
@@ -101,54 +79,7 @@ const Dashboard = () => {
     );
   };
 
-  const handleOpenPinEdit = (pin: typeof pins[0]) => {
-    setSelectedPin(pin);
-    setEditPinName(pin.name);
-    setEditPinSignalType(pin.signalType);
-    setEditPinDataType(pin.dataType);
-    setEditPinUnit(pin.unit || '');
-  };
-
-  const handleSaveEdit = async () => {
-    if (!selectedPin) return;
-    
-    if (editPinName.trim() === '') {
-      toast.error('Pin name cannot be empty');
-      return;
-    }
-    
-    try {
-      await configurePin(
-        selectedPin.deviceId,
-        selectedPin.pinNumber,
-        editPinDataType,
-        editPinSignalType as any,
-        selectedPin.mode,
-        editPinName,
-        editPinUnit || undefined
-      );
-      
-      toast.success('Pin updated successfully');
-      setSelectedPin(null);
-    } catch (error) {
-      toast.error('Failed to update pin');
-      console.error(error);
-    }
-  };
-  
-  const handleDeletePin = async () => {
-    if (!selectedPin) return;
-    
-    try {
-      deletePin(selectedPin.id);
-      toast.success(`Pin "${selectedPin.name}" deleted successfully`);
-      setSelectedPin(null);
-    } catch (error) {
-      toast.error('Failed to delete pin');
-      console.error(error);
-    }
-  };
-
+  // Render a placeholder if no projects exist
   if (projects.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full py-20">
@@ -359,10 +290,12 @@ const Dashboard = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {/* Display each input pin as a separate card */}
               {pins.filter(p => p.mode === 'input').map(pin => {
                 const device = devices.find(d => d.id === pin.deviceId);
                 const project = device ? projects.find(p => p.id === device.projectId) : null;
                 
+                // Generate mock value for demo purposes if none exists
                 let mockValue;
                 switch (pin.signalType) {
                   case 'pH':
@@ -383,37 +316,14 @@ const Dashboard = () => {
                 
                 const value = pin.value || mockValue;
                 
+                // Determine alert status (just for UI demonstration)
                 let alert = false;
-                let statusText = "Normal";
-                if (pin.signalType === 'pH') {
-                  if (parseFloat(value) < 5.5) {
-                    alert = true;
-                    statusText = "Too Acidic";
-                  } else if (parseFloat(value) > 7.5) {
-                    alert = true;
-                    statusText = "Too Alkaline";
-                  }
-                } else if (pin.signalType === 'temperature') {
-                  if (parseFloat(value) < 18) {
-                    alert = true;
-                    statusText = "Too Cold";
-                  } else if (parseFloat(value) > 28) {
-                    alert = true;
-                    statusText = "Too Hot";
-                  }
-                } else if (pin.signalType === 'water-level') {
-                  if (parseFloat(value) < 40) {
-                    alert = true;
-                    statusText = "Low Water";
-                  }
-                } else if (pin.signalType === 'humidity') {
-                  if (parseFloat(value) < 30) {
-                    alert = true;
-                    statusText = "Too Dry";
-                  } else if (parseFloat(value) > 80) {
-                    alert = true;
-                    statusText = "Too Humid";
-                  }
+                if (pin.signalType === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
+                  alert = true;
+                } else if (pin.signalType === 'temperature' && (parseFloat(value) < 18 || parseFloat(value) > 28)) {
+                  alert = true;
+                } else if (pin.signalType === 'water-level' && parseFloat(value) < 40) {
+                  alert = true;
                 }
                 
                 return (
@@ -450,6 +360,7 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
+                          {/* Visual indicator appropriate to the type of sensor */}
                           {pin.signalType === 'pH' && (
                             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div 
@@ -475,137 +386,9 @@ const Dashboard = () => {
                             </div>
                           )}
                           <div className="mt-2">
-                            <Dialog>
-                              <DialogTrigger asChild>
-                                <Button 
-                                  variant="link" 
-                                  className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
-                                  onClick={() => handleOpenPinEdit(pin)}
-                                >
-                                  View Details
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent className="sm:max-w-md">
-                                <DialogHeader>
-                                  <DialogTitle>Pin Details: {selectedPin?.name}</DialogTitle>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Name:</label>
-                                    <Input
-                                      value={editPinName}
-                                      onChange={(e) => setEditPinName(e.target.value)}
-                                      className="col-span-3"
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Signal Type:</label>
-                                    <Select 
-                                      value={editPinSignalType} 
-                                      onValueChange={setEditPinSignalType}
-                                    >
-                                      <SelectTrigger className="col-span-3">
-                                        <SelectValue placeholder="Select signal type" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {signalTypes.map(type => (
-                                          <SelectItem key={type} value={type}>
-                                            {type}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Data Type:</label>
-                                    <Select 
-                                      value={editPinDataType} 
-                                      onValueChange={setEditPinDataType}
-                                    >
-                                      <SelectTrigger className="col-span-3">
-                                        <SelectValue placeholder="Select data type" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {dataTypes.map(type => (
-                                          <SelectItem key={type} value={type}>
-                                            {type}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Unit:</label>
-                                    <Input
-                                      value={editPinUnit}
-                                      onChange={(e) => setEditPinUnit(e.target.value)}
-                                      className="col-span-3"
-                                      placeholder="°C, %, pH, etc."
-                                    />
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Pin:</label>
-                                    <div className="col-span-3">
-                                      <span className="text-gray-700">{selectedPin?.pinNumber}</span>
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Mode:</label>
-                                    <div className="col-span-3">
-                                      <span className="text-gray-700 capitalize">{selectedPin?.mode}</span>
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Status:</label>
-                                    <div className="col-span-3">
-                                      <Badge 
-                                        variant="outline" 
-                                        className={alert ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-green-50 text-green-600 border-green-200"}
-                                      >
-                                        {statusText}
-                                      </Badge>
-                                    </div>
-                                  </div>
-                                  <div className="grid grid-cols-4 items-center gap-4">
-                                    <label className="text-right text-sm font-medium">Last Reading:</label>
-                                    <div className="col-span-3">
-                                      <span className="font-medium">{value}{pin.unit}</span>
-                                      <span className="text-xs text-gray-500 ml-2">
-                                        (Updated {new Date().toLocaleTimeString()})
-                                      </span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <DialogFooter className="flex justify-between">
-                                  <AlertDialog>
-                                    <AlertDialogTrigger asChild>
-                                      <Button variant="destructive" type="button">
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Delete
-                                      </Button>
-                                    </AlertDialogTrigger>
-                                    <AlertDialogContent>
-                                      <AlertDialogHeader>
-                                        <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                        <AlertDialogDescription>
-                                          This will permanently delete the pin and all associated data.
-                                        </AlertDialogDescription>
-                                      </AlertDialogHeader>
-                                      <AlertDialogFooter>
-                                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                        <AlertDialogAction onClick={handleDeletePin} className="bg-red-600 hover:bg-red-700">
-                                          Delete
-                                        </AlertDialogAction>
-                                      </AlertDialogFooter>
-                                    </AlertDialogContent>
-                                  </AlertDialog>
-                                  <Button type="button" onClick={handleSaveEdit}>
-                                    <Pencil className="h-4 w-4 mr-2" />
-                                    Save
-                                  </Button>
-                                </DialogFooter>
-                              </DialogContent>
-                            </Dialog>
+                            <Link to={`/devices/${device?.id}/details`} className="text-sm text-blue-600 hover:text-blue-800">
+                              View Details
+                            </Link>
                           </div>
                         </div>
                       </div>
