@@ -18,6 +18,11 @@ import DeviceConfig from "./pages/DeviceConfig";
 import DeviceCode from "./pages/DeviceCode";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
+import Projects from "./pages/Projects";
+import Devices from "./pages/Devices";
+import Readings from "./pages/Readings";
+import ProjectDetails from "./pages/ProjectDetails";
+import DeviceDetails from "./pages/DeviceDetails";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +60,15 @@ const AppContent = () => {
               </Layout>
             </ProtectedRoute>
           } />
+          
+          {/* Project routes */}
+          <Route path="/projects" element={
+            <ProtectedRoute>
+              <Layout>
+                <Projects />
+              </Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/projects/create" element={
             <ProtectedRoute>
               <Layout>
@@ -62,10 +76,33 @@ const AppContent = () => {
               </Layout>
             </ProtectedRoute>
           } />
+          <Route path="/projects/:projectId/details" element={
+            <ProtectedRoute>
+              <Layout>
+                <ProjectDetails />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Device routes */}
+          <Route path="/devices" element={
+            <ProtectedRoute>
+              <Layout>
+                <Devices />
+              </Layout>
+            </ProtectedRoute>
+          } />
           <Route path="/devices/create" element={
             <ProtectedRoute>
               <Layout>
                 <DeviceCreate />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/devices/:deviceId/details" element={
+            <ProtectedRoute>
+              <Layout>
+                <DeviceDetails />
               </Layout>
             </ProtectedRoute>
           } />
@@ -80,6 +117,15 @@ const AppContent = () => {
             <ProtectedRoute>
               <Layout>
                 <DeviceConfig />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Sensor readings route */}
+          <Route path="/readings" element={
+            <ProtectedRoute>
+              <Layout>
+                <Readings />
               </Layout>
             </ProtectedRoute>
           } />
