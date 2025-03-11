@@ -1,23 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Eye } from 'lucide-react';
+import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
-import { useHydro, Pin, Device } from '@/contexts/HydroContext';
+import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import PinDetailsDialog from '@/components/PinDetailsDialog';
-import DeviceDetailsDialog from '@/components/DeviceDetailsDialog';
 
 const Dashboard = () => {
   const { user } = useAuth();
   const { projects, devices, pins, getDevicesByProject, getPinsByDevice } = useHydro();
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [isDeviceDetailsOpen, setIsDeviceDetailsOpen] = useState(false);
 
   useEffect(() => {
     const mockDataUpdate = () => {
@@ -101,11 +98,6 @@ const Dashboard = () => {
   const handleOpenPinDetails = (pin: Pin) => {
     setSelectedPin(pin);
     setIsPinDetailsOpen(true);
-  };
-
-  const handleOpenDeviceDetails = (device: Device) => {
-    setSelectedDevice(device);
-    setIsDeviceDetailsOpen(true);
   };
 
   return (
@@ -254,21 +246,11 @@ const Dashboard = () => {
                       </div>
                     </CardContent>
                     <CardFooter className="border-t pt-4 flex justify-between">
-                      <div className="flex space-x-2">
-                        <Link to={`/devices/${device.id}/config`}>
-                          <Button variant="outline" size="sm">
-                            Configure
-                          </Button>
-                        </Link>
-                        <Button 
-                          variant="outline" 
-                          size="sm"
-                          onClick={() => handleOpenDeviceDetails(device)}
-                        >
-                          <Eye className="h-4 w-4 mr-2" />
-                          Details
+                      <Link to={`/devices/${device.id}/config`}>
+                        <Button variant="outline" size="sm">
+                          Configure
                         </Button>
-                      </div>
+                      </Link>
                       <Link to={`/devices/${device.id}/code`}>
                         <Button size="sm" className="bg-hydro-blue hover:bg-blue-700">
                           View Code
@@ -423,12 +405,6 @@ const Dashboard = () => {
         open={isPinDetailsOpen}
         onOpenChange={setIsPinDetailsOpen}
         pin={selectedPin}
-      />
-
-      <DeviceDetailsDialog 
-        open={isDeviceDetailsOpen}
-        onOpenChange={setIsDeviceDetailsOpen}
-        device={selectedDevice}
       />
     </div>
   );
