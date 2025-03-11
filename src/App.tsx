@@ -18,6 +18,7 @@ import DeviceConfig from "./pages/DeviceConfig";
 import DeviceCode from "./pages/DeviceCode";
 import NotFound from "./pages/NotFound";
 import Layout from "./components/Layout";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -80,6 +81,13 @@ const AppContent = () => {
             <ProtectedRoute>
               <Layout>
                 <DeviceConfig />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <Layout>
+                <Profile />
               </Layout>
             </ProtectedRoute>
           } />

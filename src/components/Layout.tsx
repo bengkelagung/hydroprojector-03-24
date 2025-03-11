@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, PlusCircle, Leaf, Cpu, Sliders, LogOut, Menu, ChevronLeft } from 'lucide-react';
+import { LayoutDashboard, PlusCircle, Leaf, Cpu, LogOut, Menu, ChevronLeft, User } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
@@ -12,7 +12,7 @@ interface LayoutProps {
 }
 
 const Layout: React.FC<LayoutProps> = ({ children }) => {
-  const { logout } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -26,6 +26,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
     { name: 'Create Project', icon: <PlusCircle className="w-5 h-5" />, path: '/projects/create' },
     { name: 'Add Device', icon: <Cpu className="w-5 h-5" />, path: '/devices/create' },
+    { name: 'My Profile', icon: <User className="w-5 h-5" />, path: '/profile' },
   ];
 
   return (
@@ -52,6 +53,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             >
               <ChevronLeft className="w-5 h-5" />
             </Button>
+          </div>
+
+          {/* User info */}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center space-x-3">
+              <div className="h-10 w-10 rounded-full bg-hydro-light-blue flex items-center justify-center">
+                <User className="h-6 w-6 text-hydro-blue" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-sm font-medium text-gray-800 truncate">{user?.name}</p>
+                <p className="text-xs text-gray-500 truncate">{user?.email}</p>
+              </div>
+            </div>
           </div>
 
           {/* Sidebar navigation */}
@@ -103,6 +117,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               {location.pathname === '/dashboard' && 'Dashboard'}
               {location.pathname === '/projects/create' && 'Create Project'}
               {location.pathname === '/devices/create' && 'Add Device'}
+              {location.pathname === '/profile' && 'My Profile'}
               {location.pathname.includes('/devices/') && location.pathname.includes('/code') && 'Device Code'}
               {location.pathname.includes('/devices/') && location.pathname.includes('/config') && 'Configure Device'}
             </h1>
