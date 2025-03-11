@@ -1,33 +1,36 @@
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Plus } from 'lucide-react';
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { PlusCircle } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Progress } from '@/components/ui/progress';
+import { Badge } from '@/components/ui/badge';
 import { useHydro } from '@/contexts/HydroContext';
+import { Progress } from '@/components/ui/progress';
 
 const Projects = () => {
   const { projects, getDevicesByProject } = useHydro();
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-3xl font-bold">Projects</h2>
-        <Link to="/projects/create">
-          <Button className="flex items-center gap-1">
-            <Plus className="h-4 w-4" />
-            New Project
-          </Button>
-        </Link>
+    <div className="space-y-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-3xl font-bold text-gray-800">Projects</h2>
+        <div className="mt-4 sm:mt-0">
+          <Link to="/projects/create">
+            <Button className="bg-hydro-blue hover:bg-blue-700">
+              <PlusCircle className="mr-2 h-4 w-4" />
+              New Project
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {projects.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-64 bg-gray-50 rounded-lg border border-gray-200">
           <p className="text-gray-600 mb-4">No projects yet</p>
           <Link to="/projects/create">
-            <Button className="flex items-center gap-1">
-              <Plus className="h-4 w-4" />
+            <Button className="bg-hydro-blue hover:bg-blue-700">
+              <PlusCircle className="mr-2 h-4 w-4" />
               Create Your First Project
             </Button>
           </Link>
@@ -40,33 +43,41 @@ const Projects = () => {
             const connectedCount = projectDevices.filter(d => d.isConnected).length;
             
             return (
-              <Card key={project.id} className="overflow-hidden">
-                <CardHeader className="bg-hydro-blue text-white pb-4">
-                  <CardTitle className="text-xl">{project.name}</CardTitle>
-                  <p className="text-sm text-blue-100">
+              <Card key={project.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                <CardHeader className="bg-gradient-to-r from-hydro-blue to-hydro-water pb-6">
+                  <div className="absolute top-4 right-4">
+                    <Badge variant="secondary" className="bg-white/80 text-hydro-blue">
+                      {deviceCount} {deviceCount === 1 ? 'Device' : 'Devices'}
+                    </Badge>
+                  </div>
+                  <CardTitle className="text-white">{project.name}</CardTitle>
+                  <CardDescription className="text-blue-100">
                     Created on {new Date(project.createdAt).toLocaleDateString()}
-                  </p>
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <p className="text-gray-700 mb-4">
-                    {project.description || project.name}
-                  </p>
+                  <p className="text-gray-600 mb-4">{project.description}</p>
                   
-                  <div>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span>Connected Devices</span>
-                      <span>{connectedCount}/{deviceCount}</span>
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex justify-between text-sm mb-1">
+                        <span className="text-gray-600">Connected Devices</span>
+                        <span className="font-medium">{connectedCount}/{deviceCount}</span>
+                      </div>
+                      <Progress value={(connectedCount / Math.max(deviceCount, 1)) * 100} />
                     </div>
-                    <Progress 
-                      value={(connectedCount / Math.max(deviceCount, 1)) * 100} 
-                      className="h-2"
-                    />
+                    
+                    {deviceCount === 0 && (
+                      <div className="text-sm text-gray-500 italic">
+                        No devices added to this project yet
+                      </div>
+                    )}
                   </div>
                 </CardContent>
-                <CardFooter className="border-t flex justify-between py-4">
-                  <Link to={`/devices/create?projectId=${project.id}`}>
-                    <Button variant="outline" size="sm" className="flex items-center gap-1">
-                      <Plus className="h-4 w-4" />
+                <CardFooter className="border-t pt-4 flex justify-between">
+                  <Link to="/devices/create">
+                    <Button variant="outline" size="sm">
+                      <PlusCircle className="mr-2 h-4 w-4" />
                       Add Device
                     </Button>
                   </Link>
