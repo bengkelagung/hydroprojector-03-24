@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Pencil, Trash2, Info } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -383,12 +384,36 @@ const Dashboard = () => {
                 const value = pin.value || mockValue;
                 
                 let alert = false;
-                if (pin.signalType === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
-                  alert = true;
-                } else if (pin.signalType === 'temperature' && (parseFloat(value) < 18 || parseFloat(value) > 28)) {
-                  alert = true;
-                } else if (pin.signalType === 'water-level' && parseFloat(value) < 40) {
-                  alert = true;
+                let statusText = "Normal";
+                if (pin.signalType === 'pH') {
+                  if (parseFloat(value) < 5.5) {
+                    alert = true;
+                    statusText = "Too Acidic";
+                  } else if (parseFloat(value) > 7.5) {
+                    alert = true;
+                    statusText = "Too Alkaline";
+                  }
+                } else if (pin.signalType === 'temperature') {
+                  if (parseFloat(value) < 18) {
+                    alert = true;
+                    statusText = "Too Cold";
+                  } else if (parseFloat(value) > 28) {
+                    alert = true;
+                    statusText = "Too Hot";
+                  }
+                } else if (pin.signalType === 'water-level') {
+                  if (parseFloat(value) < 40) {
+                    alert = true;
+                    statusText = "Low Water";
+                  }
+                } else if (pin.signalType === 'humidity') {
+                  if (parseFloat(value) < 30) {
+                    alert = true;
+                    statusText = "Too Dry";
+                  } else if (parseFloat(value) > 80) {
+                    alert = true;
+                    statusText = "Too Humid";
+                  }
                 }
                 
                 return (
@@ -530,6 +555,26 @@ const Dashboard = () => {
                                       <span className="text-gray-700 capitalize">{selectedPin?.mode}</span>
                                     </div>
                                   </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Status:</label>
+                                    <div className="col-span-3">
+                                      <Badge 
+                                        variant="outline" 
+                                        className={alert ? "bg-amber-50 text-amber-600 border-amber-200" : "bg-green-50 text-green-600 border-green-200"}
+                                      >
+                                        {statusText}
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Last Reading:</label>
+                                    <div className="col-span-3">
+                                      <span className="font-medium">{value}{pin.unit}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        (Updated {new Date().toLocaleTimeString()})
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
                                 <DialogFooter className="flex justify-between">
                                   <AlertDialog>
@@ -577,4 +622,3 @@ const Dashboard = () => {
 };
 
 export default Dashboard;
-

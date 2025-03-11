@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power, AlertTriangle, Info, CircleInfo } from 'lucide-react';
@@ -30,7 +29,7 @@ import {
   DialogFooter,
   DialogTrigger
 } from '@/components/ui/dialog';
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -556,17 +555,6 @@ const DeviceDetails = () => {
                                   </DialogFooter>
                                 </DialogContent>
                               </Dialog>
-                              <Button 
-                                size="sm" 
-                                variant="ghost" 
-                                className="text-blue-600 hover:bg-blue-50"
-                                onClick={() => {
-                                  handleOpenPinEdit(pin);
-                                  document.querySelector('[data-trigger="dialog"]')?.click();
-                                }}
-                              >
-                                <Info className="h-4 w-4" />
-                              </Button>
                             </div>
                           </div>
                         );
@@ -742,78 +730,84 @@ const DeviceDetails = () => {
                             >
                               <Power className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              size="sm" 
-                              variant="ghost" 
-                              className="text-blue-600 hover:bg-blue-50"
-                              onClick={() => {
-                                handleOpenPinEdit(pin);
-                                document.querySelector('[data-trigger="dialog"]')?.click();
-                              }}
-                            >
-                              <Info className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
-        </div>
-        
-        <div className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Status</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Status</h3>
-                  <p className={`text-lg font-bold mt-1 ${device.isConnected ? 'text-green-600' : 'text-red-600'}`}>
-                    {device.isConnected ? 'Connected' : 'Offline'}
-                  </p>
-                </div>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Configured Pins</h3>
-                  <p className="text-2xl font-bold text-gray-800 mt-1">{devicePins.length}</p>
-                </div>
-                <Separator />
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Device ID</h3>
-                  <p className="text-sm font-mono bg-gray-100 p-2 mt-1 rounded">{device.id}</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link to={`/devices/${device.id}/config`} className="block w-full">
-                <Button variant="outline" className="w-full text-left justify-start">
-                  <Settings className="mr-2 h-4 w-4" />
-                  Configure Device Pins
-                </Button>
-              </Link>
-              <Link to={`/devices/${device.id}/code`} className="block w-full">
-                <Button variant="outline" className="w-full text-left justify-start">
-                  <Code className="mr-2 h-4 w-4" />
-                  View Arduino Code
-                </Button>
-              </Link>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default DeviceDetails;
+                            <Dialog>
+                              <DialogTrigger asChild>
+                                <Button 
+                                  size="sm" 
+                                  variant="ghost" 
+                                  className="text-blue-600 hover:bg-blue-50"
+                                  onClick={() => {
+                                    handleOpenPinEdit(pin);
+                                    document.querySelector('[data-trigger="dialog"]')?.click();
+                                  }}
+                                >
+                                  <Info className="h-4 w-4" />
+                                </Button>
+                              </DialogTrigger>
+                              <DialogContent className="sm:max-w-md">
+                                <DialogHeader>
+                                  <DialogTitle>Pin Details: {selectedPin?.name}</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Name:</label>
+                                    <Input
+                                      value={editPinName}
+                                      onChange={(e) => setEditPinName(e.target.value)}
+                                      className="col-span-3"
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Signal Type:</label>
+                                    <Select 
+                                      value={editPinSignalType} 
+                                      onValueChange={setEditPinSignalType}
+                                    >
+                                      <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Select signal type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {signalTypes.map(type => (
+                                          <SelectItem key={type} value={type}>
+                                            {type}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Data Type:</label>
+                                    <Select 
+                                      value={editPinDataType} 
+                                      onValueChange={setEditPinDataType}
+                                    >
+                                      <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Select data type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {dataTypes.map(type => (
+                                          <SelectItem key={type} value={type}>
+                                            {type}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Unit:</label>
+                                    <Input
+                                      value={editPinUnit}
+                                      onChange={(e) => setEditPinUnit(e.target.value)}
+                                      className="col-span-3"
+                                      placeholder="°C, %, pH, etc."
+                                    />
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Pin:</label>
+                                    <div className="col-span-3">
+                                      <span className="text-gray-700">{selectedPin?.pinNumber}</span>
+                                    </div>
+                                  </div>
+                                  <div className="grid grid-cols-4 items-center gap-4">
+                                    <label className="text-right text-sm font-medium">Mode:</label>
+                                    <div className="col-span
