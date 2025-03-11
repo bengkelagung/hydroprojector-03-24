@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
-import { Session, User } from '@supabase/supabase-js';
+import { Session, User, AuthResponse } from '@supabase/supabase-js';
 
 interface Profile {
   id: string;
@@ -20,8 +20,8 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<AuthResponse>;
+  register: (name: string, email: string, password: string) => Promise<AuthResponse>;
   logout: () => Promise<void>;
   updateProfile: (data: { full_name?: string; avatar_url?: string }) => Promise<void>;
 }
@@ -115,17 +115,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
       
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const response = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw response.error;
       }
 
       toast.success('Login successful!');
+      return response;
     } catch (error: any) {
+      console.error('Login error:', error);
       toast.error(error.message || 'Login failed. Please try again.');
       throw error;
     } finally {
@@ -138,7 +140,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setLoading(true);
 
       // Register user with Supabase
-      const { data, error } = await supabase.auth.signUp({
+      const response = await supabase.auth.signUp({
         email,
         password,
         options: {
@@ -148,17 +150,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       });
 
-      if (error) {
-        throw error;
+      if (response.error) {
+        throw response.error;
       }
 
       toast.success('Registration successful!');
       
       // For email confirmation flow, show appropriate message
-      if (!data.session) {
+      if (!response.data.session) {
         toast.info('Please check your email to confirm your account');
       }
+      
+      return response;
     } catch (error: any) {
+      console.error('Registration error:', error);
       toast.error(error.message || 'Registration failed. Please try again.');
       throw error;
     } finally {
