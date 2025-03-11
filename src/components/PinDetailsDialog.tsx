@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Trash2, Activity, Droplet, ThermometerIcon } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useHydro } from '@/contexts/HydroContext';
+import type { SignalType } from '@/contexts/HydroContext';
 
 interface Pin {
   id: string;
@@ -24,7 +25,7 @@ interface Pin {
   pinNumber: number;
   name: string;
   mode: string;
-  signalType: string;
+  signalType: SignalType;
   value?: string;
   unit?: string;
 }
@@ -40,7 +41,7 @@ const PinDetailsDialog = ({ pin, trigger }: PinDetailsDialogProps) => {
   
   const [isOpen, setIsOpen] = useState(false);
   const [editName, setEditName] = useState(pin.name);
-  const [editSignalType, setEditSignalType] = useState(pin.signalType);
+  const [editSignalType, setEditSignalType] = useState<SignalType>(pin.signalType);
   const [editUnit, setEditUnit] = useState(pin.unit || '');
 
   const handleSave = () => {
@@ -107,7 +108,7 @@ const PinDetailsDialog = ({ pin, trigger }: PinDetailsDialogProps) => {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="signalType">Signal Type</Label>
-              <Select value={editSignalType} onValueChange={setEditSignalType}>
+              <Select value={editSignalType} onValueChange={(value: SignalType) => setEditSignalType(value)}>
                 <SelectTrigger id="signalType">
                   <SelectValue placeholder="Select signal type" />
                 </SelectTrigger>
