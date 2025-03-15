@@ -34,25 +34,33 @@ export interface Pin {
   name: string;
   value?: string;
   unit?: string;
+  label?: string;
   lastUpdated?: string;
+}
+
+export interface PinOption {
+  id: string;
+  name: string;
+  pinNumber: number;
 }
 
 interface HydroContextType {
   projects: Project[];
   devices: Device[];
   pins: Pin[];
+  pinOptions: PinOption[];
   selectedProject: Project | null;
   selectedDevice: Device | null;
   createProject: (name: string, description: string) => Promise<Project>;
   createDevice: (name: string, description: string, projectId: string, type: string) => Promise<Device>;
   configurePin: (
     deviceId: string, 
-    pinNumber: number, 
+    pinId: string, 
     dataType: string, 
     signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
-    unit?: string
+    label?: string
   ) => Promise<Pin>;
   selectProject: (project: Project | null) => void;
   selectDevice: (device: Device | null) => void;
@@ -64,9 +72,12 @@ interface HydroContextType {
   dataTypes: string[];
   signalTypes: SignalType[];
   pinModes: ('input' | 'output')[];
+  labels: string[];
   fetchDataTypes: () => Promise<void>;
   fetchSignalTypes: () => Promise<void>;
   fetchPinModes: () => Promise<void>;
+  fetchPinOptions: () => Promise<void>;
+  fetchLabels: () => Promise<void>;
   updateProject: (projectId: string, updates: Partial<Project>) => void;
   updateDevice: (deviceId: string, updates: Partial<Device>) => void;
   deleteProject: (projectId: string) => void;
@@ -91,11 +102,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
+  const [pinOptions, setPinOptions] = useState<PinOption[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [dataTypes, setDataTypes] = useState<string[]>([]);
   const [signalTypes, setSignalTypes] = useState<SignalType[]>([]);
   const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
 
   useEffect(() => {
     if (user) {
@@ -105,6 +118,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fetchDataTypes();
       fetchSignalTypes();
       fetchPinModes();
+      fetchPinOptions();
+      fetchLabels();
     } else {
       setProjects([]);
       setDevices([]);
@@ -196,11 +211,32 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pin.signal_type as SignalType,
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
-        unit: pin.unit
+        unit: pin.unit,
+        label: pin.label
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
       toast.error('Failed to load pin configurations');
+    }
+  };
+
+  const fetchPinOptions = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pins')
+        .select('*')
+        .order('pin_number', { ascending: true });
+      
+      if (error) throw error;
+      
+      setPinOptions(data.map(pin => ({
+        id: pin.id,
+        name: pin.pin_name,
+        pinNumber: pin.pin_number
+      })));
+    } catch (error) {
+      console.error('Error fetching pin options:', error);
+      toast.error('Failed to load pin options');
     }
   };
 
@@ -239,16 +275,70 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const fetchPinModes = async () => {
     try {
       const { data, error } = await supabase
-        .from('pin_modes')
-        .select('name')
+        .from('modes')
+        .select('type')
         .order('id', { ascending: true });
       
       if (error) throw error;
       
-      setPinModes(data.map(mode => mode.name as 'input' | 'output'));
+      setPinModes(data.map(mode => mode.type as 'input' | 'output'));
     } catch (error) {
       console.error('Error fetching pin modes:', error);
       toast.error('Failed to load pin modes');
+    }
+  };
+
+  const fetchLabels = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('labels')
+        .select('name')
+        .order('id', { ascending: true });
+      
+      if (error) {
+        // If the table doesn't exist, create it
+        if (error.code === '42P01') {
+          await createLabelsTable();
+          await fetchLabels();
+          return;
+        }
+        throw error;
+      }
+      
+      setLabels(data.map(label => label.name));
+    } catch (error) {
+      console.error('Error fetching labels:', error);
+      toast.error('Failed to load labels');
+    }
+  };
+
+  const createLabelsTable = async () => {
+    try {
+      // Create labels table
+      const { error: createError } = await supabase.rpc('create_labels_table');
+      
+      if (createError) throw createError;
+      
+      // Insert default labels
+      const defaultLabels = [
+        { name: 'pH' },
+        { name: 'Suhu' },
+        { name: 'Kelembaban' },
+        { name: 'Pompa' },
+        { name: 'Lampu' },
+        { name: 'Level Air' }
+      ];
+      
+      const { error: insertError } = await supabase
+        .from('labels')
+        .insert(defaultLabels);
+      
+      if (insertError) throw insertError;
+      
+      console.log('Labels table created successfully');
+    } catch (error) {
+      console.error('Error creating labels table:', error);
+      toast.error('Failed to create labels table');
     }
   };
 
@@ -342,14 +432,21 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const configurePin = async (
     deviceId: string, 
-    pinNumber: number, 
+    pinId: string, 
     dataType: string, 
     signalType: SignalType, 
     mode: 'input' | 'output',
     name: string,
-    unit?: string
+    label?: string
   ): Promise<Pin> => {
     try {
+      const selectedPin = pinOptions.find(p => p.id === pinId);
+      if (!selectedPin) {
+        throw new Error('Selected pin not found');
+      }
+      
+      const pinNumber = selectedPin.pinNumber;
+      
       const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
       
       let pinData;
@@ -362,7 +459,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             signal_type: signalType,
             mode,
             name,
-            unit
+            label
           })
           .eq('id', existingPin.id)
           .select()
@@ -382,7 +479,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             signal_type: signalType,
             mode,
             name,
-            unit
+            label
           }])
           .select()
           .single();
@@ -401,7 +498,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pinData.signal_type as SignalType,
         mode: pinData.mode as 'input' | 'output',
         name: pinData.name,
-        unit: pinData.unit
+        label: pinData.label
       };
       
       if (existingPin) {
@@ -743,7 +840,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
         .update({
           name: updates.name,
           signal_type: updates.signalType,
-          unit: updates.unit,
+          label: updates.label,
           data_type: updates.dataType
         })
         .eq('id', pinId);
@@ -770,6 +867,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
         projects,
         devices,
         pins,
+        pinOptions,
         selectedProject,
         selectedDevice,
         createProject,
@@ -785,9 +883,12 @@ void read${pin.name.replace(/\s+/g, '')}() {
         dataTypes,
         signalTypes,
         pinModes,
+        labels,
         fetchDataTypes,
         fetchSignalTypes,
         fetchPinModes,
+        fetchPinOptions,
+        fetchLabels,
         updateProject,
         updateDevice,
         deleteProject,

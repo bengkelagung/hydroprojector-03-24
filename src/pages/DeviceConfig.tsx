@@ -12,14 +12,24 @@ import { toast } from 'sonner';
 const DeviceConfig = () => {
   const { deviceId } = useParams();
   const navigate = useNavigate();
-  const { devices, pins, configurePin, getPinsByDevice } = useHydro();
+  const { 
+    devices, 
+    pins, 
+    configurePin, 
+    getPinsByDevice, 
+    pinOptions, 
+    dataTypes, 
+    signalTypes, 
+    pinModes,
+    labels 
+  } = useHydro();
   
-  const [pinNumber, setPinNumber] = useState<number>(0);
-  const [dataType, setDataType] = useState<'analog' | 'digital'>('digital');
-  const [signalType, setSignalType] = useState<'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'custom'>('custom');
+  const [selectedPinId, setSelectedPinId] = useState<string>('');
+  const [dataType, setDataType] = useState<string>('');
+  const [signalType, setSignalType] = useState<string>('');
   const [mode, setMode] = useState<'input' | 'output'>('input');
   const [name, setName] = useState<string>('');
-  const [unit, setUnit] = useState<string>('');
+  const [label, setLabel] = useState<string>('');
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
@@ -27,26 +37,26 @@ const DeviceConfig = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!deviceId) {
-      toast.error('Device ID is missing');
+    if (!deviceId || !selectedPinId) {
+      toast.error('Device ID or Pin is missing');
       return;
     }
 
     try {
       await configurePin(
         deviceId,
-        pinNumber,
+        selectedPinId,
         dataType,
-        signalType,
+        signalType as any,
         mode,
         name,
-        unit
+        label
       );
       
       // Reset form
-      setPinNumber(0);
+      setSelectedPinId('');
       setName('');
-      setUnit('');
+      setLabel('');
     } catch (error) {
       toast.error('Failed to configure pin');
       console.error(error);
@@ -81,16 +91,22 @@ const DeviceConfig = () => {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="pinNumber">Pin Number</Label>
-                <Input 
-                  id="pinNumber" 
-                  type="number" 
-                  min="0" 
-                  max="40" 
-                  value={pinNumber} 
-                  onChange={(e) => setPinNumber(parseInt(e.target.value))} 
-                  required 
-                />
+                <Label htmlFor="pinNumber">Pin</Label>
+                <Select 
+                  value={selectedPinId} 
+                  onValueChange={setSelectedPinId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Pin" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pinOptions.map((pin) => (
+                      <SelectItem key={pin.id} value={pin.id}>
+                        {pin.name} (Pin {pin.pinNumber})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
               <div className="space-y-2">
@@ -106,13 +122,16 @@ const DeviceConfig = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="dataType">Data Type</Label>
-                <Select value={dataType} onValueChange={(value: 'analog' | 'digital') => setDataType(value)}>
+                <Select value={dataType} onValueChange={setDataType}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select Data Type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="analog">Analog</SelectItem>
-                    <SelectItem value="digital">Digital</SelectItem>
+                    {dataTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -121,44 +140,54 @@ const DeviceConfig = () => {
                 <Label htmlFor="signalType">Signal Type</Label>
                 <Select 
                   value={signalType} 
-                  onValueChange={(value: 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'custom') => setSignalType(value)}
+                  onValueChange={setSignalType}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Signal Type" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="pH">pH</SelectItem>
-                    <SelectItem value="temperature">Temperature</SelectItem>
-                    <SelectItem value="humidity">Humidity</SelectItem>
-                    <SelectItem value="water-level">Water Level</SelectItem>
-                    <SelectItem value="nutrient">Nutrient</SelectItem>
-                    <SelectItem value="light">Light</SelectItem>
-                    <SelectItem value="custom">Custom</SelectItem>
+                    {signalTypes.map((type) => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="space-y-2">
                 <Label htmlFor="mode">Mode</Label>
-                <Select value={mode} onValueChange={(value: 'input' | 'output') => setMode(value)}>
+                <Select 
+                  value={mode} 
+                  onValueChange={(value: 'input' | 'output') => setMode(value)}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="Select Mode" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="input">Input</SelectItem>
-                    <SelectItem value="output">Output</SelectItem>
+                    {pinModes.map((modeOption) => (
+                      <SelectItem key={modeOption} value={modeOption}>
+                        {modeOption}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="unit">Unit (optional)</Label>
-                <Input 
-                  id="unit" 
-                  value={unit} 
-                  onChange={(e) => setUnit(e.target.value)} 
-                  placeholder="e.g., °C, %, pH" 
-                />
+                <Label htmlFor="label">Label</Label>
+                <Select value={label} onValueChange={setLabel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Label" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {labels.map((labelOption) => (
+                      <SelectItem key={labelOption} value={labelOption}>
+                        {labelOption}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
               <Button type="submit" className="w-full">Configure Pin</Button>
@@ -184,7 +213,7 @@ const DeviceConfig = () => {
                       <th className="text-left p-2">Type</th>
                       <th className="text-left p-2">Signal</th>
                       <th className="text-left p-2">Mode</th>
-                      <th className="text-left p-2">Unit</th>
+                      <th className="text-left p-2">Label</th>
                       <th className="text-left p-2">Last Value</th>
                     </tr>
                   </thead>
@@ -196,7 +225,7 @@ const DeviceConfig = () => {
                         <td className="p-2">{pin.dataType}</td>
                         <td className="p-2">{pin.signalType}</td>
                         <td className="p-2">{pin.mode}</td>
-                        <td className="p-2">{pin.unit || '-'}</td>
+                        <td className="p-2">{pin.label || '-'}</td>
                         <td className="p-2">{pin.value || 'No data'}</td>
                       </tr>
                     ))}

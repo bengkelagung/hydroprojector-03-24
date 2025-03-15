@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Pencil, Trash2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -33,12 +33,12 @@ interface PinDetailsDialogProps {
 }
 
 const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) => {
-  const { devices, projects, signalTypes, dataTypes, updatePin, deletePin } = useHydro();
+  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin } = useHydro();
   
   const [editPinName, setEditPinName] = useState('');
   const [editPinSignalType, setEditPinSignalType] = useState<string>('');
   const [editPinDataType, setEditPinDataType] = useState<string>('');
-  const [editPinUnit, setEditPinUnit] = useState<string>('');
+  const [editPinLabel, setEditPinLabel] = useState<string>('');
   
   // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
@@ -49,7 +49,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinName(pin.name);
       setEditPinSignalType(pin.signalType);
       setEditPinDataType(pin.dataType);
-      setEditPinUnit(pin.unit || '');
+      setEditPinLabel(pin.label || '');
     }
   }, [pin]);
   
@@ -66,7 +66,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
         name: editPinName,
         signalType: editPinSignalType as any,
         dataType: editPinDataType,
-        unit: editPinUnit || undefined
+        label: editPinLabel || undefined
       });
       
       onOpenChange(false);
@@ -142,13 +142,22 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
             </Select>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Unit:</Label>
-            <Input
-              value={editPinUnit}
-              onChange={(e) => setEditPinUnit(e.target.value)}
-              className="col-span-3"
-              placeholder="°C, %, pH, etc."
-            />
+            <Label className="text-right">Label:</Label>
+            <Select 
+              value={editPinLabel} 
+              onValueChange={setEditPinLabel}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select label" />
+              </SelectTrigger>
+              <SelectContent>
+                {labels.map(label => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Pin:</Label>
