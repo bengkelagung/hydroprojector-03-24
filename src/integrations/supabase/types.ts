@@ -12,14 +12,17 @@ export type Database = {
       data_types: {
         Row: {
           id: string
+          name: string
           type: string
         }
         Insert: {
           id?: string
+          name?: string
           type: string
         }
         Update: {
           id?: string
+          name?: string
           type?: string
         }
         Relationships: []
@@ -55,31 +58,40 @@ export type Database = {
       }
       devices: {
         Row: {
+          created_at: string | null
           description: string
           device_name: string
           device_type: string
           id: string
+          is_connected: boolean | null
           last_active: string | null
+          last_seen: string | null
           project_id: string | null
           status: string
           uptime: unknown | null
         }
         Insert: {
+          created_at?: string | null
           description: string
           device_name: string
           device_type: string
           id?: string
+          is_connected?: boolean | null
           last_active?: string | null
+          last_seen?: string | null
           project_id?: string | null
           status: string
           uptime?: unknown | null
         }
         Update: {
+          created_at?: string | null
           description?: string
           device_name?: string
           device_type?: string
           id?: string
+          is_connected?: boolean | null
           last_active?: string | null
+          last_seen?: string | null
           project_id?: string | null
           status?: string
           uptime?: unknown | null
@@ -108,6 +120,50 @@ export type Database = {
           type?: string
         }
         Relationships: []
+      }
+      pin_configs: {
+        Row: {
+          created_at: string | null
+          data_type: string
+          device_id: string | null
+          id: string
+          mode: string
+          name: string
+          pin_number: number
+          signal_type: string
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          data_type: string
+          device_id?: string | null
+          id?: string
+          mode: string
+          name: string
+          pin_number: number
+          signal_type: string
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          data_type?: string
+          device_id?: string | null
+          id?: string
+          mode?: string
+          name?: string
+          pin_number?: number
+          signal_type?: string
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_configs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pin_configuration: {
         Row: {
@@ -178,6 +234,35 @@ export type Database = {
           },
         ]
       }
+      pin_data: {
+        Row: {
+          created_at: string | null
+          id: string
+          pin_config_id: string | null
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          pin_config_id?: string | null
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          pin_config_id?: string | null
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_data_pin_config_id_fkey"
+            columns: ["pin_config_id"]
+            isOneToOne: false
+            referencedRelation: "pin_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pin_logs: {
         Row: {
           description: string
@@ -219,6 +304,21 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pin_modes: {
+        Row: {
+          id: string
+          name: string
+        }
+        Insert: {
+          id?: string
+          name: string
+        }
+        Update: {
+          id?: string
+          name?: string
+        }
+        Relationships: []
       }
       pins: {
         Row: {
@@ -264,22 +364,28 @@ export type Database = {
       }
       projects: {
         Row: {
+          created_at: string | null
           description: string
           id: string
           profile_id: string | null
           project_name: string
+          user_id: string | null
         }
         Insert: {
+          created_at?: string | null
           description: string
           id?: string
           profile_id?: string | null
           project_name: string
+          user_id?: string | null
         }
         Update: {
+          created_at?: string | null
           description?: string
           id?: string
           profile_id?: string | null
           project_name?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -332,14 +438,17 @@ export type Database = {
       signal_types: {
         Row: {
           id: string
+          name: string
           type: string
         }
         Insert: {
           id?: string
+          name?: string
           type: string
         }
         Update: {
           id?: string
+          name?: string
           type?: string
         }
         Relationships: []
