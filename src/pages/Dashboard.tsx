@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Info } from 'lucide-react';
@@ -251,6 +250,11 @@ const Dashboard = () => {
                         <Link to={`/devices/${device.id}/config`}>
                           <Button variant="outline" size="sm">
                             Configure
+                          </Button>
+                        </Link>
+                        <Link to={`/devices/${device.id}/code`}>
+                          <Button variant="outline" size="sm">
+                            Code
                           </Button>
                         </Link>
                       </div>
