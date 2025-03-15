@@ -292,20 +292,18 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       const { data, error } = await supabase
         .from('labels')
-        .select('name')
-        .order('id', { ascending: true });
+        .select('*')
+        .limit(1);
       
       if (error) {
-        // If the table doesn't exist, create it
         if (error.code === '42P01') {
           await createLabelsTable();
-          await fetchLabels();
           return;
         }
         throw error;
       }
       
-      setLabels(data.map(label => label.name));
+      setLabels(data || []);
     } catch (error) {
       console.error('Error fetching labels:', error);
       toast.error('Failed to load labels');
@@ -314,26 +312,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createLabelsTable = async () => {
     try {
-      // Create labels table
       const { error: createError } = await supabase.rpc('create_labels_table');
       
       if (createError) throw createError;
       
-      // Insert default labels
-      const defaultLabels = [
-        { name: 'pH' },
-        { name: 'Suhu' },
-        { name: 'Kelembaban' },
-        { name: 'Pompa' },
-        { name: 'Lampu' },
-        { name: 'Level Air' }
-      ];
-      
-      const { error: insertError } = await supabase
-        .from('labels')
-        .insert(defaultLabels);
-      
-      if (insertError) throw insertError;
+      await fetchLabels();
       
       console.log('Labels table created successfully');
     } catch (error) {
