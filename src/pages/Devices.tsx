@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Info } from 'lucide-react';
@@ -10,7 +9,6 @@ import { useHydro } from '@/contexts/HydroContext';
 const Devices = () => {
   const { devices, projects, getPinsByDevice } = useHydro();
 
-  // Helper function to get a color based on signal type
   const getSignalColor = (signalType: string) => {
     switch (signalType) {
       case 'pH': return 'bg-purple-500';
@@ -23,7 +21,6 @@ const Devices = () => {
     }
   };
 
-  // Get a status icon based on device connection
   const getStatusIcon = (isConnected: boolean) => {
     return isConnected ? (
       <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 flex items-center">
