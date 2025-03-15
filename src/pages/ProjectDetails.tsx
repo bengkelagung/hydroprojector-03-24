@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { PlusCircle, Pencil, ChevronLeft, Cpu, Trash2 } from 'lucide-react';
@@ -32,6 +31,7 @@ const ProjectDetails = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(project?.name || '');
   const [editDescription, setEditDescription] = useState(project?.description || '');
+  const [isDeleting, setIsDeleting] = useState(false);
   
   if (!project) {
     return (
@@ -70,13 +70,21 @@ const ProjectDetails = () => {
     });
   };
   
-  const handleDeleteProject = () => {
-    deleteProject(project.id);
-    toast({
-      title: "Project deleted",
-      description: "The project and all associated devices have been deleted",
-    });
-    navigate('/projects');
+  const handleDeleteProject = async () => {
+    try {
+      setIsDeleting(true);
+      await deleteProject(project.id);
+      navigate('/projects');
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      toast({
+        title: "Error deleting project",
+        description: "There was a problem deleting the project. Please try again.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
   
   return (
@@ -149,9 +157,9 @@ const ProjectDetails = () => {
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="destructive" className="w-full sm:w-auto">
+                      <Button variant="destructive" className="w-full sm:w-auto" disabled={isDeleting}>
                         <Trash2 className="mr-2 h-4 w-4" />
-                        Delete Project
+                        {isDeleting ? "Deleting..." : "Delete Project"}
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -164,8 +172,8 @@ const ProjectDetails = () => {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700">
-                          Yes, delete project
+                        <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+                          {isDeleting ? "Deleting..." : "Yes, delete project"}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -273,9 +281,9 @@ const ProjectDetails = () => {
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50">
+                  <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50" disabled={isDeleting}>
                     <Trash2 className="mr-2 h-4 w-4" />
-                    Delete Project
+                    {isDeleting ? "Deleting..." : "Delete Project"}
                   </Button>
                 </AlertDialogTrigger>
                 <AlertDialogContent>
@@ -288,8 +296,8 @@ const ProjectDetails = () => {
                   </AlertDialogHeader>
                   <AlertDialogFooter>
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700">
-                      Yes, delete project
+                    <AlertDialogAction onClick={handleDeleteProject} className="bg-red-600 hover:bg-red-700" disabled={isDeleting}>
+                      {isDeleting ? "Deleting..." : "Yes, delete project"}
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>

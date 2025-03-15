@@ -125,7 +125,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setProjects(data.map(project => ({
         id: project.id,
-        name: project.project_name, // Changed from name to project_name
+        name: project.project_name,
         description: project.description || '',
         userId: project.user_id,
         createdAt: project.created_at
@@ -155,10 +155,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setDevices(data.map(device => ({
         id: device.id,
-        name: device.device_name, // Changed from name to device_name
+        name: device.device_name,
         description: device.description || '',
         projectId: device.project_id,
-        type: device.device_type, // Changed from type to device_type
+        type: device.device_type,
         isConnected: device.is_connected,
         lastSeen: device.last_seen,
         createdAt: device.created_at
@@ -256,7 +256,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) throw new Error('User must be logged in to create a project');
 
     try {
-      // First, get the user's profile_id
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('profile_id')
@@ -309,11 +308,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { data, error } = await supabase
         .from('devices')
         .insert([{
-          device_name: name, // Changed from name to device_name
+          device_name: name,
           description,
           project_id: projectId,
-          device_type: type, // Changed from type to device_type
-          status: 'ACTIVE' // Added status field
+          device_type: type,
+          status: 'ACTIVE'
         }])
         .select()
         .single();
@@ -322,10 +321,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const newDevice: Device = {
         id: data.id,
-        name: data.device_name, // Changed from name to device_name
+        name: data.device_name,
         description: data.description || '',
         projectId: data.project_id,
-        type: data.device_type, // Changed from type to device_type
+        type: data.device_type,
         isConnected: data.is_connected,
         lastSeen: data.last_seen,
         createdAt: data.created_at
@@ -637,90 +636,95 @@ void read${pin.name.replace(/\s+/g, '')}() {
     );
   };
 
-  const deleteProject = (projectId: string) => {
-    const projectDevices = devices.filter(d => d.projectId === projectId);
-    
-    const deviceIds = projectDevices.map(d => d.id);
-    const pinsToDelete = pins.filter(p => deviceIds.includes(p.deviceId));
-    pinsToDelete.forEach(pin => {
-      supabase
+  const deletePin = async (pinId: string) => {
+    try {
+      const { error: pinDataError } = await supabase
+        .from('pin_data')
+        .delete()
+        .eq('pin_config_id', pinId);
+      
+      if (pinDataError) {
+        console.error('Error deleting pin data:', pinDataError);
+        throw pinDataError;
+      }
+      
+      const { error: pinConfigError } = await supabase
         .from('pin_configs')
         .delete()
-        .eq('id', pin.id)
-        .then(({ error }) => {
-          if (error) console.error('Error deleting pin:', error);
-        });
-    });
-    
-    projectDevices.forEach(device => {
-      supabase
+        .eq('id', pinId);
+      
+      if (pinConfigError) {
+        console.error('Error deleting pin:', pinConfigError);
+        throw pinConfigError;
+      }
+      
+      setPins(prev => prev.filter(p => p.id !== pinId));
+    } catch (error) {
+      console.error('Error in deletePin:', error);
+      toast.error('Failed to delete pin');
+    }
+  };
+
+  const deleteDevice = async (deviceId: string) => {
+    try {
+      const devicePins = pins.filter(p => p.deviceId === deviceId);
+      
+      for (const pin of devicePins) {
+        await deletePin(pin.id);
+      }
+      
+      const { error } = await supabase
         .from('devices')
         .delete()
-        .eq('id', device.id)
-        .then(({ error }) => {
-          if (error) console.error('Error deleting device:', error);
-        });
-    });
-    
-    supabase
-      .from('projects')
-      .delete()
-      .eq('id', projectId)
-      .then(({ error }) => {
-        if (error) console.error('Error deleting project:', error);
-      });
-    
-    setPins(prev => prev.filter(p => !deviceIds.includes(p.deviceId)));
-    setDevices(prev => prev.filter(d => d.projectId !== projectId));
-    setProjects(prev => prev.filter(p => p.id !== projectId));
-    
-    if (selectedProject?.id === projectId) {
-      setSelectedProject(null);
-    }
-    
-    if (selectedDevice && selectedDevice.projectId === projectId) {
-      setSelectedDevice(null);
+        .eq('id', deviceId);
+      
+      if (error) {
+        console.error('Error deleting device:', error);
+        throw error;
+      }
+      
+      setDevices(prev => prev.filter(d => d.id !== deviceId));
+      
+      if (selectedDevice?.id === deviceId) {
+        setSelectedDevice(null);
+      }
+      
+      toast.success('Device deleted successfully');
+    } catch (error) {
+      console.error('Error in deleteDevice:', error);
+      toast.error('Failed to delete device');
     }
   };
 
-  const deleteDevice = (deviceId: string) => {
-    const devicePins = pins.filter(p => p.deviceId === deviceId);
-    devicePins.forEach(pin => {
-      supabase
-        .from('pin_configs')
+  const deleteProject = async (projectId: string) => {
+    try {
+      const projectDevices = devices.filter(d => d.projectId === projectId);
+      
+      for (const device of projectDevices) {
+        await deleteDevice(device.id);
+      }
+      
+      const { error } = await supabase
+        .from('projects')
         .delete()
-        .eq('id', pin.id)
-        .then(({ error }) => {
-          if (error) console.error('Error deleting pin:', error);
-        });
-    });
-    
-    supabase
-      .from('devices')
-      .delete()
-      .eq('id', deviceId)
-      .then(({ error }) => {
-        if (error) console.error('Error deleting device:', error);
-      });
-    
-    setPins(prev => prev.filter(p => p.deviceId !== deviceId));
-    setDevices(prev => prev.filter(d => d.id !== deviceId));
-    
-    if (selectedDevice?.id === deviceId) {
-      setSelectedDevice(null);
+        .eq('id', projectId);
+      
+      if (error) {
+        console.error('Error deleting project:', error);
+        throw error;
+      }
+      
+      setProjects(prev => prev.filter(p => p.id !== projectId));
+      
+      if (selectedProject?.id === projectId) {
+        setSelectedProject(null);
+      }
+      
+      toast.success('Project deleted successfully');
+    } catch (error) {
+      console.error('Error in deleteProject:', error);
+      toast.error('Failed to delete project');
     }
-  };
-
-  const deletePin = (pinId: string) => {
-    supabase
-      .from('pin_configs')
-      .delete()
-      .eq('id', pinId)
-      .then(({ error }) => {
-        if (error) console.error('Error deleting pin:', error);
-      });
-    
-    setPins(prev => prev.filter(p => p.id !== pinId));
   };
 
   const togglePinValue = (pinId: string) => {
