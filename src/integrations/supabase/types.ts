@@ -11,49 +11,78 @@ export type Database = {
     Tables: {
       data_types: {
         Row: {
-          id: number
-          name: string
-        }
-        Insert: {
-          id?: number
-          name: string
-        }
-        Update: {
-          id?: number
-          name?: string
-        }
-        Relationships: []
-      }
-      devices: {
-        Row: {
-          created_at: string
-          description: string | null
           id: string
-          is_connected: boolean | null
-          last_seen: string | null
-          name: string
-          project_id: string
           type: string
         }
         Insert: {
-          created_at?: string
-          description?: string | null
           id?: string
-          is_connected?: boolean | null
-          last_seen?: string | null
-          name: string
-          project_id: string
-          type?: string
+          type: string
         }
         Update: {
-          created_at?: string
-          description?: string | null
           id?: string
-          is_connected?: boolean | null
-          last_seen?: string | null
-          name?: string
-          project_id?: string
           type?: string
+        }
+        Relationships: []
+      }
+      device_logs: {
+        Row: {
+          device_id: string | null
+          id: string
+          status: string
+          timestamp: string | null
+        }
+        Insert: {
+          device_id?: string | null
+          id?: string
+          status: string
+          timestamp?: string | null
+        }
+        Update: {
+          device_id?: string | null
+          id?: string
+          status?: string
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "device_logs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      devices: {
+        Row: {
+          description: string
+          device_name: string
+          device_type: string
+          id: string
+          last_active: string | null
+          project_id: string | null
+          status: string
+          uptime: unknown | null
+        }
+        Insert: {
+          description: string
+          device_name: string
+          device_type: string
+          id?: string
+          last_active?: string | null
+          project_id?: string | null
+          status: string
+          uptime?: unknown | null
+        }
+        Update: {
+          description?: string
+          device_name?: string
+          device_type?: string
+          id?: string
+          last_active?: string | null
+          project_id?: string | null
+          status?: string
+          uptime?: unknown | null
         }
         Relationships: [
           {
@@ -65,156 +94,366 @@ export type Database = {
           },
         ]
       }
-      pin_configs: {
+      modes: {
         Row: {
-          created_at: string
-          data_type: string
-          device_id: string
           id: string
-          mode: string
-          name: string
-          pin_number: number
-          signal_type: string
-          unit: string | null
+          type: string
         }
         Insert: {
-          created_at?: string
-          data_type: string
-          device_id: string
           id?: string
-          mode: string
-          name: string
-          pin_number: number
-          signal_type: string
-          unit?: string | null
+          type: string
         }
         Update: {
-          created_at?: string
-          data_type?: string
-          device_id?: string
           id?: string
-          mode?: string
-          name?: string
-          pin_number?: number
-          signal_type?: string
-          unit?: string | null
+          type?: string
+        }
+        Relationships: []
+      }
+      pin_configuration: {
+        Row: {
+          data_type_id: string | null
+          device_id: string | null
+          id: string
+          mode_id: string | null
+          pin_id: string | null
+          signal_type_id: string | null
+          state: boolean | null
+          status: string
+        }
+        Insert: {
+          data_type_id?: string | null
+          device_id?: string | null
+          id?: string
+          mode_id?: string | null
+          pin_id?: string | null
+          signal_type_id?: string | null
+          state?: boolean | null
+          status?: string
+        }
+        Update: {
+          data_type_id?: string | null
+          device_id?: string | null
+          id?: string
+          mode_id?: string | null
+          pin_id?: string | null
+          signal_type_id?: string | null
+          state?: boolean | null
+          status?: string
         }
         Relationships: [
           {
-            foreignKeyName: "pin_configs_device_id_fkey"
+            foreignKeyName: "pin_configuration_data_type_id_fkey"
+            columns: ["data_type_id"]
+            isOneToOne: false
+            referencedRelation: "data_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_configuration_device_id_fkey"
             columns: ["device_id"]
             isOneToOne: false
             referencedRelation: "devices"
             referencedColumns: ["id"]
           },
-        ]
-      }
-      pin_data: {
-        Row: {
-          id: string
-          pin_config_id: string
-          timestamp: string
-          value: string
-        }
-        Insert: {
-          id?: string
-          pin_config_id: string
-          timestamp?: string
-          value: string
-        }
-        Update: {
-          id?: string
-          pin_config_id?: string
-          timestamp?: string
-          value?: string
-        }
-        Relationships: [
           {
-            foreignKeyName: "pin_data_pin_config_id_fkey"
-            columns: ["pin_config_id"]
+            foreignKeyName: "pin_configuration_mode_id_fkey"
+            columns: ["mode_id"]
             isOneToOne: false
-            referencedRelation: "pin_configs"
+            referencedRelation: "modes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_configuration_pin_id_fkey"
+            columns: ["pin_id"]
+            isOneToOne: false
+            referencedRelation: "pins"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_configuration_signal_type_id_fkey"
+            columns: ["signal_type_id"]
+            isOneToOne: false
+            referencedRelation: "signal_types"
             referencedColumns: ["id"]
           },
         ]
       }
-      pin_modes: {
+      pin_logs: {
         Row: {
-          id: number
-          name: string
+          description: string
+          device_id: string | null
+          id: string
+          pin_id: string | null
+          status: string
+          timestamp: string | null
         }
         Insert: {
-          id?: number
-          name: string
+          description: string
+          device_id?: string | null
+          id?: string
+          pin_id?: string | null
+          status: string
+          timestamp?: string | null
         }
         Update: {
-          id?: number
-          name?: string
+          description?: string
+          device_id?: string | null
+          id?: string
+          pin_id?: string | null
+          status?: string
+          timestamp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pin_logs_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pin_logs_pin_id_fkey"
+            columns: ["pin_id"]
+            isOneToOne: false
+            referencedRelation: "pins"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pins: {
+        Row: {
+          id: string
+          pin_name: string
+          pin_number: number
+        }
+        Insert: {
+          id?: string
+          pin_name: string
+          pin_number: number
+        }
+        Update: {
+          id?: string
+          pin_name?: string
+          pin_number?: number
         }
         Relationships: []
       }
       profiles: {
         Row: {
-          avatar_url: string | null
-          created_at: string
-          full_name: string | null
-          id: string
-          updated_at: string
+          full_name: string
+          last_active: string | null
+          profile_id: string
+          status: string
+          user_id: string | null
         }
         Insert: {
-          avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id: string
-          updated_at?: string
+          full_name: string
+          last_active?: string | null
+          profile_id?: string
+          status?: string
+          user_id?: string | null
         }
         Update: {
-          avatar_url?: string | null
-          created_at?: string
-          full_name?: string | null
-          id?: string
-          updated_at?: string
+          full_name?: string
+          last_active?: string | null
+          profile_id?: string
+          status?: string
+          user_id?: string | null
         }
         Relationships: []
       }
       projects: {
         Row: {
-          created_at: string
-          description: string | null
+          description: string
           id: string
-          name: string
-          user_id: string
+          profile_id: string | null
+          project_name: string
         }
         Insert: {
-          created_at?: string
-          description?: string | null
+          description: string
           id?: string
-          name: string
-          user_id: string
+          profile_id?: string | null
+          project_name: string
         }
         Update: {
-          created_at?: string
-          description?: string | null
+          description?: string
           id?: string
-          name?: string
-          user_id?: string
+          profile_id?: string | null
+          project_name?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "projects_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["profile_id"]
+          },
+        ]
+      }
+      setting: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: number
+          key: string
+          updated_at: string | null
+          user_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: number
+          key: string
+          updated_at?: string | null
+          user_id: string
+          value: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: number
+          key?: string
+          updated_at?: string | null
+          user_id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       signal_types: {
         Row: {
-          id: number
-          name: string
+          id: string
+          type: string
         }
         Insert: {
-          id?: number
-          name: string
+          id?: string
+          type: string
         }
         Update: {
-          id?: number
-          name?: string
+          id?: string
+          type?: string
         }
         Relationships: []
+      }
+      target_setting: {
+        Row: {
+          created_at: string | null
+          id: number
+          target_kelembaban: number
+          target_ph: number
+          target_suhu: number
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          target_kelembaban: number
+          target_ph: number
+          target_suhu: number
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          target_kelembaban?: number
+          target_ph?: number
+          target_suhu?: number
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "target_setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      user_setting: {
+        Row: {
+          created_at: string | null
+          email: string
+          foto_user: string | null
+          id: number
+          nama_lengkap: string
+          nomor_hp: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          foto_user?: string | null
+          id?: number
+          nama_lengkap: string
+          nomor_hp: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          foto_user?: string | null
+          id?: number
+          nama_lengkap?: string
+          nomor_hp?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      webhook_setting: {
+        Row: {
+          created_at: string | null
+          id: number
+          updated_at: string | null
+          user_id: string
+          webhook_url: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          updated_at?: string | null
+          user_id: string
+          webhook_url: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          updated_at?: string | null
+          user_id?: string
+          webhook_url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_setting_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
     }
     Views: {
