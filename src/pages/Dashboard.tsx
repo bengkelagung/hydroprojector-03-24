@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Info } from 'lucide-react';
+import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -260,7 +260,6 @@ const Dashboard = () => {
                       </div>
                       <Link to={`/devices/${device.id}/details`}>
                         <Button size="sm" className="bg-hydro-blue hover:bg-blue-700">
-                          <Info className="mr-2 h-4 w-4" />
                           View Details
                         </Button>
                       </Link>
