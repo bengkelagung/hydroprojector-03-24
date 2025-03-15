@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -125,7 +126,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setProjects(data.map(project => ({
         id: project.id,
-        name: project.name,
+        name: project.project_name, // Changed from name to project_name
         description: project.description || '',
         userId: project.user_id,
         createdAt: project.created_at
@@ -155,10 +156,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       setDevices(data.map(device => ({
         id: device.id,
-        name: device.name,
+        name: device.device_name, // Changed from name to device_name
         description: device.description || '',
         projectId: device.project_id,
-        type: device.type,
+        type: device.device_type, // Changed from type to device_type
         isConnected: device.is_connected,
         lastSeen: device.last_seen,
         createdAt: device.created_at
@@ -259,7 +260,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { data, error } = await supabase
         .from('projects')
         .insert([{
-          name,
+          project_name: name, // Changed from name to project_name
           description,
           user_id: user.id
         }])
@@ -270,7 +271,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const newProject: Project = {
         id: data.id,
-        name: data.name,
+        name: data.project_name, // Changed from name to project_name
         description: data.description || '',
         userId: data.user_id,
         createdAt: data.created_at
@@ -296,10 +297,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       const { data, error } = await supabase
         .from('devices')
         .insert([{
-          name,
+          device_name: name, // Changed from name to device_name
           description,
           project_id: projectId,
-          type
+          device_type: type, // Changed from type to device_type
+          status: 'ACTIVE' // Added status field
         }])
         .select()
         .single();
@@ -308,10 +310,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const newDevice: Device = {
         id: data.id,
-        name: data.name,
+        name: data.device_name, // Changed from name to device_name
         description: data.description || '',
         projectId: data.project_id,
-        type: data.type,
+        type: data.device_type, // Changed from type to device_type
         isConnected: data.is_connected,
         lastSeen: data.last_seen,
         createdAt: data.created_at
