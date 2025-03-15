@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -257,12 +256,25 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) throw new Error('User must be logged in to create a project');
 
     try {
+      // First, get the user's profile_id
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('profile_id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (profileError) {
+        console.error('Error fetching profile:', profileError);
+        throw new Error('Failed to fetch user profile');
+      }
+      
       const { data, error } = await supabase
         .from('projects')
         .insert([{
-          project_name: name, // Changed from name to project_name
+          project_name: name,
           description,
-          user_id: user.id
+          user_id: user.id,
+          profile_id: profileData.profile_id
         }])
         .select()
         .single();
@@ -271,7 +283,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const newProject: Project = {
         id: data.id,
-        name: data.project_name, // Changed from name to project_name
+        name: data.project_name,
         description: data.description || '',
         userId: data.user_id,
         createdAt: data.created_at
