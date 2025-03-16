@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -213,7 +212,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit,
-        label: pin.label || undefined
+        label: pin.label || undefined,
+        value: pin.value,
+        lastUpdated: pin.last_updated
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
@@ -291,21 +292,30 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      // Check if labels table exists by getting table info
-      const { error: checkError } = await supabase.rpc('check_labels_table_exists');
+      const { data: tablesData, error: tablesError } = await supabase
+        .from('information_schema.tables')
+        .select('table_name')
+        .eq('table_schema', 'public')
+        .eq('table_name', 'labels');
       
-      if (checkError) {
-        // If the function doesn't exist or table doesn't exist, create it
+      if (tablesError) {
+        console.error('Error checking for labels table:', tablesError);
+        throw tablesError;
+      }
+      
+      if (!tablesData || tablesData.length === 0) {
         await createLabelsTable();
         return;
       }
       
-      // If table exists, fetch the labels
-      const { data, error } = await supabase.rpc('get_labels');
+      const { data, error } = await supabase
+        .from('labels')
+        .select('name')
+        .order('name');
       
       if (error) throw error;
       
-      setLabels(data || []);
+      setLabels(data ? data.map(item => item.name) : []);
     } catch (error) {
       console.error('Error fetching labels:', error);
       toast.error('Failed to load labels');
@@ -314,18 +324,49 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createLabelsTable = async () => {
     try {
-      // Create function to check if table exists
-      await supabase.rpc('create_check_labels_function');
+      const { error: createError } = await supabase.query(`
+        CREATE TABLE IF NOT EXISTS public.labels (
+          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+          name VARCHAR(255) NOT NULL UNIQUE,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        );
+        
+        -- Set up RLS policies
+        ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
+        
+        -- Allow all authenticated users to read labels
+        DROP POLICY IF EXISTS "Allow all users to read labels" ON public.labels;
+        CREATE POLICY "Allow all users to read labels" ON public.labels
+          FOR SELECT
+          TO authenticated
+          USING (true);
+      `);
       
-      // Create the labels table and insert default values
-      await supabase.rpc('create_labels_table_with_data');
+      if (createError) throw createError;
       
-      // Now that the table is created with data, fetch the labels
-      const { data, error } = await supabase.rpc('get_labels');
+      const { error: insertError } = await supabase
+        .from('labels')
+        .insert([
+          { name: 'pH' },
+          { name: 'Suhu' },
+          { name: 'Kelembaban' },
+          { name: 'Pompa' },
+          { name: 'Lampu' },
+          { name: 'Level Air' }
+        ])
+        .onConflict('name')
+        .ignore();
+      
+      if (insertError) throw insertError;
+      
+      const { data, error } = await supabase
+        .from('labels')
+        .select('name')
+        .order('name');
       
       if (error) throw error;
       
-      setLabels(data || []);
+      setLabels(data ? data.map(item => item.name) : []);
       
       console.log('Labels table created successfully with default values');
     } catch (error) {
