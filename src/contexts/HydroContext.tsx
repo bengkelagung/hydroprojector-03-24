@@ -73,11 +73,11 @@ interface HydroContextType {
   signalTypes: SignalType[];
   pinModes: ('input' | 'output')[];
   labels: string[];
+  fetchLabels: () => Promise<void>;
   fetchDataTypes: () => Promise<void>;
   fetchSignalTypes: () => Promise<void>;
   fetchPinModes: () => Promise<void>;
   fetchPinOptions: () => Promise<void>;
-  fetchLabels: () => Promise<void>;
   updateProject: (projectId: string, updates: Partial<Project>) => void;
   updateDevice: (deviceId: string, updates: Partial<Device>) => void;
   deleteProject: (projectId: string) => void;
@@ -213,8 +213,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         name: pin.name,
         unit: pin.unit,
         label: pin.label || undefined,
-        value: pin.value,
-        lastUpdated: pin.last_updated
+        value: pin.value || undefined,
+        lastUpdated: pin.last_updated || undefined
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
@@ -292,86 +292,83 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      const { data: tablesData, error: tablesError } = await supabase
-        .from('information_schema.tables')
-        .select('table_name')
-        .eq('table_schema', 'public')
-        .eq('table_name', 'labels');
+      const { data, error } = await supabase
+        .rpc('get_all_labels');
       
-      if (tablesError) {
-        console.error('Error checking for labels table:', tablesError);
-        throw tablesError;
-      }
-      
-      if (!tablesData || tablesData.length === 0) {
-        await createLabelsTable();
+      if (error) {
+        console.error('Error fetching labels:', error);
+        await ensureLabelTableExists();
         return;
       }
       
-      const { data, error } = await supabase
-        .from('labels')
-        .select('name')
-        .order('name');
-      
-      if (error) throw error;
-      
-      setLabels(data ? data.map(item => item.name) : []);
+      setLabels(data ? data.map((item: { name: string }) => item.name) : []);
     } catch (error) {
-      console.error('Error fetching labels:', error);
+      console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
     }
   };
 
-  const createLabelsTable = async () => {
+  const ensureLabelTableExists = async () => {
     try {
-      const { error: createError } = await supabase.query(`
-        CREATE TABLE IF NOT EXISTS public.labels (
-          id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-          name VARCHAR(255) NOT NULL UNIQUE,
-          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-        );
+      const { error } = await supabase.rpc('get_all_labels');
+      
+      if (error) {
+        console.log('Creating label table...');
         
-        -- Set up RLS policies
-        ALTER TABLE public.labels ENABLE ROW LEVEL SECURITY;
+        const createTableQuery = `
+          CREATE TABLE IF NOT EXISTS public.label (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50) UNIQUE NOT NULL
+          );
+          
+          INSERT INTO public.label (name) 
+          VALUES 
+            ('pH'),
+            ('Suhu'),
+            ('Kelembaban'),
+            ('Pompa'),
+            ('Lampu'),
+            ('Level Air')
+          ON CONFLICT (name) DO NOTHING;
+          
+          ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
+          
+          DROP POLICY IF EXISTS "Allow authenticated users to read labels" ON public.label;
+          CREATE POLICY "Allow authenticated users to read labels" 
+            ON public.label
+            FOR SELECT
+            TO authenticated
+            USING (true);
+            
+          CREATE OR REPLACE FUNCTION public.get_all_labels()
+          RETURNS SETOF public.label
+          LANGUAGE sql
+          SECURITY DEFINER
+          AS $$
+            SELECT * FROM public.label ORDER BY name;
+          $$;
+        `;
         
-        -- Allow all authenticated users to read labels
-        DROP POLICY IF EXISTS "Allow all users to read labels" ON public.labels;
-        CREATE POLICY "Allow all users to read labels" ON public.labels
-          FOR SELECT
-          TO authenticated
-          USING (true);
-      `);
-      
-      if (createError) throw createError;
-      
-      const { error: insertError } = await supabase
-        .from('labels')
-        .insert([
-          { name: 'pH' },
-          { name: 'Suhu' },
-          { name: 'Kelembaban' },
-          { name: 'Pompa' },
-          { name: 'Lampu' },
-          { name: 'Level Air' }
-        ])
-        .onConflict('name')
-        .ignore();
-      
-      if (insertError) throw insertError;
-      
-      const { data, error } = await supabase
-        .from('labels')
-        .select('name')
-        .order('name');
-      
-      if (error) throw error;
-      
-      setLabels(data ? data.map(item => item.name) : []);
-      
-      console.log('Labels table created successfully with default values');
+        const { error: createError } = await supabase.rpc('exec_sql', { sql: createTableQuery });
+        
+        if (createError) {
+          console.error('Error creating label table:', createError);
+          throw createError;
+        }
+        
+        const { data, error: fetchError } = await supabase.rpc('get_all_labels');
+        
+        if (fetchError) {
+          console.error('Error fetching labels after table creation:', fetchError);
+          throw fetchError;
+        }
+        
+        setLabels(data ? data.map((item: { name: string }) => item.name) : []);
+        console.log('Label table created successfully with default values');
+      }
     } catch (error) {
-      console.error('Error creating labels table:', error);
-      toast.error('Failed to create labels table');
+      console.error('Error ensuring label table exists:', error);
+      toast.error('Failed to set up label table');
     }
   };
 
@@ -917,11 +914,11 @@ void read${pin.name.replace(/\s+/g, '')}() {
         signalTypes,
         pinModes,
         labels,
+        fetchLabels,
         fetchDataTypes,
         fetchSignalTypes,
         fetchPinModes,
         fetchPinOptions,
-        fetchLabels,
         updateProject,
         updateDevice,
         deleteProject,
@@ -935,3 +932,4 @@ void read${pin.name.replace(/\s+/g, '')}() {
     </HydroContext.Provider>
   );
 };
+

@@ -33,7 +33,7 @@ interface PinDetailsDialogProps {
 }
 
 const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) => {
-  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin } = useHydro();
+  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin, fetchLabels } = useHydro();
   
   const [editPinName, setEditPinName] = useState('');
   const [editPinSignalType, setEditPinSignalType] = useState<string>('');
@@ -43,6 +43,11 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
+  
+  useEffect(() => {
+    // Refresh labels when component mounts
+    fetchLabels();
+  }, [fetchLabels]);
   
   useEffect(() => {
     if (pin) {

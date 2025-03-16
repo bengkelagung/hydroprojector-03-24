@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
@@ -21,7 +20,8 @@ const DeviceConfig = () => {
     dataTypes, 
     signalTypes, 
     pinModes,
-    labels 
+    labels,
+    fetchLabels
   } = useHydro();
   
   const [selectedPinId, setSelectedPinId] = useState<string>('');
@@ -33,6 +33,11 @@ const DeviceConfig = () => {
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
+
+  useEffect(() => {
+    // Refresh labels when component mounts
+    fetchLabels();
+  }, [fetchLabels]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,6 +186,7 @@ const DeviceConfig = () => {
                     <SelectValue placeholder="Select Label" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="">None</SelectItem>
                     {labels.map((labelOption) => (
                       <SelectItem key={labelOption} value={labelOption}>
                         {labelOption}
