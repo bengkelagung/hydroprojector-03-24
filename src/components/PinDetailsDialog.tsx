@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -70,7 +71,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
         name: editPinName,
         signalType: editPinSignalType as any,
         dataType: editPinDataType,
-        label: editPinLabel || undefined
+        label: editPinLabel === 'none' ? undefined : editPinLabel || undefined
       });
       
       onOpenChange(false);
@@ -148,7 +149,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Label:</Label>
             <Select 
-              value={editPinLabel} 
+              value={editPinLabel || 'none'} 
               onValueChange={setEditPinLabel}
             >
               <SelectTrigger className="col-span-3">

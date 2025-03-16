@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
@@ -55,7 +56,7 @@ const DeviceConfig = () => {
         signalType as any,
         mode,
         name,
-        label || undefined
+        label === 'none' ? undefined : label
       );
       
       // Reset form
@@ -101,7 +102,7 @@ const DeviceConfig = () => {
                   value={selectedPinId} 
                   onValueChange={setSelectedPinId}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="pinNumber">
                     <SelectValue placeholder="Select Pin" />
                   </SelectTrigger>
                   <SelectContent>
@@ -128,7 +129,7 @@ const DeviceConfig = () => {
               <div className="space-y-2">
                 <Label htmlFor="dataType">Data Type</Label>
                 <Select value={dataType} onValueChange={setDataType}>
-                  <SelectTrigger>
+                  <SelectTrigger id="dataType">
                     <SelectValue placeholder="Select Data Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -147,7 +148,7 @@ const DeviceConfig = () => {
                   value={signalType} 
                   onValueChange={setSignalType}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="signalType">
                     <SelectValue placeholder="Select Signal Type" />
                   </SelectTrigger>
                   <SelectContent>
@@ -166,13 +167,13 @@ const DeviceConfig = () => {
                   value={mode} 
                   onValueChange={(value: 'input' | 'output') => setMode(value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="mode">
                     <SelectValue placeholder="Select Mode" />
                   </SelectTrigger>
                   <SelectContent>
                     {pinModes.map((modeOption) => (
                       <SelectItem key={modeOption} value={modeOption}>
-                        {modeOption}
+                        {modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -182,7 +183,7 @@ const DeviceConfig = () => {
               <div className="space-y-2">
                 <Label htmlFor="label">Label</Label>
                 <Select value={label} onValueChange={setLabel}>
-                  <SelectTrigger>
+                  <SelectTrigger id="label">
                     <SelectValue placeholder="Select Label" />
                   </SelectTrigger>
                   <SelectContent>
@@ -232,7 +233,7 @@ const DeviceConfig = () => {
                         <td className="p-2">{pin.signalType}</td>
                         <td className="p-2">{pin.mode}</td>
                         <td className="p-2">{pin.label || '-'}</td>
-                        <td className="p-2">{pin.value || 'No data'}</td>
+                        <td className="p-2">{pin.value !== undefined ? pin.value : 'No data'}</td>
                       </tr>
                     ))}
                   </tbody>
