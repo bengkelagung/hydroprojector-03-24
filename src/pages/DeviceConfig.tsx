@@ -167,7 +167,7 @@ const DeviceConfig = () => {
                   value={mode} 
                   onValueChange={(value: 'input' | 'output') => setMode(value)}
                 >
-                  <SelectTrigger id="mode">
+                  <SelectTrigger id="mode" className="w-full">
                     <SelectValue placeholder="Select Mode" />
                   </SelectTrigger>
                   <SelectContent>
