@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -156,7 +155,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 <SelectValue placeholder="Select label" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">None</SelectItem>
+                <SelectItem value="none">None</SelectItem>
                 {labels.map(label => (
                   <SelectItem key={label} value={label}>
                     {label}

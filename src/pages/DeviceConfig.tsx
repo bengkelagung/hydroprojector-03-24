@@ -55,7 +55,7 @@ const DeviceConfig = () => {
         signalType as any,
         mode,
         name,
-        label
+        label || undefined
       );
       
       // Reset form
@@ -186,7 +186,7 @@ const DeviceConfig = () => {
                     <SelectValue placeholder="Select Label" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
+                    <SelectItem value="none">None</SelectItem>
                     {labels.map((labelOption) => (
                       <SelectItem key={labelOption} value={labelOption}>
                         {labelOption}

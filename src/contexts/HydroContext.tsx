@@ -293,7 +293,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const fetchLabels = async () => {
     try {
       const { data, error } = await supabase
-        .rpc('get_all_labels');
+        .from('label')
+        .select('name')
+        .order('id', { ascending: true });
       
       if (error) {
         console.error('Error fetching labels:', error);
@@ -301,7 +303,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
-      setLabels(data ? data.map((item: { name: string }) => item.name) : []);
+      setLabels(data ? data.map(item => item.name) : []);
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
@@ -310,65 +312,66 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const ensureLabelTableExists = async () => {
     try {
-      const { error } = await supabase.rpc('get_all_labels');
+      const { data, error } = await supabase
+        .from('label')
+        .select('name')
+        .limit(1);
       
       if (error) {
         console.log('Creating label table...');
         
-        const createTableQuery = `
-          CREATE TABLE IF NOT EXISTS public.label (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(50) UNIQUE NOT NULL
-          );
-          
-          INSERT INTO public.label (name) 
-          VALUES 
-            ('pH'),
-            ('Suhu'),
-            ('Kelembaban'),
-            ('Pompa'),
-            ('Lampu'),
-            ('Level Air')
-          ON CONFLICT (name) DO NOTHING;
-          
-          ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
-          
-          DROP POLICY IF EXISTS "Allow authenticated users to read labels" ON public.label;
-          CREATE POLICY "Allow authenticated users to read labels" 
-            ON public.label
-            FOR SELECT
-            TO authenticated
-            USING (true);
+        const { error: sqlError } = await supabase.rpc('exec_sql', {
+          sql: `
+            CREATE TABLE IF NOT EXISTS public.label (
+              id SERIAL PRIMARY KEY,
+              name VARCHAR(50) UNIQUE NOT NULL
+            );
             
-          CREATE OR REPLACE FUNCTION public.get_all_labels()
-          RETURNS SETOF public.label
-          LANGUAGE sql
-          SECURITY DEFINER
-          AS $$
-            SELECT * FROM public.label ORDER BY name;
-          $$;
-        `;
+            INSERT INTO public.label (name) 
+            VALUES 
+              ('pH'),
+              ('Suhu'),
+              ('Kelembaban'),
+              ('Pompa'),
+              ('Lampu'),
+              ('Level Air')
+            ON CONFLICT (name) DO NOTHING;
+            
+            ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
+            
+            CREATE POLICY "Allow authenticated users to read labels" 
+              ON public.label
+              FOR SELECT
+              TO authenticated
+              USING (true);
+          `
+        });
         
-        const { error: createError } = await supabase.rpc('exec_sql', { sql: createTableQuery });
-        
-        if (createError) {
-          console.error('Error creating label table:', createError);
-          throw createError;
+        if (sqlError) {
+          console.error('Error creating label table with RPC:', sqlError);
+          
+          await supabase.from('label').insert([
+            { name: 'pH' },
+            { name: 'Suhu' },
+            { name: 'Kelembaban' },
+            { name: 'Pompa' },
+            { name: 'Lampu' },
+            { name: 'Level Air' }
+          ]).select();
         }
         
-        const { data, error: fetchError } = await supabase.rpc('get_all_labels');
+        const { data: newData } = await supabase
+          .from('label')
+          .select('name')
+          .order('id', { ascending: true });
         
-        if (fetchError) {
-          console.error('Error fetching labels after table creation:', fetchError);
-          throw fetchError;
-        }
-        
-        setLabels(data ? data.map((item: { name: string }) => item.name) : []);
-        console.log('Label table created successfully with default values');
+        setLabels(newData ? newData.map(item => item.name) : []);
+        console.log('Label table created successfully');
+      } else {
+        setLabels(data ? data.map(item => item.name) : []);
       }
     } catch (error) {
       console.error('Error ensuring label table exists:', error);
-      toast.error('Failed to set up label table');
     }
   };
 
@@ -932,4 +935,3 @@ void read${pin.name.replace(/\s+/g, '')}() {
     </HydroContext.Provider>
   );
 };
-
