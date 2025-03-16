@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -212,7 +213,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit,
-        label: pin.label
+        label: pin.label || undefined
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
@@ -290,18 +291,19 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      const { data, error } = await supabase
-        .from('labels')
-        .select('*')
-        .limit(1);
+      // Check if labels table exists by getting table info
+      const { error: checkError } = await supabase.rpc('check_labels_table_exists');
       
-      if (error) {
-        if (error.code === '42P01') {
-          await createLabelsTable();
-          return;
-        }
-        throw error;
+      if (checkError) {
+        // If the function doesn't exist or table doesn't exist, create it
+        await createLabelsTable();
+        return;
       }
+      
+      // If table exists, fetch the labels
+      const { data, error } = await supabase.rpc('get_labels');
+      
+      if (error) throw error;
       
       setLabels(data || []);
     } catch (error) {
@@ -312,13 +314,20 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const createLabelsTable = async () => {
     try {
-      const { error: createError } = await supabase.rpc('create_labels_table');
+      // Create function to check if table exists
+      await supabase.rpc('create_check_labels_function');
       
-      if (createError) throw createError;
+      // Create the labels table and insert default values
+      await supabase.rpc('create_labels_table_with_data');
       
-      await fetchLabels();
+      // Now that the table is created with data, fetch the labels
+      const { data, error } = await supabase.rpc('get_labels');
       
-      console.log('Labels table created successfully');
+      if (error) throw error;
+      
+      setLabels(data || []);
+      
+      console.log('Labels table created successfully with default values');
     } catch (error) {
       console.error('Error creating labels table:', error);
       toast.error('Failed to create labels table');
