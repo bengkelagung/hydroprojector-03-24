@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
@@ -21,8 +21,6 @@ const DeviceConfig = () => {
     dataTypes, 
     signalTypes, 
     pinModes,
-    labels,
-    fetchLabels
   } = useHydro();
   
   const [selectedPinId, setSelectedPinId] = useState<string>('');
@@ -30,16 +28,10 @@ const DeviceConfig = () => {
   const [signalType, setSignalType] = useState<string>('');
   const [mode, setMode] = useState<'input' | 'output'>('input');
   const [name, setName] = useState<string>('');
-  const [label, setLabel] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
-
-  useEffect(() => {
-    // Refresh labels when component mounts
-    fetchLabels();
-  }, [fetchLabels]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,8 +65,7 @@ const DeviceConfig = () => {
         dataType,
         signalType as any,
         mode,
-        name,
-        label === 'none' ? undefined : label
+        name
       );
       
       // Reset form
@@ -82,7 +73,6 @@ const DeviceConfig = () => {
       setDataType('');
       setSignalType('');
       setName('');
-      setLabel('');
     } catch (error) {
       console.error('Error configuring pin:', error);
       toast.error('Failed to configure pin');
@@ -202,23 +192,6 @@ const DeviceConfig = () => {
                 </Select>
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="label">Label</Label>
-                <Select value={label || 'none'} onValueChange={setLabel}>
-                  <SelectTrigger id="label">
-                    <SelectValue placeholder="Select Label" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {labels.map((labelOption) => (
-                      <SelectItem key={labelOption} value={labelOption}>
-                        {labelOption}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
               <Button 
                 type="submit" 
                 className="w-full"
@@ -248,7 +221,6 @@ const DeviceConfig = () => {
                       <th className="text-left p-2">Type</th>
                       <th className="text-left p-2">Signal</th>
                       <th className="text-left p-2">Mode</th>
-                      <th className="text-left p-2">Label</th>
                       <th className="text-left p-2">Last Value</th>
                     </tr>
                   </thead>
@@ -260,7 +232,6 @@ const DeviceConfig = () => {
                         <td className="p-2">{pin.dataType}</td>
                         <td className="p-2">{pin.signalType}</td>
                         <td className="p-2">{pin.mode}</td>
-                        <td className="p-2">{pin.label || '-'}</td>
                         <td className="p-2">{pin.value !== undefined ? pin.value : 'No data'}</td>
                       </tr>
                     ))}

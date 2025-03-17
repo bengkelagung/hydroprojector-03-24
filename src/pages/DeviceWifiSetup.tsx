@@ -22,16 +22,12 @@ const DeviceWifiSetup = () => {
   const navigate = useNavigate();
   const { deviceId } = useParams<{ deviceId: string }>();
   
-  // Find the device in our context
   const device = devices.find(d => d.id === deviceId);
   
-  // Check for connected device
   useEffect(() => {
-    // For demo purposes, just set true
     setDeviceConnected(true);
   }, []);
 
-  // If device already has WiFi config, use it
   useEffect(() => {
     if (device?.wifiConfig) {
       setWifiSSID(device.wifiConfig.wifiSSID);
@@ -65,7 +61,6 @@ const DeviceWifiSetup = () => {
     const file = e.target.files?.[0];
     if (!file) return;
     
-    // Check if file is an image
     if (!file.type.startsWith('image/')) {
       toast.error('Please upload an image file');
       return;
@@ -83,10 +78,8 @@ const DeviceWifiSetup = () => {
       }
       
       try {
-        // Create an image element to load the file
         const img = new Image();
         img.onload = () => {
-          // Create a canvas to draw the image for processing
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
           
@@ -96,24 +89,19 @@ const DeviceWifiSetup = () => {
             return;
           }
           
-          // Set canvas dimensions to match image
           canvas.width = img.width;
           canvas.height = img.height;
           
-          // Draw image on canvas
           ctx.drawImage(img, 0, 0);
           
-          // Get image data for QR detection
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           
-          // Use jsQR to detect QR code
           const code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: "dontInvert",
           });
           
           if (code) {
             console.log("QR Code found in image:", code.data);
-            // Process the QR code
             if (code.data.includes('WIFI:S:')) {
               const ssidMatch = code.data.match(/S:(.*?);/);
               const passwordMatch = code.data.match(/P:(.*?);/);
@@ -143,7 +131,6 @@ const DeviceWifiSetup = () => {
         };
         
         img.src = event.target.result as string;
-        
       } catch (error) {
         console.error('Error processing QR code from image:', error);
         toast.error('Failed to process QR code from image');
@@ -168,7 +155,6 @@ const DeviceWifiSetup = () => {
     try {
       setIsConfiguring(true);
       
-      // Update device with WiFi configuration
       await updateDevice(deviceId, {
         wifiConfig: {
           wifiSSID,
@@ -186,7 +172,6 @@ const DeviceWifiSetup = () => {
     }
   };
 
-  // If device not found
   if (!device) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -217,7 +202,6 @@ const DeviceWifiSetup = () => {
         </p>
       </div>
       
-      {/* Progress indicator */}
       <div className="flex items-center justify-between mb-6 px-2">
         <div className="flex flex-col items-center">
           <div className="w-8 h-8 bg-hydro-blue text-white rounded-full flex items-center justify-center mb-1">
@@ -241,7 +225,6 @@ const DeviceWifiSetup = () => {
         </div>
       </div>
       
-      {/* Tabs for different options */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mb-6">
         <TabsList className="grid grid-cols-3 mb-4">
           <TabsTrigger value="scan" className="flex items-center gap-2">

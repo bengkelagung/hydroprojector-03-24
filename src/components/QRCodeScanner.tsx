@@ -34,12 +34,17 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const [usingMockData, setUsingMockData] = useState(useMockData);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const scannerContainerId = 'qr-reader';
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // When component mounts, start scanning automatically if on the wifi-setup page
+  // Check if we're on the wifi setup page when component mounts
   useEffect(() => {
+    // Create the scanner instance with a delay to ensure the DOM is ready
     const path = window.location.pathname;
     if (path.includes('/wifi-setup')) {
-      startScanner();
+      // Wait for the DOM to be ready
+      setTimeout(() => {
+        startScanner();
+      }, 500);
     }
     
     // Cleanup function when component unmounts
@@ -133,8 +138,23 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
     
     try {
+      // Make sure container exists before initializing scanner
+      if (!document.getElementById(scannerContainerId)) {
+        console.log("QR reader container not found - may need to wait for render");
+        
+        // If the container doesn't exist yet but we're in scan mode, wait briefly and try again
+        setTimeout(() => {
+          if (containerRef.current && !scannerRef.current) {
+            console.log("Retrying scanner initialization...");
+            startScanner();
+          }
+        }, 500);
+        return;
+      }
+      
       // Create new scanner instance if it doesn't exist
       if (!scannerRef.current) {
+        console.log("Creating new Html5Qrcode instance for", scannerContainerId);
         scannerRef.current = new Html5Qrcode(scannerContainerId);
       }
       
@@ -151,6 +171,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         rememberLastUsedCamera: true,
         showTorchButtonIfSupported: true,  // Show flashlight button if available
       };
+      
+      console.log("Starting scanner with environment camera");
       
       // Start the scanner with environment camera (rear camera on mobile devices)
       await scannerRef.current.start(
@@ -282,6 +304,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                 <>
                   <div 
                     id={scannerContainerId} 
+                    ref={containerRef}
                     className="w-full h-full"
                   ></div>
                   <p className="absolute bottom-4 left-0 right-0 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full mx-auto w-max">
