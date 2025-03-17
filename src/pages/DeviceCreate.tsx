@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Cpu, InfoIcon } from 'lucide-react';
@@ -40,9 +41,19 @@ const DeviceCreate = () => {
     // Simulate device detection - in real implementation, check if device is in pairing mode
     const checkDeviceConnection = async () => {
       try {
-        // Example: fetch('/api/device-status').then(...)
-        // For demonstration, we'll just leave it as false
-        setDeviceConnected(false);
+        // For real implementation, check for server availability
+        const response = await fetch('http://localhost:3001/api/scan-wifi', { 
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          // Set a short timeout for the request
+          signal: AbortSignal.timeout(3000)
+        });
+        
+        if (response.ok) {
+          setDeviceConnected(true);
+        } else {
+          setDeviceConnected(false);
+        }
       } catch (error) {
         console.error('Error checking device connection:', error);
         setDeviceConnected(false);

@@ -4,18 +4,21 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Wifi, WifiOff, Lock, Loader2, RefreshCw } from 'lucide-react';
+import { Wifi, WifiOff, Lock, Loader2, RefreshCw, Scan } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { io } from 'socket.io-client';
 
 // Real WiFi network interface
 interface WifiNetwork {
   ssid: string;
-  signal: number; // 0-100
+  signal?: number; // 0-100
+  quality?: number; // 0-100 - from node-wifi
   secure: boolean;
+  security?: string; // from node-wifi
 }
 
-// Mock data for development/testing when no device connection is available
+// Mock data for fallback
 const mockNetworks: WifiNetwork[] = [
   { ssid: 'HomeWifi', signal: 90, secure: true },
   { ssid: 'Neighbor5G', signal: 70, secure: true },
@@ -28,6 +31,9 @@ interface WifiManagerProps {
   deviceConnected?: boolean;
 }
 
+const SERVER_URL = 'http://localhost:3001';
+const SOCKET_URL = 'ws://localhost:3001';
+
 const WifiManager: React.FC<WifiManagerProps> = ({ 
   onConnect, 
   deviceConnected = false 
@@ -38,47 +44,101 @@ const WifiManager: React.FC<WifiManagerProps> = ({
   const [isScanning, setIsScanning] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
   const [useMockData, setUseMockData] = useState(!deviceConnected);
+  const [socket, setSocket] = useState<any>(null);
+  const [serverConnected, setServerConnected] = useState(false);
 
-  // Function to scan networks from actual device
+  // Initialize socket connection
+  useEffect(() => {
+    if (!useMockData) {
+      try {
+        const newSocket = io(SOCKET_URL);
+        
+        newSocket.on('connect', () => {
+          console.log('Connected to WebSocket server');
+          setServerConnected(true);
+        });
+        
+        newSocket.on('disconnect', () => {
+          console.log('Disconnected from WebSocket server');
+          setServerConnected(false);
+        });
+        
+        newSocket.on('networks_found', (data) => {
+          console.log('Networks found:', data.networks);
+          
+          // Format networks from node-wifi
+          const formattedNetworks: WifiNetwork[] = data.networks.map((network: any) => ({
+            ssid: network.ssid,
+            signal: network.quality || network.signal,
+            quality: network.quality,
+            secure: network.security !== null && network.security !== 'none',
+            security: network.security
+          }));
+          
+          setNetworks(formattedNetworks.sort((a, b) => 
+            (b.signal || b.quality || 0) - (a.signal || a.quality || 0)
+          ));
+          setIsScanning(false);
+        });
+        
+        newSocket.on('scan_error', (data) => {
+          console.error('Scan error:', data.error);
+          toast.error(`Failed to scan networks: ${data.error}`);
+          setIsScanning(false);
+          // Fall back to mock data
+          setUseMockData(true);
+          setNetworks(mockNetworks);
+        });
+        
+        setSocket(newSocket);
+        
+        return () => {
+          newSocket.disconnect();
+        };
+      } catch (error) {
+        console.error('Error connecting to WebSocket:', error);
+        toast.error('Failed to connect to WebSocket server. Using mock data instead.');
+        setUseMockData(true);
+      }
+    }
+  }, [useMockData]);
+
+  // Function to scan networks from actual server
   const scanRealNetworks = async () => {
     try {
       setIsScanning(true);
       
-      // API endpoint to device for scanning networks
-      // This would typically be a REST or WebSocket endpoint provided by your device
-      const response = await fetch('/api/device/scan-wifi', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        // You might need to send device ID or other identifiers
-        body: JSON.stringify({ 
-          action: 'scan_wifi'
-        }),
-      });
-      
-      if (!response.ok) {
-        throw new Error('Network scan failed');
+      if (serverConnected && socket) {
+        // Use WebSocket for real-time updates
+        socket.emit('scan_networks');
+      } else {
+        // Fallback to REST API
+        const response = await fetch(`${SERVER_URL}/api/scan-wifi`);
+        
+        if (!response.ok) {
+          throw new Error('Network scan failed');
+        }
+        
+        const data = await response.json();
+        
+        // Process and format the network data
+        const formattedNetworks: WifiNetwork[] = data.networks.map((network: any) => ({
+          ssid: network.ssid,
+          signal: network.quality || 0,
+          secure: network.security !== null && network.security !== 'none',
+          security: network.security
+        }));
+        
+        // Sort by signal strength
+        setNetworks(formattedNetworks.sort((a, b) => b.signal - a.signal));
+        setIsScanning(false);
       }
-      
-      const data = await response.json();
-      
-      // Process and format the network data from the device
-      const formattedNetworks: WifiNetwork[] = data.networks.map((network: any) => ({
-        ssid: network.ssid,
-        signal: network.signal_strength || network.rssi,
-        secure: network.secure || network.encryption !== 'none',
-      }));
-      
-      // Sort by signal strength
-      setNetworks(formattedNetworks.sort((a, b) => b.signal - a.signal));
     } catch (error) {
       console.error('Error scanning networks:', error);
       toast.error('Failed to scan networks. Using mock data instead.');
-      // Fall back to mock data if device scan fails
+      // Fall back to mock data if server scan fails
       setUseMockData(true);
       setNetworks(mockNetworks.sort((a, b) => b.signal - a.signal));
-    } finally {
       setIsScanning(false);
     }
   };
@@ -92,12 +152,12 @@ const WifiManager: React.FC<WifiManagerProps> = ({
     setTimeout(() => {
       setNetworks(mockNetworks.sort((a, b) => b.signal - a.signal));
       setIsScanning(false);
-    }, 2000);
+    }, 1000);
   };
 
-  // Combined function to scan networks based on device connection status
+  // Combined function to scan networks based on server connection status
   const scanNetworks = async () => {
-    if (deviceConnected && !useMockData) {
+    if (!useMockData && (serverConnected || deviceConnected)) {
       await scanRealNetworks();
     } else {
       await scanMockNetworks();
@@ -107,7 +167,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
   // Initial scan when component mounts
   useEffect(() => {
     scanNetworks();
-  }, [deviceConnected]);
+  }, [serverConnected, deviceConnected, useMockData]);
 
   // Function to connect to selected network on the device
   const connectToRealNetwork = async () => {
@@ -117,7 +177,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
       setIsConnecting(true);
       
       // API endpoint to connect device to WiFi
-      const response = await fetch('/api/device/connect-wifi', {
+      const response = await fetch(`${SERVER_URL}/api/connect-wifi`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +190,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
       
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to connect to network');
+        throw new Error(errorData.error || 'Failed to connect to network');
       }
       
       const data = await response.json();
@@ -142,11 +202,11 @@ const WifiManager: React.FC<WifiManagerProps> = ({
           onConnect(selectedNetwork.ssid, password);
         }
       } else {
-        throw new Error(data.message || 'Failed to connect to network');
+        throw new Error(data.error || 'Failed to connect to network');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error connecting to network:', error);
-      toast.error(`Failed to connect to ${selectedNetwork.ssid}. Please check the password and try again.`);
+      toast.error(`Failed to connect to ${selectedNetwork.ssid}. ${error.message}`);
     } finally {
       setIsConnecting(false);
     }
@@ -163,10 +223,10 @@ const WifiManager: React.FC<WifiManagerProps> = ({
       toast.success(`Connected to ${selectedNetwork?.ssid}`);
       
       // Call the onConnect callback with the network details
-      if (onConnect) {
-        onConnect(selectedNetwork?.ssid || '', password);
+      if (onConnect && selectedNetwork) {
+        onConnect(selectedNetwork.ssid, password);
       }
-    }, 3000);
+    }, 1500);
   };
 
   const handleNetworkSelect = (network: WifiNetwork) => {
@@ -182,7 +242,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
       return;
     }
     
-    if (deviceConnected && !useMockData) {
+    if (!useMockData && serverConnected) {
       await connectToRealNetwork();
     } else {
       simulateConnection();
@@ -190,7 +250,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
   };
 
   // Get appropriate icon for signal strength
-  const getSignalIcon = (signal: number) => {
+  const getSignalIcon = (signal: number = 0) => {
     if (signal >= 70) return <Wifi className="h-4 w-4 text-green-500" />;
     if (signal >= 40) return <Wifi className="h-4 w-4 text-yellow-500" />;
     return <Wifi className="h-4 w-4 text-red-500" />;
@@ -201,16 +261,14 @@ const WifiManager: React.FC<WifiManagerProps> = ({
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Wi-Fi Manager</CardTitle>
         <div className="flex items-center gap-2">
-          {deviceConnected && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setUseMockData(!useMockData)}
-              className="text-xs"
-            >
-              {useMockData ? "Use Real Device" : "Use Mock Data"}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setUseMockData(!useMockData)}
+            className="text-xs"
+          >
+            {useMockData ? "Use Real Server" : "Use Mock Data"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -224,7 +282,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
               </>
             ) : (
               <>
-                <RefreshCw className="mr-2 h-4 w-4" />
+                <Scan className="mr-2 h-4 w-4" />
                 Scan Networks
               </>
             )}
@@ -232,9 +290,9 @@ const WifiManager: React.FC<WifiManagerProps> = ({
         </div>
       </CardHeader>
       <CardContent>
-        {!deviceConnected && !useMockData && (
+        {!serverConnected && !useMockData && (
           <div className="bg-amber-50 p-3 rounded-md mb-4 text-sm text-amber-800 border border-amber-200">
-            <p>No device is connected. Using mock WiFi data for demonstration.</p>
+            <p>Cannot connect to Wi-Fi scanning server. Using mock data for demonstration.</p>
           </div>
         )}
         
@@ -292,8 +350,8 @@ const WifiManager: React.FC<WifiManagerProps> = ({
             ) : networks.length > 0 ? (
               <div className="space-y-2">
                 <p className="text-sm text-gray-500 mb-2">
-                  {deviceConnected && !useMockData 
-                    ? "Real networks detected by your device:" 
+                  {serverConnected && !useMockData 
+                    ? "Real networks detected:" 
                     : "Select a Wi-Fi network to connect your device:"}
                 </p>
                 <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
@@ -311,7 +369,7 @@ const WifiManager: React.FC<WifiManagerProps> = ({
                         {network.secure && <Lock className="h-4 w-4 text-gray-500" />}
                       </div>
                       <div className="text-xs text-gray-500">
-                        {network.signal}%
+                        {network.signal || network.quality || 0}%
                       </div>
                     </div>
                   ))}
