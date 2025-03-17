@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
@@ -23,7 +22,7 @@ const Dashboard = () => {
         pins.forEach(pin => {
           if (pin.mode === 'input') {
             let value;
-            switch (pin.signal_type) {
+            switch (pin.signalType) {
               case 'pH':
                 value = (5.5 + Math.random() * 2).toFixed(1);
                 break;
@@ -40,7 +39,7 @@ const Dashboard = () => {
                 value = Math.floor(Math.random() * 100).toString();
             }
             
-            console.log(`Updated ${pin.name} (${pin.signal_type}) to ${value}`);
+            console.log(`Updated ${pin.name} (${pin.signalType}) to ${value}`);
           }
         });
       }
@@ -62,7 +61,7 @@ const Dashboard = () => {
     }
   };
 
-  const getStatusIcon = (isConnected: boolean | null | undefined) => {
+  const getStatusIcon = (isConnected: boolean) => {
     return isConnected ? (
       <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 flex items-center">
         <div className="w-2 h-2 rounded-full bg-green-500 mr-1.5"></div>
@@ -133,7 +132,7 @@ const Dashboard = () => {
             {projects.map((project) => {
               const projectDevices = getDevicesByProject(project.id);
               const deviceCount = projectDevices.length;
-              const connectedCount = projectDevices.filter(d => d.is_connected).length;
+              const connectedCount = projectDevices.filter(d => d.isConnected).length;
               
               return (
                 <Card key={project.id} className="overflow-hidden hover:shadow-lg transition-shadow">
@@ -143,9 +142,9 @@ const Dashboard = () => {
                         {deviceCount} {deviceCount === 1 ? 'Device' : 'Devices'}
                       </Badge>
                     </div>
-                    <CardTitle className="text-white">{project.project_name}</CardTitle>
+                    <CardTitle className="text-white">{project.name}</CardTitle>
                     <CardDescription className="text-blue-100">
-                      Created on {new Date(project.created_at || '').toLocaleDateString()}
+                      Created on {new Date(project.createdAt).toLocaleDateString()}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="pt-6">
@@ -205,17 +204,17 @@ const Dashboard = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {devices.map((device) => {
                 const devicePins = getPinsByDevice(device.id);
-                const project = projects.find(p => p.id === device.project_id);
+                const project = projects.find(p => p.id === device.projectId);
                 
                 return (
                   <Card key={device.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                     <CardHeader>
                       <div className="flex justify-between items-start">
                         <div>
-                          <CardTitle>{device.device_name}</CardTitle>
-                          <CardDescription>Project: {project?.project_name || 'Unknown'}</CardDescription>
+                          <CardTitle>{device.name}</CardTitle>
+                          <CardDescription>Project: {project?.name || 'Unknown'}</CardDescription>
                         </div>
-                        {getStatusIcon(device.is_connected)}
+                        {getStatusIcon(device.isConnected)}
                       </div>
                     </CardHeader>
                     <CardContent>
@@ -229,7 +228,7 @@ const Dashboard = () => {
                           <div className="grid grid-cols-2 gap-2">
                             {devicePins.slice(0, 4).map(pin => (
                               <div key={pin.id} className="flex items-center space-x-2">
-                                <div className={`w-2 h-2 rounded-full ${getSignalColor(pin.signal_type)}`}></div>
+                                <div className={`w-2 h-2 rounded-full ${getSignalColor(pin.signalType)}`}></div>
                                 <span className="text-sm">{pin.name}</span>
                               </div>
                             ))}
@@ -243,7 +242,7 @@ const Dashboard = () => {
                       </div>
                       
                       <div className="text-sm text-gray-500">
-                        Last seen: {device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}
+                        Last seen: {device.lastSeen ? new Date(device.lastSeen).toLocaleString() : 'Never'}
                       </div>
                     </CardContent>
                     <CardFooter className="border-t pt-4 flex justify-between">
@@ -299,11 +298,11 @@ const Dashboard = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {pins.filter(p => p.mode === 'input').map(pin => {
-                const device = devices.find(d => d.id === pin.device_id);
-                const project = device ? projects.find(p => p.id === device.project_id) : null;
+                const device = devices.find(d => d.id === pin.deviceId);
+                const project = device ? projects.find(p => p.id === device.projectId) : null;
                 
                 let mockValue;
-                switch (pin.signal_type) {
+                switch (pin.signalType) {
                   case 'pH':
                     mockValue = (5.5 + Math.random() * 2).toFixed(1);
                     break;
@@ -323,23 +322,23 @@ const Dashboard = () => {
                 const value = pin.value || mockValue;
                 
                 let alert = false;
-                if (pin.signal_type === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
+                if (pin.signalType === 'pH' && (parseFloat(value) < 5.5 || parseFloat(value) > 7.5)) {
                   alert = true;
-                } else if (pin.signal_type === 'temperature' && (parseFloat(value) < 18 || parseFloat(value) > 28)) {
+                } else if (pin.signalType === 'temperature' && (parseFloat(value) < 18 || parseFloat(value) > 28)) {
                   alert = true;
-                } else if (pin.signal_type === 'water-level' && parseFloat(value) < 40) {
+                } else if (pin.signalType === 'water-level' && parseFloat(value) < 40) {
                   alert = true;
                 }
                 
                 return (
                   <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    <CardHeader className={`bg-opacity-10 ${getSignalColor(pin.signal_type).replace('bg-', 'bg-opacity-10 bg-')}`}>
+                    <CardHeader className={`bg-opacity-10 ${getSignalColor(pin.signalType).replace('bg-', 'bg-opacity-10 bg-')}`}>
                       <div className="flex items-center">
-                        {pin.signal_type === 'pH' && <Droplet className="h-5 w-5 mr-2 text-purple-500" />}
-                        {pin.signal_type === 'temperature' && <ThermometerIcon className="h-5 w-5 mr-2 text-orange-500" />}
-                        {pin.signal_type === 'water-level' && <Droplet className="h-5 w-5 mr-2 text-cyan-500" />}
-                        {pin.signal_type === 'humidity' && <Droplet className="h-5 w-5 mr-2 text-blue-500" />}
-                        {(pin.signal_type === 'custom' || pin.signal_type === 'nutrient' || pin.signal_type === 'light') && (
+                        {pin.signalType === 'pH' && <Droplet className="h-5 w-5 mr-2 text-purple-500" />}
+                        {pin.signalType === 'temperature' && <ThermometerIcon className="h-5 w-5 mr-2 text-orange-500" />}
+                        {pin.signalType === 'water-level' && <Droplet className="h-5 w-5 mr-2 text-cyan-500" />}
+                        {pin.signalType === 'humidity' && <Droplet className="h-5 w-5 mr-2 text-blue-500" />}
+                        {(pin.signalType === 'custom' || pin.signalType === 'nutrient' || pin.signalType === 'light') && (
                           <Activity className="h-5 w-5 mr-2 text-gray-500" />
                         )}
                         <CardTitle className="capitalize">{pin.name}</CardTitle>
@@ -350,9 +349,9 @@ const Dashboard = () => {
                         <div className="pb-4">
                           <div className="flex justify-between items-start mb-2">
                             <div>
-                              <h4 className="font-medium text-gray-800">{pin.signal_type} Sensor</h4>
+                              <h4 className="font-medium text-gray-800">{pin.signalType} Sensor</h4>
                               <p className="text-xs text-gray-500">
-                                {device?.device_name} • {project?.project_name}
+                                {device?.name} • {project?.name}
                               </p>
                             </div>
                             <div className="flex items-center">
@@ -365,7 +364,7 @@ const Dashboard = () => {
                             </div>
                           </div>
                           
-                          {pin.signal_type === 'pH' && (
+                          {pin.signalType === 'pH' && (
                             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full ${parseFloat(value) < 6 ? 'bg-red-500' : parseFloat(value) > 7 ? 'bg-purple-500' : 'bg-green-500'}`} 
@@ -373,7 +372,7 @@ const Dashboard = () => {
                               ></div>
                             </div>
                           )}
-                          {(pin.signal_type === 'water-level' || pin.signal_type === 'humidity' || pin.signal_type === 'nutrient') && (
+                          {(pin.signalType === 'water-level' || pin.signalType === 'humidity' || pin.signalType === 'nutrient') && (
                             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full ${parseFloat(value) < 30 ? 'bg-red-500' : parseFloat(value) < 60 ? 'bg-amber-500' : 'bg-green-500'}`} 
@@ -381,7 +380,7 @@ const Dashboard = () => {
                               ></div>
                             </div>
                           )}
-                          {pin.signal_type === 'temperature' && (
+                          {pin.signalType === 'temperature' && (
                             <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
                               <div 
                                 className={`h-full ${parseFloat(value) < 18 ? 'bg-blue-500' : parseFloat(value) > 28 ? 'bg-red-500' : 'bg-green-500'}`} 
