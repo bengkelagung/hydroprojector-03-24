@@ -300,84 +300,55 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      const { data: tableExists } = await supabase
-        .from('information_schema.tables')
-        .select('*')
-        .eq('table_name', 'label')
-        .single();
+      const { data: labelResult, error: labelError } = await supabase
+        .from('label')
+        .select('name')
+        .limit(1);
       
-      if (!tableExists) {
+      if (labelError) {
+        console.error('Error checking label table:', labelError);
         await ensureLabelTableExists();
         return;
       }
       
       const { data, error } = await supabase
-        .rpc('get_labels');
+        .from('label')
+        .select('name')
+        .order('id', { ascending: true });
       
       if (error) {
         console.error('Error fetching labels:', error);
-        await ensureLabelTableExists();
+        setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
         return;
       }
       
-      setLabels(data ? data.map((item: { name: string }) => item.name) : []);
+      setLabels(data.map(item => item.name));
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
+      setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
     }
   };
 
   const ensureLabelTableExists = async () => {
     try {
-      const { error: sqlError } = await supabase.rpc('exec_sql', {
-        sql: `
-          CREATE TABLE IF NOT EXISTS public.label (
-            id SERIAL PRIMARY KEY,
-            name VARCHAR(50) UNIQUE NOT NULL
-          );
-          
-          INSERT INTO public.label (name) 
-          VALUES 
-            ('pH'),
-            ('Suhu'),
-            ('Kelembaban'),
-            ('Pompa'),
-            ('Lampu'),
-            ('Level Air')
-          ON CONFLICT (name) DO NOTHING;
-          
-          CREATE OR REPLACE FUNCTION get_labels()
-          RETURNS TABLE (name TEXT) 
-          LANGUAGE SQL
-          AS $$
-            SELECT name FROM public.label ORDER BY id ASC;
-          $$;
-          
-          ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
-          
-          CREATE POLICY "Allow authenticated users to read labels" 
-            ON public.label
-            FOR SELECT
-            TO authenticated
-            USING (true);
-        `
-      });
+      const defaultLabels = [
+        { name: 'pH' },
+        { name: 'Suhu' },
+        { name: 'Kelembaban' },
+        { name: 'Pompa' },
+        { name: 'Lampu' },
+        { name: 'Level Air' }
+      ];
       
-      if (sqlError) {
-        console.error('Error creating label table with RPC:', sqlError);
-        const defaultLabels = [
-          { name: 'pH' },
-          { name: 'Suhu' },
-          { name: 'Kelembaban' },
-          { name: 'Pompa' },
-          { name: 'Lampu' },
-          { name: 'Level Air' }
-        ];
-        
-        setLabels(defaultLabels.map(l => l.name));
-      } else {
-        const { data } = await supabase.rpc('get_labels');
-        setLabels(data ? data.map((item: { name: string }) => item.name) : []);
+      setLabels(defaultLabels.map(l => l.name));
+      
+      for (const label of defaultLabels) {
+        await supabase
+          .from('label')
+          .insert(label)
+          .on_conflict('name')
+          .ignore();
       }
       
     } catch (error) {
@@ -542,7 +513,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pinData.signal_type as SignalType,
         mode: pinData.mode as 'input' | 'output',
         name: pinData.name,
-        label: pinData.label
+        label: pinData.label,
+        value: pinData.value,
+        lastUpdated: pinData.last_updated
       };
       
       if (existingPin) {
