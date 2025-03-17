@@ -172,20 +172,30 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (error) throw error;
       
-      setDevices(data.map(device => ({
-        id: device.id,
-        name: device.device_name,
-        description: device.description || '',
-        projectId: device.project_id,
-        type: device.device_type,
-        isConnected: device.is_connected,
-        lastSeen: device.last_seen,
-        createdAt: device.created_at,
-        wifiConfig: device.wifi_config ? {
-          wifiSSID: device.wifi_config.ssid,
-          wifiPassword: device.wifi_config.password
-        } : undefined
-      })));
+      setDevices(data.map(device => {
+        // Check if there's a description field for wifi config (using JSON format in description)
+        let wifiConfig;
+        try {
+          const descriptionObj = JSON.parse(device.description);
+          if (descriptionObj && descriptionObj.wifiConfig) {
+            wifiConfig = descriptionObj.wifiConfig;
+          }
+        } catch (e) {
+          // Not JSON or doesn't have wifi config - that's fine
+        }
+        
+        return {
+          id: device.id,
+          name: device.device_name,
+          description: device.description || '',
+          projectId: device.project_id,
+          type: device.device_type,
+          isConnected: device.is_connected,
+          lastSeen: device.last_seen,
+          createdAt: device.created_at,
+          wifiConfig: wifiConfig
+        };
+      }));
     } catch (error) {
       console.error('Error fetching devices:', error);
       toast.error('Failed to load devices');
@@ -300,21 +310,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      const { data: labelResult, error: labelError } = await supabase
-        .from('label')
-        .select('name')
-        .limit(1);
-      
-      if (labelError) {
-        console.error('Error checking label table:', labelError);
-        await ensureLabelTableExists();
-        return;
-      }
-      
+      // Try to fetch labels from database
       const { data, error } = await supabase
-        .from('label')
-        .select('name')
-        .order('id', { ascending: true });
+        .from('pin_configs')
+        .select('label')
+        .not('label', 'is', null)
+        .limit(20);
       
       if (error) {
         console.error('Error fetching labels:', error);
@@ -322,7 +323,14 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
-      setLabels(data.map(item => item.name));
+      // Extract unique labels
+      const uniqueLabels = Array.from(new Set(data.map(item => item.label).filter(Boolean)));
+      
+      if (uniqueLabels.length === 0) {
+        setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
+      } else {
+        setLabels(uniqueLabels as string[]);
+      }
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
@@ -750,15 +758,35 @@ void read${pin.name.replace(/\s+/g, '')}() {
       const supabaseUpdates: any = {};
       
       if (updates.name) supabaseUpdates.device_name = updates.name;
-      if (updates.description !== undefined) supabaseUpdates.description = updates.description;
-      if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
       
+      // Handle description and WiFi config
       if (updates.wifiConfig) {
-        supabaseUpdates.wifi_config = {
-          ssid: updates.wifiConfig.wifiSSID,
-          password: updates.wifiConfig.wifiPassword || ''
+        // Get the current device first
+        const currentDevice = devices.find(d => d.id === deviceId);
+        let descriptionObj = {};
+        
+        // Try to parse existing description if it exists and is JSON
+        try {
+          if (currentDevice && currentDevice.description) {
+            descriptionObj = JSON.parse(currentDevice.description);
+          }
+        } catch (e) {
+          // Not valid JSON, create a new object
+        }
+        
+        // Update the wifiConfig property
+        descriptionObj = {
+          ...descriptionObj,
+          wifiConfig: updates.wifiConfig
         };
+        
+        // Store the updated WiFi config in the description as JSON
+        supabaseUpdates.description = JSON.stringify(descriptionObj);
+      } else if (updates.description !== undefined) {
+        supabaseUpdates.description = updates.description;
       }
+      
+      if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
       
       const { error } = await supabase
         .from('devices')

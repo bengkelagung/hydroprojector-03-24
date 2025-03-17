@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Loader2, InfoIcon, Check, ChevronRight, Upload, Camera } from 'lucide-react';
+import { Loader2, InfoIcon, Check, ChevronRight, Upload, Camera, Wifi as WifiIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -306,7 +305,7 @@ const DeviceWifiSetup = () => {
                   <span>Wi-Fi credentials detected</span>
                 </div>
                 <div className="flex items-center gap-2 text-gray-700">
-                  <Wifi className="h-4 w-4 text-green-600" />
+                  <WifiIcon className="h-4 w-4 text-green-600" />
                   <span>
                     <strong>Network:</strong> {wifiSSID}
                   </span>
