@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Cpu, Copy, Check, Sliders, AlertTriangle, Wifi } from 'lucide-react';
@@ -142,8 +143,14 @@ const DeviceCode = () => {
                 <Alert className="bg-green-50 border-green-200">
                   <Wifi className="h-5 w-5 text-green-600" />
                   <AlertDescription className="text-gray-700">
-                    Wi-Fi credentials from QR code are pre-configured in the code:
+                    Wi-Fi credentials are pre-configured in the code:&nbsp;
                     <code className="px-1 py-0.5 bg-blue-100 rounded ml-1">{device.wifiConfig.wifiSSID}</code>
+                    {device.wifiConfig.wifiPassword && (
+                      <>
+                        &nbsp;with password:&nbsp;
+                        <code className="px-1 py-0.5 bg-blue-100 rounded">{device.wifiConfig.wifiPassword}</code>
+                      </>
+                    )}
                   </AlertDescription>
                 </Alert>
               ) : (

@@ -10,6 +10,7 @@ import { toast } from 'sonner';
 import { useHydro } from '@/contexts/HydroContext';
 import QRCodeScanner from '@/components/QRCodeScanner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import jsQR from 'jsqr';
 
 const DeviceWifiSetup = () => {
   const [wifiSSID, setWifiSSID] = useState('');
@@ -17,6 +18,7 @@ const DeviceWifiSetup = () => {
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [isConfiguring, setIsConfiguring] = useState(false);
   const [activeTab, setActiveTab] = useState<string>("scan");
+  const [processingImage, setProcessingImage] = useState(false);
   const { devices, updateDevice } = useHydro();
   const navigate = useNavigate();
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -26,27 +28,8 @@ const DeviceWifiSetup = () => {
   
   // Check for connected device
   useEffect(() => {
-    // For real implementation, check for server availability
-    const checkDeviceConnection = async () => {
-      try {
-        const response = await fetch('http://localhost:3001/api/scan-wifi', { 
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          signal: AbortSignal.timeout(3000)
-        });
-        
-        if (response.ok) {
-          setDeviceConnected(true);
-        } else {
-          setDeviceConnected(false);
-        }
-      } catch (error) {
-        console.error('Error checking device connection:', error);
-        setDeviceConnected(false);
-      }
-    };
-    
-    checkDeviceConnection();
+    // For demo purposes, just set true
+    setDeviceConnected(true);
   }, []);
 
   // If device already has WiFi config, use it
@@ -89,29 +72,89 @@ const DeviceWifiSetup = () => {
       return;
     }
     
+    setProcessingImage(true);
+    toast.info('Processing QR code from image...');
+    
     const reader = new FileReader();
     reader.onload = async (event) => {
-      if (!event.target?.result) return;
+      if (!event.target?.result) {
+        setProcessingImage(false);
+        toast.error('Failed to read image data');
+        return;
+      }
       
       try {
-        // In a real implementation, we'd use a QR code scanning library here
-        // For now we'll just simulate a successful scan
-        toast.success('Processing QR code from image...');
+        // Create an image element to load the file
+        const img = new Image();
+        img.onload = () => {
+          // Create a canvas to draw the image for processing
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            setProcessingImage(false);
+            toast.error('Failed to process image');
+            return;
+          }
+          
+          // Set canvas dimensions to match image
+          canvas.width = img.width;
+          canvas.height = img.height;
+          
+          // Draw image on canvas
+          ctx.drawImage(img, 0, 0);
+          
+          // Get image data for QR detection
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          
+          // Use jsQR to detect QR code
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: "dontInvert",
+          });
+          
+          if (code) {
+            console.log("QR Code found in image:", code.data);
+            // Process the QR code
+            if (code.data.includes('WIFI:S:')) {
+              const ssidMatch = code.data.match(/S:(.*?);/);
+              const passwordMatch = code.data.match(/P:(.*?);/);
+              
+              if (ssidMatch) {
+                const ssid = ssidMatch[1];
+                const password = passwordMatch ? passwordMatch[1] : '';
+                
+                handleWifiConnect(ssid, password);
+                toast.success(`Found Wi-Fi: ${ssid}`);
+              } else {
+                toast.error('Found QR code but SSID information is missing');
+              }
+            } else {
+              toast.error('Found QR code but it is not a Wi-Fi QR code');
+            }
+          } else {
+            toast.error('No QR code found in this image');
+          }
+          
+          setProcessingImage(false);
+        };
         
-        // Simulate processing delay
-        setTimeout(() => {
-          // For demo purposes, extract a fake SSID from the filename
-          const fakeSSID = file.name.split('.')[0].replace(/[^a-zA-Z0-9]/g, '');
-          handleWifiConnect(fakeSSID || 'HomeNetwork', 'password123');
-        }, 1500);
+        img.onerror = () => {
+          setProcessingImage(false);
+          toast.error('Failed to load image');
+        };
+        
+        img.src = event.target.result as string;
+        
       } catch (error) {
-        console.error('Error processing QR code image:', error);
+        console.error('Error processing QR code from image:', error);
         toast.error('Failed to process QR code from image');
+        setProcessingImage(false);
       }
     };
     
     reader.onerror = () => {
       toast.error('Failed to read the image file');
+      setProcessingImage(false);
     };
     
     reader.readAsDataURL(file);
@@ -244,9 +287,37 @@ const DeviceWifiSetup = () => {
                   accept="image/*"
                   className="hidden" 
                   onChange={handleLocalImageUpload}
+                  disabled={processingImage}
                 />
               </label>
             </div>
+            
+            {processingImage && (
+              <div className="flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-hydro-blue mr-2" />
+                <span>Processing image...</span>
+              </div>
+            )}
+            
+            {wifiSSID && activeTab === "upload" && (
+              <div className="w-full p-4 bg-green-50 border border-green-200 rounded-md mt-2">
+                <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
+                  <Check className="h-5 w-5 text-green-600" />
+                  <span>Wi-Fi credentials detected</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700">
+                  <Wifi className="h-4 w-4 text-green-600" />
+                  <span>
+                    <strong>Network:</strong> {wifiSSID}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-700 mt-1">
+                  <span>
+                    <strong>Password:</strong> {wifiPassword}
+                  </span>
+                </div>
+              </div>
+            )}
             
             <p className="text-xs text-gray-500">
               Supported formats: JPG, PNG, GIF
@@ -282,7 +353,7 @@ const DeviceWifiSetup = () => {
                 <Input 
                   id="password" 
                   name="password" 
-                  type="password" 
+                  type="text" 
                   placeholder="Enter Wi-Fi password" 
                   defaultValue={wifiPassword}
                 />
@@ -316,6 +387,9 @@ const DeviceWifiSetup = () => {
               </h4>
               <p className="text-sm text-green-700 mt-1">
                 Your device will connect to: <strong>{wifiSSID}</strong>
+              </p>
+              <p className="text-sm text-green-700 mt-1">
+                Password: <strong>{wifiPassword}</strong>
               </p>
               <p className="text-xs text-green-600 mt-1">
                 These credentials will be embedded in your device code.

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, QrCode, Scan, Check, Wifi, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import { io } from 'socket.io-client';
+import jsQR from 'jsqr';
 
 interface QRScannerProps {
   onConnect: (ssid: string, password: string) => void;
@@ -13,10 +13,6 @@ interface QRScannerProps {
   useMockData?: boolean;
 }
 
-const SERVER_URL = 'http://localhost:3001';
-const SOCKET_URL = 'ws://localhost:3001';
-
-// Mock QR codes for testing (simulating Wi-Fi QR codes)
 const mockQRData = [
   'WIFI:S:HomeWifi;T:WPA;P:password123;;',
   'WIFI:S:GuestNetwork;T:WPA;P:guest2023;;',
@@ -32,60 +28,16 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const [connected, setConnected] = useState(false);
   const [wifiCredentials, setWifiCredentials] = useState<{ ssid: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [socket, setSocket] = useState<any>(null);
   const [usingMockData, setUsingMockData] = useState(useMockData);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Initialize socket connection for real-time communication
-  useEffect(() => {
-    if (!usingMockData) {
-      try {
-        const newSocket = io(SOCKET_URL);
-        
-        newSocket.on('connect', () => {
-          console.log('Connected to WebSocket server');
-        });
-        
-        newSocket.on('disconnect', () => {
-          console.log('Disconnected from WebSocket server');
-        });
-        
-        newSocket.on('wifi_connected', (data) => {
-          setConnected(true);
-          setWifiCredentials({
-            ssid: data.ssid,
-            password: data.password
-          });
-          toast.success(`Connected to ${data.ssid}`);
-          onConnect(data.ssid, data.password);
-          stopScanner();
-        });
-        
-        newSocket.on('qr_process_error', (data) => {
-          setError(data.error);
-          toast.error(`QR code error: ${data.error}`);
-        });
-        
-        setSocket(newSocket);
-        
-        return () => {
-          newSocket.disconnect();
-        };
-      } catch (error) {
-        console.error('Error connecting to WebSocket:', error);
-        toast.error('Failed to connect to WebSocket server. Using mock data instead.');
-        setUsingMockData(true);
-      }
-    }
-  }, [usingMockData, onConnect]);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   // When component unmounts, make sure we clean up
   useEffect(() => {
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
       }
       if (videoRef.current && videoRef.current.srcObject) {
         const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
@@ -95,8 +47,10 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   }, []);
 
   // Process the QR code data
-  const processQRCode = async (qrData: string) => {
+  const processQRCode = (qrData: string) => {
     setError(null);
+    
+    console.log("Processing QR code:", qrData);
     
     if (!qrData.includes('WIFI:S:')) {
       setError('Invalid QR code format. Not a Wi-Fi QR code.');
@@ -105,32 +59,29 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
     
     try {
-      if (!usingMockData && socket) {
-        // Send to server for processing via socket
-        socket.emit('process_qr_code', { qrData });
-      } else {
-        // Process locally for demo/mock
-        const ssidMatch = qrData.match(/S:(.*?);/);
-        const passwordMatch = qrData.match(/P:(.*?);/);
-        
-        if (!ssidMatch) {
-          throw new Error('Invalid QR code format. SSID not found.');
-        }
-        
-        const ssid = ssidMatch[1];
-        const password = passwordMatch ? passwordMatch[1] : '';
-        
-        // Simulate connection delay
-        setScanning(false);
-        toast.success(`QR code scanned successfully`);
-        
-        setTimeout(() => {
-          setConnected(true);
-          setWifiCredentials({ ssid, password });
-          toast.success(`Connected to ${ssid}`);
-          onConnect(ssid, password);
-        }, 1000);
+      // Process locally
+      const ssidMatch = qrData.match(/S:(.*?);/);
+      const passwordMatch = qrData.match(/P:(.*?);/);
+      
+      if (!ssidMatch) {
+        throw new Error('Invalid QR code format. SSID not found.');
       }
+      
+      const ssid = ssidMatch[1];
+      const password = passwordMatch ? passwordMatch[1] : '';
+      
+      // Stop scanning
+      setScanning(false);
+      toast.success(`QR code scanned successfully`);
+      
+      setConnected(true);
+      setWifiCredentials({ ssid, password });
+      toast.success(`Found network: ${ssid}`);
+      onConnect(ssid, password);
+      
+      // Stop scanner
+      stopScanner();
+      
     } catch (error: any) {
       console.error('Error processing QR:', error);
       setError(error.message);
@@ -145,7 +96,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     
     if (usingMockData) {
       // For mock data, simulate scanning delay then pick a random mock QR code
-      timeoutRef.current = setTimeout(() => {
+      setTimeout(() => {
         const randomQR = mockQRData[Math.floor(Math.random() * mockQRData.length)];
         processQRCode(randomQR);
       }, 1500);
@@ -162,8 +113,12 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         videoRef.current.srcObject = stream;
         videoRef.current.play();
         
-        // Start scanning frames
-        requestAnimationFrame(scanQRCode);
+        // Start scanning frames at regular intervals
+        scanIntervalRef.current = setInterval(() => {
+          if (videoRef.current && canvasRef.current) {
+            scanQRCode();
+          }
+        }, 500); // Check every 500ms
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -181,8 +136,9 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const stopScanner = () => {
     setScanning(false);
     
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current);
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
     }
     
     if (videoRef.current && videoRef.current.srcObject) {
@@ -206,32 +162,23 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       canvas.height = video.videoHeight;
       canvas.width = video.videoWidth;
+      
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // In a real app, we would use a QR code scanning library here
-      // like jsQR, zxing-js, or instascan to detect and decode QR codes
+      // Get image data for QR code scanning
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
       
-      // For demonstration, simulate QR detection after 2 seconds
-      if (usingMockData) {
-        timeoutRef.current = setTimeout(() => {
-          // Choose a random mock QR code
-          const randomQR = mockQRData[Math.floor(Math.random() * mockQRData.length)];
-          processQRCode(randomQR);
-        }, 2000);
-      } else {
-        // Try to detect every 100ms (in a real app this would be done on each frame)
-        timeoutRef.current = setTimeout(() => {
-          // We'd detect the QR code from the canvas here
-          // For now, just simulate detection for demo purposes
-          processQRCode(mockQRData[0]);
-        }, 2000);
+      // Use jsQR to detect QR code
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
+      
+      // If QR code is found, process it
+      if (code) {
+        console.log("QR code detected:", code.data);
+        processQRCode(code.data);
       }
-      
-      return;
     }
-    
-    // Continue scanning
-    requestAnimationFrame(scanQRCode);
   };
 
   const reset = () => {
@@ -274,6 +221,11 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                 <Wifi className="h-4 w-4 text-green-600" />
                 <span>
                   <strong>Network:</strong> {wifiCredentials.ssid}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-700 mt-1">
+                <span>
+                  <strong>Password:</strong> {wifiCredentials.password}
                 </span>
               </div>
               <p className="text-sm text-gray-600 mt-2">
