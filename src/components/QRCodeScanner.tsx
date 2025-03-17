@@ -110,6 +110,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       // Sound is optional, continue if not available
     }
     
+    // Stop scanning
+    setScanning(false);
     toast.success(`QR code scanned successfully`);
     
     setConnected(true);
@@ -117,28 +119,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     toast.success(`Found network: ${ssid}`);
     onConnect(ssid, password);
     
-    // Reset scanner to allow multiple scans - don't stop it completely
-    resetScannerForNextScan();
-  };
-
-  // Reset the scanner state to allow for another scan
-  const resetScannerForNextScan = () => {
-    // First pause scanning to avoid multiple rapid scans
-    if (scannerRef.current && scannerRef.current.isScanning) {
-      scannerRef.current.pause();
-      
-      // After a short pause, resume scanning
-      setTimeout(() => {
-        if (scannerRef.current) {
-          scannerRef.current.resume().catch(err => {
-            console.error('Error resuming scanner:', err);
-            // If resume fails, stop and restart
-            stopScanner();
-            startScanner();
-          });
-        }
-      }, 1500); // Wait 1.5 seconds before allowing another scan
-    }
+    // Stop scanner
+    stopScanner();
   };
 
   // Start the QR scanner
@@ -182,51 +164,40 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       };
       
       const config = { 
-        fps: 10,
-        qrbox: { width: 250, height: 250 },
+        fps: 20,               // Higher frames per second
+        qrbox: { width: 250, height: 250 },  // Define scan region size
+        aspectRatio: 1.0,      // Square aspect ratio for the camera feed
         formatsToSupport: [2], // 2 corresponds to QR_CODE in the html5-qrcode library
         rememberLastUsedCamera: true,
-        showTorchButtonIfSupported: true,
-        // Remove any styling or UI elements that overlay on the camera
-        disableFlip: false,
-        aspectRatio: 1.0,
-        supportedScanTypes: [0], // HTML5QrcodeScanType.SCAN_TYPE_CAMERA
-        videoConstraints: {
-          // Try to use any available camera (not just mobile rear camera)
-          facingMode: { ideal: "environment" }
-        }
+        showTorchButtonIfSupported: true,  // Show flashlight button if available
       };
       
       console.log("Starting scanner with environment camera");
       
-      // Start with a generic camera setup - works better for both desktop and mobile
+      // Start the scanner with environment camera (rear camera on mobile devices)
       await scannerRef.current.start(
         { facingMode: "environment" }, 
         config,
         qrCodeSuccessCallback,
         (errorMessage: string) => {
           // QR code not found - this is a normal operation state, not an error
-          // Don't log this as it floods the console
+          // console.log(errorMessage);
         }
       );
       
     } catch (err) {
       console.error('Error accessing camera:', err);
       
-      // Try again with more basic settings for desktop compatibility
+      // Try again with more basic settings
       try {
         if (scannerRef.current) {
           const basicConfig = { 
             fps: 10, 
-            qrbox: 250,
-            videoConstraints: {
-              width: { min: 640, ideal: 1280, max: 1920 },
-              height: { min: 480, ideal: 720, max: 1080 }
-            }
+            qrbox: 250
           };
           
           await scannerRef.current.start(
-            { deviceId: { exact: true } }, // This allows any camera to be used
+            { facingMode: "environment" },
             basicConfig,
             (decodedText: string) => {
               console.log(`QR Code detected: ${decodedText}`);
@@ -268,12 +239,6 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setConnected(false);
     setWifiCredentials(null);
     setError(null);
-    
-    // Restart the scanner to allow for a new scan
-    stopScanner();
-    setTimeout(() => {
-      startScanner();
-    }, 500);
   };
 
   return (
@@ -328,7 +293,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
           </div>
         ) : scanning ? (
           <div className="space-y-4">
-            <div className="relative bg-gray-100 rounded-md overflow-hidden" style={{ height: '300px' }}>
+            <div className="relative aspect-video bg-gray-100 rounded-md overflow-hidden">
               {usingMockData ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-hydro-blue mb-4" />
@@ -336,11 +301,16 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                   <p className="text-xs text-gray-500 mt-2">Simulating scan</p>
                 </div>
               ) : (
-                <div 
-                  id={scannerContainerId} 
-                  ref={containerRef}
-                  className="w-full h-full"
-                ></div>
+                <>
+                  <div 
+                    id={scannerContainerId} 
+                    ref={containerRef}
+                    className="w-full h-full"
+                  ></div>
+                  <p className="absolute bottom-4 left-0 right-0 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full mx-auto w-max">
+                    Position QR code in frame
+                  </p>
+                </>
               )}
             </div>
             
