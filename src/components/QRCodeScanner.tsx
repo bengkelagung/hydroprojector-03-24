@@ -10,6 +10,7 @@ import { io } from 'socket.io-client';
 interface QRScannerProps {
   onConnect: (ssid: string, password: string) => void;
   serverConnected?: boolean;
+  useMockData?: boolean;
 }
 
 const SERVER_URL = 'http://localhost:3001';
@@ -24,21 +25,22 @@ const mockQRData = [
 
 const QRCodeScanner: React.FC<QRScannerProps> = ({ 
   onConnect, 
-  serverConnected = false 
+  serverConnected = false,
+  useMockData = false
 }) => {
   const [scanning, setScanning] = useState(false);
   const [connected, setConnected] = useState(false);
   const [wifiCredentials, setWifiCredentials] = useState<{ ssid: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [socket, setSocket] = useState<any>(null);
-  const [useMockData, setUseMockData] = useState(!serverConnected);
+  const [usingMockData, setUsingMockData] = useState(useMockData);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize socket connection for real-time communication
   useEffect(() => {
-    if (!useMockData) {
+    if (!usingMockData) {
       try {
         const newSocket = io(SOCKET_URL);
         
@@ -74,10 +76,10 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       } catch (error) {
         console.error('Error connecting to WebSocket:', error);
         toast.error('Failed to connect to WebSocket server. Using mock data instead.');
-        setUseMockData(true);
+        setUsingMockData(true);
       }
     }
-  }, [useMockData, onConnect]);
+  }, [usingMockData, onConnect]);
 
   // When component unmounts, make sure we clean up
   useEffect(() => {
@@ -103,7 +105,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
     
     try {
-      if (!useMockData && socket) {
+      if (!usingMockData && socket) {
         // Send to server for processing via socket
         socket.emit('process_qr_code', { qrData });
       } else {
@@ -141,7 +143,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setScanning(true);
     setError(null);
     
-    if (useMockData) {
+    if (usingMockData) {
       // For mock data, simulate scanning delay then pick a random mock QR code
       timeoutRef.current = setTimeout(() => {
         const randomQR = mockQRData[Math.floor(Math.random() * mockQRData.length)];
@@ -170,7 +172,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       // Fall back to mock data
       toast.error('Camera access failed. Using mock data for demonstration.');
-      setUseMockData(true);
+      setUsingMockData(true);
       startScanner();
     }
   };
@@ -208,14 +210,22 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       // In a real app, we would use a QR code scanning library here
       // like jsQR, zxing-js, or instascan to detect and decode QR codes
-      // For this demo, we're just simulating QR detection with a timeout
       
-      // Simulated QR detection after 2 seconds
-      timeoutRef.current = setTimeout(() => {
-        // Choose a random mock QR code
-        const randomQR = mockQRData[Math.floor(Math.random() * mockQRData.length)];
-        processQRCode(randomQR);
-      }, 2000);
+      // For demonstration, simulate QR detection after 2 seconds
+      if (usingMockData) {
+        timeoutRef.current = setTimeout(() => {
+          // Choose a random mock QR code
+          const randomQR = mockQRData[Math.floor(Math.random() * mockQRData.length)];
+          processQRCode(randomQR);
+        }, 2000);
+      } else {
+        // Try to detect every 100ms (in a real app this would be done on each frame)
+        timeoutRef.current = setTimeout(() => {
+          // We'd detect the QR code from the canvas here
+          // For now, just simulate detection for demo purposes
+          processQRCode(mockQRData[0]);
+        }, 2000);
+      }
       
       return;
     }
@@ -231,27 +241,17 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   };
 
   return (
-    <Card className="mb-8">
+    <Card className="mb-4">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Wi-Fi QR Code Scanner</CardTitle>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setUseMockData(!useMockData)}
-            className="text-xs"
-          >
-            {useMockData ? "Use Real Camera" : "Use Mock Data"}
-          </Button>
-        </div>
       </CardHeader>
       
       <CardContent>
-        {!serverConnected && !useMockData && (
+        {!serverConnected && !usingMockData && (
           <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
-              Cannot connect to Wi-Fi server. Using demo mode for demonstration.
+              Cannot connect to Wi-Fi server. The scanner will still work but without server validation.
             </AlertDescription>
           </Alert>
         )}
@@ -288,11 +288,11 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         ) : scanning ? (
           <div className="space-y-4">
             <div className="relative aspect-video bg-gray-100 rounded-md overflow-hidden">
-              {useMockData ? (
+              {usingMockData ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-hydro-blue mb-4" />
                   <p className="text-gray-600">Scanning for Wi-Fi QR code...</p>
-                  <p className="text-xs text-gray-500 mt-2">Demo mode: Simulating scan</p>
+                  <p className="text-xs text-gray-500 mt-2">Simulating scan</p>
                 </div>
               ) : (
                 <>

@@ -120,7 +120,13 @@ const AppContent = () => {
               </Layout>
             </ProtectedRoute>
           } />
-          <Route path="/devices/:deviceId/wifi-setup" element={<DeviceWifiSetup />} />
+          <Route path="/devices/:deviceId/wifi-setup" element={
+            <ProtectedRoute>
+              <Layout>
+                <DeviceWifiSetup />
+              </Layout>
+            </ProtectedRoute>
+          } />
           
           {/* Sensor readings route */}
           <Route path="/readings" element={
