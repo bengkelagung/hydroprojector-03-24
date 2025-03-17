@@ -1,7 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Cpu, Copy, Check, Sliders, AlertTriangle } from 'lucide-react';
+import { Cpu, Copy, Check, Sliders, AlertTriangle, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
@@ -69,6 +69,9 @@ const DeviceCode = () => {
     toast.success('Device connected successfully!');
   };
 
+  // Display Wi-Fi information if it exists in device wifiConfig
+  const hasWifiConfig = device.wifiConfig && device.wifiConfig.wifiSSID;
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="mb-8">
@@ -117,13 +120,23 @@ const DeviceCode = () => {
             </CardContent>
             
             <CardFooter className="flex flex-col space-y-4">
-              <Alert className="bg-blue-50 border-blue-200">
-                <AlertDescription className="text-gray-700">
-                  You'll need to modify the WiFi credentials in the code above. Replace 
-                  <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_SSID"</code> and 
-                  <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_PASSWORD"</code> with your actual WiFi details.
-                </AlertDescription>
-              </Alert>
+              {hasWifiConfig ? (
+                <Alert className="bg-green-50 border-green-200">
+                  <Wifi className="h-5 w-5 text-green-600" />
+                  <AlertDescription className="text-gray-700">
+                    Wi-Fi credentials from QR code are pre-configured in the code:
+                    <code className="px-1 py-0.5 bg-blue-100 rounded ml-1">{device.wifiConfig.wifiSSID}</code>
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <Alert className="bg-blue-50 border-blue-200">
+                  <AlertDescription className="text-gray-700">
+                    You'll need to modify the WiFi credentials in the code above. Replace 
+                    <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_SSID"</code> and 
+                    <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_PASSWORD"</code> with your actual WiFi details.
+                  </AlertDescription>
+                </Alert>
+              )}
               
               {/* For demo purposes only */}
               <div className="w-full bg-yellow-50 p-3 rounded-md border border-yellow-200 text-sm text-yellow-800">

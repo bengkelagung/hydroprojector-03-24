@@ -33,7 +33,40 @@ app.get('/api/scan-wifi', async (req, res) => {
   }
 });
 
-// Endpoint to connect to a network
+// Endpoint to connect to a network from QR code data
+app.post('/api/connect-wifi-qr', async (req, res) => {
+  try {
+    const { qrData } = req.body;
+    
+    if (!qrData) {
+      return res.status(400).json({ success: false, error: 'QR data is required' });
+    }
+    
+    // Parse QR code data for Wi-Fi credentials
+    // Standard Wi-Fi QR format: WIFI:S:<SSID>;T:<Authentication>;P:<Password>;;
+    const ssidMatch = qrData.match(/S:(.*?);/);
+    const passwordMatch = qrData.match(/P:(.*?);/);
+    
+    if (!ssidMatch) {
+      return res.status(400).json({ success: false, error: 'Invalid QR code format. SSID not found.' });
+    }
+    
+    const ssid = ssidMatch[1];
+    const password = passwordMatch ? passwordMatch[1] : '';
+    
+    await wifi.connect({ ssid, password });
+    res.json({ 
+      success: true, 
+      message: `Connected to ${ssid}`,
+      credentials: { ssid, password } 
+    });
+  } catch (error) {
+    console.error('Error connecting to network from QR:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Regular endpoint to connect to a network
 app.post('/api/connect-wifi', async (req, res) => {
   try {
     const { ssid, password } = req.body;
@@ -54,14 +87,35 @@ app.post('/api/connect-wifi', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('Client connected');
   
-  // Scan networks when requested
-  socket.on('scan_networks', async () => {
+  // Process QR code data
+  socket.on('process_qr_code', async (data) => {
     try {
-      const networks = await wifi.scan();
-      socket.emit('networks_found', { networks });
+      // Parse QR code data
+      const qrData = data.qrData;
+      const ssidMatch = qrData.match(/S:(.*?);/);
+      const passwordMatch = qrData.match(/P:(.*?);/);
+      
+      if (!ssidMatch) {
+        socket.emit('qr_process_error', { 
+          error: 'Invalid QR code format. SSID not found.' 
+        });
+        return;
+      }
+      
+      const ssid = ssidMatch[1];
+      const password = passwordMatch ? passwordMatch[1] : '';
+      
+      // Connect to the network
+      await wifi.connect({ ssid, password });
+      
+      socket.emit('wifi_connected', { 
+        ssid, 
+        password,
+        message: `Connected to ${ssid}` 
+      });
     } catch (error) {
-      console.error('Error scanning networks:', error);
-      socket.emit('scan_error', { error: error.message });
+      console.error('Error processing QR code:', error);
+      socket.emit('qr_process_error', { error: error.message });
     }
   });
   

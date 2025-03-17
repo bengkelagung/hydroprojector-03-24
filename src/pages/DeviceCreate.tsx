@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { useHydro } from '@/contexts/HydroContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import WifiManager from '@/components/WifiManager';
+import QRCodeScanner from '@/components/QRCodeScanner';
 
 const DeviceCreate = () => {
   const [name, setName] = useState('');
@@ -77,11 +77,16 @@ const DeviceCreate = () => {
       return;
     }
     
+    if (!wifiSSID) {
+      toast.error('Please scan a Wi-Fi QR code first');
+      return;
+    }
+    
     try {
       setIsSubmitting(true);
       
       // Add Wi-Fi configuration to the device details
-      const wifiConfig = wifiSSID ? { wifiSSID, wifiPassword } : undefined;
+      const wifiConfig = { wifiSSID, wifiPassword };
       
       const device = await createDevice(name, description, projectId, deviceType, wifiConfig);
       toast.success('Device created successfully!');
@@ -125,8 +130,11 @@ const DeviceCreate = () => {
         </p>
       </div>
       
-      {/* Wi-Fi Manager Component with device connection status */}
-      <WifiManager onConnect={handleWifiConnect} deviceConnected={deviceConnected} />
+      {/* QR Code Scanner Component */}
+      <QRCodeScanner 
+        onConnect={handleWifiConnect} 
+        serverConnected={deviceConnected} 
+      />
       
       <Card>
         <form onSubmit={handleSubmit}>
@@ -209,7 +217,7 @@ const DeviceCreate = () => {
                 <h4 className="font-medium text-hydro-blue">Next Steps</h4>
                 <p className="text-sm text-gray-600 mt-1">
                   After adding your device, you'll receive the code to upload to your {deviceType.toUpperCase()}.
-                  {wifiSSID ? " Wi-Fi credentials will be automatically configured." : " You can set up Wi-Fi credentials before creating the device."}
+                  Wi-Fi credentials will be automatically configured from your QR code scan.
                 </p>
               </div>
             </div>
@@ -226,7 +234,7 @@ const DeviceCreate = () => {
             <Button
               type="submit"
               className="bg-hydro-blue hover:bg-blue-700"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !wifiSSID}
             >
               {isSubmitting ? (
                 <>
