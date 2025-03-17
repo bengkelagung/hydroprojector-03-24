@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2, Cpu, InfoIcon } from 'lucide-react';
@@ -21,6 +20,7 @@ const DeviceCreate = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [wifiSSID, setWifiSSID] = useState('');
   const [wifiPassword, setWifiPassword] = useState('');
+  const [deviceConnected, setDeviceConnected] = useState(false);
   const { projects, createDevice } = useHydro();
   const navigate = useNavigate();
   const location = useLocation();
@@ -34,6 +34,23 @@ const DeviceCreate = () => {
       setProjectId(projects[0].id);
     }
   }, [location.state, projects]);
+
+  // Check for connected device (in a real app, this would query your device)
+  useEffect(() => {
+    // Simulate device detection - in real implementation, check if device is in pairing mode
+    const checkDeviceConnection = async () => {
+      try {
+        // Example: fetch('/api/device-status').then(...)
+        // For demonstration, we'll just leave it as false
+        setDeviceConnected(false);
+      } catch (error) {
+        console.error('Error checking device connection:', error);
+        setDeviceConnected(false);
+      }
+    };
+    
+    checkDeviceConnection();
+  }, []);
 
   const handleWifiConnect = (ssid: string, password: string) => {
     setWifiSSID(ssid);
@@ -97,8 +114,8 @@ const DeviceCreate = () => {
         </p>
       </div>
       
-      {/* Wi-Fi Manager Component */}
-      <WifiManager onConnect={handleWifiConnect} />
+      {/* Wi-Fi Manager Component with device connection status */}
+      <WifiManager onConnect={handleWifiConnect} deviceConnected={deviceConnected} />
       
       <Card>
         <form onSubmit={handleSubmit}>
