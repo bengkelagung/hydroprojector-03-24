@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/componen
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, QrCode, Scan, Check, Wifi, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
-import jsQR from 'jsqr';
+import { Html5Qrcode } from 'html5-qrcode';
 
 interface QRScannerProps {
   onConnect: (ssid: string, password: string) => void;
@@ -32,12 +32,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const [wifiCredentials, setWifiCredentials] = useState<{ ssid: string; password: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [usingMockData, setUsingMockData] = useState(useMockData);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const lastDetectionRef = useRef<string | null>(null);
-  const cooldownRef = useRef<boolean>(false);
-  const animationFrameRef = useRef<number | null>(null);
+  const scannerRef = useRef<Html5Qrcode | null>(null);
+  const scannerContainerId = 'qr-reader';
 
   // When component mounts, start scanning automatically if on the wifi-setup page
   useEffect(() => {
@@ -54,18 +50,6 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
 
   // Process the QR code data
   const processQRCode = (qrData: string) => {
-    // Avoid processing the same QR code multiple times in quick succession
-    if (lastDetectionRef.current === qrData && cooldownRef.current) {
-      return;
-    }
-    
-    // Set a very short cooldown to prevent multiple rapid detections of the same code
-    lastDetectionRef.current = qrData;
-    cooldownRef.current = true;
-    setTimeout(() => {
-      cooldownRef.current = false;
-    }, 500); // Super short cooldown for very fast response
-    
     setError(null);
     console.log("Processing QR code:", qrData);
     
@@ -149,79 +133,56 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
     
     try {
-      // For real device, access the camera and start scanning
-      const constraints = {
-        video: { 
-          facingMode: { ideal: 'environment' },
-          width: { ideal: 1920, min: 640 },
-          height: { ideal: 1080, min: 480 },
-          frameRate: { ideal: 120, min: 60 }, // Significantly higher frame rate for faster detection
-          // Enhanced settings for better QR detection
-          advanced: [
-            { exposureMode: 'continuous' },
-            { focusMode: 'continuous' },
-            { whiteBalanceMode: 'continuous' },
-            { zoom: 0 } // No digital zoom to maintain full field of view
-          ] as any
-        }
+      // Create new scanner instance if it doesn't exist
+      if (!scannerRef.current) {
+        scannerRef.current = new Html5Qrcode(scannerContainerId);
+      }
+      
+      const qrCodeSuccessCallback = (decodedText: string) => {
+        console.log(`QR Code detected: ${decodedText}`);
+        processQRCode(decodedText);
       };
       
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      const config = { 
+        fps: 20,               // Higher frames per second
+        qrbox: { width: 250, height: 250 },  // Define scan region size
+        aspectRatio: 1.0,      // Square aspect ratio for the camera feed
+        formatsToSupport: [2], // 2 corresponds to QR_CODE in the html5-qrcode library
+        rememberLastUsedCamera: true,
+        showTorchButtonIfSupported: true,  // Show flashlight button if available
+      };
       
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.onloadedmetadata = () => {
-          if (videoRef.current) {
-            // Set video to play as fast as possible
-            videoRef.current.playbackRate = 1.0;
-            
-            // Start the video with high priority
-            const playPromise = videoRef.current.play();
-            
-            if (playPromise !== undefined) {
-              playPromise.catch(err => {
-                console.error("Error playing video:", err);
-                setError('Failed to start video stream. Please check permissions.');
-                setScanning(false);
-              });
-            }
-          }
-          
-          // Start continuous frame analysis immediately
-          requestScanningFrame();
-        };
-      }
-    } catch (error) {
-      console.error('Error accessing camera:', error);
+      // Start the scanner with environment camera (rear camera on mobile devices)
+      await scannerRef.current.start(
+        { facingMode: "environment" }, 
+        config,
+        qrCodeSuccessCallback,
+        (errorMessage: string) => {
+          // QR code not found - this is a normal operation state, not an error
+          // console.log(errorMessage);
+        }
+      );
+      
+    } catch (err) {
+      console.error('Error accessing camera:', err);
       
       // Try again with more basic settings
       try {
-        // Fallback to simpler constraints
-        const basicConstraints = {
-          video: { 
-            facingMode: 'environment',
-            frameRate: { min: 30 }
-          }
-        };
-        
-        const stream = await navigator.mediaDevices.getUserMedia(basicConstraints);
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadedmetadata = () => {
-            videoRef.current?.play().catch(err => {
-              console.error("Error playing video with basic settings:", err);
-              setError('Failed to access camera. Please check permissions.');
-              setScanning(false);
-              
-              // Fall back to mock data
-              setUsingMockData(true);
-              startScanner();
-            });
-            
-            // Start continuous frame analysis
-            requestScanningFrame();
+        if (scannerRef.current) {
+          const basicConfig = { 
+            fps: 10, 
+            qrbox: 250
           };
+          
+          await scannerRef.current.start(
+            { facingMode: "environment" },
+            basicConfig,
+            (decodedText: string) => {
+              console.log(`QR Code detected: ${decodedText}`);
+              processQRCode(decodedText);
+            },
+            () => {} // Silent error handling for normal operation
+          );
         }
       } catch (fallbackError) {
         console.error('Error with fallback camera access:', fallbackError);
@@ -236,80 +197,19 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  // Request animation frame for continuous scanning - optimized to scan every frame
-  const requestScanningFrame = () => {
-    if (!scanning) return;
-    
-    // Scan immediately the current frame
-    scanQRCode();
-    
-    // Request next frame with high priority
-    animationFrameRef.current = requestAnimationFrame(requestScanningFrame);
-  };
-
   // Stop the QR scanner
   const stopScanner = () => {
     setScanning(false);
     
-    if (scanIntervalRef.current) {
-      clearInterval(scanIntervalRef.current);
-      scanIntervalRef.current = null;
-    }
-    
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-      videoRef.current.srcObject = null;
-    }
-  };
-
-  // Scan video frames for QR codes - optimized performance
-  const scanQRCode = () => {
-    if (!scanning || !videoRef.current || !canvasRef.current) return;
-    
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      // Draw video frame to canvas
-      const ctx = canvas.getContext('2d', { 
-        willReadFrequently: true,
-        alpha: false // Disable alpha channel for better performance
-      });
-      
-      if (!ctx) return;
-      
-      // Match canvas dimensions to video - essential for accurate detection
-      canvas.height = video.videoHeight;
-      canvas.width = video.videoWidth;
-      
-      // Draw the video frame to the canvas - optimized with full frame
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Get image data for QR code scanning - restrict to center area for better performance
-      // Using about 60% of the center area where QR codes are most likely to be
-      const centerWidth = Math.floor(canvas.width * 0.6);
-      const centerHeight = Math.floor(canvas.height * 0.6);
-      const x = Math.floor((canvas.width - centerWidth) / 2);
-      const y = Math.floor((canvas.height - centerHeight) / 2);
-      
-      const imageData = ctx.getImageData(x, y, centerWidth, centerHeight);
-      
-      // Use jsQR to detect QR code with aggressive settings for real-time scanning
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: "attemptBoth", // Try both normal and inverted colors
-      });
-      
-      // If QR code is found, process it
-      if (code) {
-        console.log("QR code detected:", code.data);
-        processQRCode(code.data);
-      }
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      scannerRef.current
+        .stop()
+        .then(() => {
+          console.log('Scanner stopped');
+        })
+        .catch((err) => {
+          console.error('Error stopping scanner:', err);
+        });
     }
   };
 
@@ -317,8 +217,6 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setConnected(false);
     setWifiCredentials(null);
     setError(null);
-    lastDetectionRef.current = null;
-    cooldownRef.current = false;
   };
 
   return (
@@ -382,28 +280,13 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                 </div>
               ) : (
                 <>
-                  <video 
-                    ref={videoRef}
-                    className="absolute inset-0 w-full h-full object-cover"
-                    playsInline
-                    muted
-                    autoPlay
-                  />
-                  <canvas 
-                    ref={canvasRef}
-                    className="hidden" // Canvas is hidden but still processes frames
-                  />
-                  <div className="absolute inset-0 border-2 border-hydro-blue/50 pointer-events-none flex justify-center items-center">
-                    <div className="absolute w-56 h-56 border-2 border-hydro-blue animate-pulse">
-                      <div className="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-hydro-blue"></div>
-                      <div className="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-hydro-blue"></div>
-                      <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-hydro-blue"></div>
-                      <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-hydro-blue"></div>
-                    </div>
-                    <p className="absolute bottom-10 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full">
-                      Position QR code in frame
-                    </p>
-                  </div>
+                  <div 
+                    id={scannerContainerId} 
+                    className="w-full h-full"
+                  ></div>
+                  <p className="absolute bottom-4 left-0 right-0 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full mx-auto w-max">
+                    Position QR code in frame
+                  </p>
                 </>
               )}
             </div>
