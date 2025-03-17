@@ -10,3 +10,13 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// Helper function to log database errors in a more readable format
+export const logSupabaseError = (error: any, operation: string) => {
+  console.error(`Supabase error during ${operation}:`, {
+    message: error.message,
+    details: error.details,
+    hint: error.hint,
+    code: error.code
+  });
+};
