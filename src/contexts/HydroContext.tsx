@@ -83,7 +83,7 @@ interface HydroContextType {
   fetchPinModes: () => Promise<void>;
   fetchPinOptions: () => Promise<void>;
   updateProject: (projectId: string, updates: Partial<Project>) => void;
-  updateDevice: (deviceId: string, updates: Partial<Device>) => void;
+  updateDevice: (deviceId: string, updates: Partial<Device>) => Promise<void>;
   deleteProject: (projectId: string) => void;
   deleteDevice: (deviceId: string) => void;
   deletePin: (pinId: string) => void;
@@ -347,7 +347,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         await supabase
           .from('label')
           .insert(label)
-          .on_conflict('name')
+          .onConflict('name')
           .ignore();
       }
       
@@ -606,6 +606,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     
     const devicePins = pins.filter(p => p.deviceId === deviceId);
     
+    const wifiSSID = device.wifiConfig?.wifiSSID || "YOUR_WIFI_SSID";
+    const wifiPassword = device.wifiConfig?.wifiPassword || "YOUR_WIFI_PASSWORD";
+    
     return `
 // Hydroprojector Auto-generated code for ${device.name}
 // Device ID: ${device.id}
@@ -614,9 +617,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 
-// Wi-Fi credentials - replace with your own
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+// Wi-Fi credentials
+const char* ssid = "${wifiSSID}";
+const char* password = "${wifiPassword}";
 
 // Device identifier
 const char* deviceId = "${device.id}";
@@ -742,12 +745,40 @@ void read${pin.name.replace(/\s+/g, '')}() {
     );
   };
 
-  const updateDevice = (deviceId: string, updates: Partial<Device>) => {
-    setDevices(prev => 
-      prev.map(device => 
-        device.id === deviceId ? { ...device, ...updates } : device
-      )
-    );
+  const updateDevice = async (deviceId: string, updates: Partial<Device>): Promise<void> => {
+    try {
+      const supabaseUpdates: any = {};
+      
+      if (updates.name) supabaseUpdates.device_name = updates.name;
+      if (updates.description !== undefined) supabaseUpdates.description = updates.description;
+      if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
+      
+      if (updates.wifiConfig) {
+        supabaseUpdates.wifi_config = {
+          ssid: updates.wifiConfig.wifiSSID,
+          password: updates.wifiConfig.wifiPassword || ''
+        };
+      }
+      
+      const { error } = await supabase
+        .from('devices')
+        .update(supabaseUpdates)
+        .eq('id', deviceId);
+      
+      if (error) throw error;
+      
+      setDevices(prev => 
+        prev.map(device => 
+          device.id === deviceId ? { ...device, ...updates } : device
+        )
+      );
+      
+      toast.success('Device updated successfully');
+    } catch (error) {
+      console.error('Error updating device:', error);
+      toast.error('Failed to update device');
+      throw error;
+    }
   };
 
   const deletePin = async (pinId: string) => {

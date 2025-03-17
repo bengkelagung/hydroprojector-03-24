@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Cpu, Copy, Check, Sliders, AlertTriangle, Wifi } from 'lucide-react';
@@ -16,7 +15,6 @@ const DeviceCode = () => {
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // Find the device when component mounts or devices change
   useEffect(() => {
     const foundDevice = devices.find(d => d.id === deviceId) || null;
     setDevice(foundDevice);
@@ -32,7 +30,6 @@ const DeviceCode = () => {
     }
   }, [deviceId, devices, generateDeviceCode]);
 
-  // If device not found, show error
   if (!device) {
     return (
       <div className="max-w-2xl mx-auto">
@@ -69,7 +66,6 @@ const DeviceCode = () => {
     toast.success('Device connected successfully!');
   };
 
-  // Check if device has Wi-Fi config
   const hasWifiConfig = device.wifiConfig && device.wifiConfig.wifiSSID;
 
   return (
@@ -81,8 +77,30 @@ const DeviceCode = () => {
         </p>
       </div>
       
+      <div className="flex items-center justify-between mb-6 px-2">
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-hydro-blue text-white rounded-full flex items-center justify-center mb-1">
+            <Check className="h-5 w-5" />
+          </div>
+          <span className="text-xs text-gray-600">Create Device</span>
+        </div>
+        <div className="h-0.5 flex-1 bg-hydro-blue mx-2"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-hydro-blue text-white rounded-full flex items-center justify-center mb-1">
+            <Check className="h-5 w-5" />
+          </div>
+          <span className="text-xs text-gray-600">Configure Wi-Fi</span>
+        </div>
+        <div className="h-0.5 flex-1 bg-hydro-blue mx-2"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-hydro-blue text-white rounded-full flex items-center justify-center mb-1">
+            3
+          </div>
+          <span className="text-xs text-gray-600 font-medium">Get Code</span>
+        </div>
+      </div>
+      
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-        {/* Main content */}
         <div className="lg:col-span-3">
           <Card>
             <CardHeader>
@@ -129,16 +147,25 @@ const DeviceCode = () => {
                   </AlertDescription>
                 </Alert>
               ) : (
-                <Alert className="bg-blue-50 border-blue-200">
-                  <AlertDescription className="text-gray-700">
-                    You'll need to modify the WiFi credentials in the code above. Replace 
-                    <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_SSID"</code> and 
-                    <code className="px-1 py-0.5 bg-blue-100 rounded">"YOUR_WIFI_PASSWORD"</code> with your actual WiFi details.
-                  </AlertDescription>
-                </Alert>
+                <div className="w-full">
+                  <Alert className="bg-amber-50 border-amber-200 mb-3">
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                    <AlertDescription className="text-gray-700">
+                      No Wi-Fi configuration found. You'll need to set up Wi-Fi for this device.
+                    </AlertDescription>
+                  </Alert>
+                  <Link to={`/devices/${device.id}/wifi-setup`}>
+                    <Button 
+                      variant="outline" 
+                      className="w-full border-amber-200 text-amber-700 hover:bg-amber-50"
+                    >
+                      <Wifi className="mr-2 h-4 w-4" />
+                      Configure Wi-Fi
+                    </Button>
+                  </Link>
+                </div>
               )}
               
-              {/* For demo purposes only */}
               <div className="w-full bg-yellow-50 p-3 rounded-md border border-yellow-200 text-sm text-yellow-800">
                 <h4 className="font-medium flex items-center">
                   <AlertTriangle className="h-4 w-4 mr-1.5" />
@@ -159,7 +186,6 @@ const DeviceCode = () => {
           </Card>
         </div>
         
-        {/* Sidebar */}
         <div className="lg:col-span-1">
           <Card>
             <CardHeader>

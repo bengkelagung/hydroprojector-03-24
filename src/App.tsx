@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -23,6 +22,7 @@ import Devices from "./pages/Devices";
 import Readings from "./pages/Readings";
 import ProjectDetails from "./pages/ProjectDetails";
 import DeviceDetails from "./pages/DeviceDetails";
+import DeviceWifiSetup from "./pages/DeviceWifiSetup";
 
 const queryClient = new QueryClient();
 
@@ -120,6 +120,7 @@ const AppContent = () => {
               </Layout>
             </ProtectedRoute>
           } />
+          <Route path="/devices/:deviceId/wifi-setup" element={<DeviceWifiSetup />} />
           
           {/* Sensor readings route */}
           <Route path="/readings" element={

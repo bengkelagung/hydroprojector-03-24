@@ -11,7 +11,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { useHydro } from '@/contexts/HydroContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import QRCodeScanner from '@/components/QRCodeScanner';
 
 const DeviceCreate = () => {
   const [name, setName] = useState('');
@@ -19,9 +18,6 @@ const DeviceCreate = () => {
   const [projectId, setProjectId] = useState('');
   const [deviceType, setDeviceType] = useState('esp32');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [wifiSSID, setWifiSSID] = useState('');
-  const [wifiPassword, setWifiPassword] = useState('');
-  const [deviceConnected, setDeviceConnected] = useState(false);
   const { projects, createDevice } = useHydro();
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,39 +32,6 @@ const DeviceCreate = () => {
     }
   }, [location.state, projects]);
 
-  // Check for connected device (in a real app, this would query your device)
-  useEffect(() => {
-    // Simulate device detection - in real implementation, check if device is in pairing mode
-    const checkDeviceConnection = async () => {
-      try {
-        // For real implementation, check for server availability
-        const response = await fetch('http://localhost:3001/api/scan-wifi', { 
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
-          // Set a short timeout for the request
-          signal: AbortSignal.timeout(3000)
-        });
-        
-        if (response.ok) {
-          setDeviceConnected(true);
-        } else {
-          setDeviceConnected(false);
-        }
-      } catch (error) {
-        console.error('Error checking device connection:', error);
-        setDeviceConnected(false);
-      }
-    };
-    
-    checkDeviceConnection();
-  }, []);
-
-  const handleWifiConnect = (ssid: string, password: string) => {
-    setWifiSSID(ssid);
-    setWifiPassword(password);
-    toast.success(`Wi-Fi credentials saved: ${ssid}`);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -77,20 +40,15 @@ const DeviceCreate = () => {
       return;
     }
     
-    if (!wifiSSID) {
-      toast.error('Please scan a Wi-Fi QR code first');
-      return;
-    }
-    
     try {
       setIsSubmitting(true);
       
-      // Add Wi-Fi configuration to the device details
-      const wifiConfig = { wifiSSID, wifiPassword };
-      
-      const device = await createDevice(name, description, projectId, deviceType, wifiConfig);
+      // Create the device without WiFi configuration initially
+      const device = await createDevice(name, description, projectId, deviceType);
       toast.success('Device created successfully!');
-      navigate(`/devices/${device.id}/code`);
+      
+      // Redirect to the WiFi setup page
+      navigate(`/devices/${device.id}/wifi-setup`);
     } catch (error) {
       console.error('Error creating device:', error);
       toast.error('Failed to create device. Please try again.');
@@ -130,11 +88,29 @@ const DeviceCreate = () => {
         </p>
       </div>
       
-      {/* QR Code Scanner Component */}
-      <QRCodeScanner 
-        onConnect={handleWifiConnect} 
-        serverConnected={deviceConnected} 
-      />
+      {/* Progress indicator */}
+      <div className="flex items-center justify-between mb-6 px-2">
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-hydro-blue text-white rounded-full flex items-center justify-center mb-1">
+            1
+          </div>
+          <span className="text-xs text-gray-600 font-medium">Create Device</span>
+        </div>
+        <div className="h-0.5 flex-1 bg-gray-200 mx-2"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mb-1">
+            2
+          </div>
+          <span className="text-xs text-gray-500">Configure Wi-Fi</span>
+        </div>
+        <div className="h-0.5 flex-1 bg-gray-200 mx-2"></div>
+        <div className="flex flex-col items-center">
+          <div className="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center mb-1">
+            3
+          </div>
+          <span className="text-xs text-gray-500">Get Code</span>
+        </div>
+      </div>
       
       <Card>
         <form onSubmit={handleSubmit}>
@@ -190,16 +166,6 @@ const DeviceCreate = () => {
               </Select>
             </div>
             
-            {/* Display selected Wi-Fi if connected */}
-            {wifiSSID && (
-              <div className="bg-green-50 p-4 rounded-lg border border-green-100">
-                <h4 className="font-medium text-green-800">Wi-Fi Configured</h4>
-                <p className="text-sm text-green-700">
-                  Your device will connect to: <strong>{wifiSSID}</strong>
-                </p>
-              </div>
-            )}
-            
             <div className="space-y-2">
               <Label htmlFor="device-description">Description (Optional)</Label>
               <Textarea
@@ -216,8 +182,7 @@ const DeviceCreate = () => {
               <div>
                 <h4 className="font-medium text-hydro-blue">Next Steps</h4>
                 <p className="text-sm text-gray-600 mt-1">
-                  After adding your device, you'll receive the code to upload to your {deviceType.toUpperCase()}.
-                  Wi-Fi credentials will be automatically configured from your QR code scan.
+                  After adding your device, you'll configure Wi-Fi and then receive the code to upload to your {deviceType.toUpperCase()}.
                 </p>
               </div>
             </div>
@@ -234,7 +199,7 @@ const DeviceCreate = () => {
             <Button
               type="submit"
               className="bg-hydro-blue hover:bg-blue-700"
-              disabled={isSubmitting || !wifiSSID}
+              disabled={isSubmitting}
             >
               {isSubmitting ? (
                 <>
