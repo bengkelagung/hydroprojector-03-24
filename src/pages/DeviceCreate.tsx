@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { useHydro } from '@/contexts/HydroContext';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import WifiManager from '@/components/WifiManager';
 
 const DeviceCreate = () => {
   const [name, setName] = useState('');
@@ -18,6 +19,8 @@ const DeviceCreate = () => {
   const [projectId, setProjectId] = useState('');
   const [deviceType, setDeviceType] = useState('esp32');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [wifiSSID, setWifiSSID] = useState('');
+  const [wifiPassword, setWifiPassword] = useState('');
   const { projects, createDevice } = useHydro();
   const navigate = useNavigate();
   const location = useLocation();
@@ -32,6 +35,12 @@ const DeviceCreate = () => {
     }
   }, [location.state, projects]);
 
+  const handleWifiConnect = (ssid: string, password: string) => {
+    setWifiSSID(ssid);
+    setWifiPassword(password);
+    toast.success(`Wi-Fi credentials saved: ${ssid}`);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -42,7 +51,11 @@ const DeviceCreate = () => {
     
     try {
       setIsSubmitting(true);
-      const device = await createDevice(name, description, projectId, deviceType);
+      
+      // Add Wi-Fi configuration to the device details
+      const wifiConfig = wifiSSID ? { wifiSSID, wifiPassword } : undefined;
+      
+      const device = await createDevice(name, description, projectId, deviceType, wifiConfig);
       toast.success('Device created successfully!');
       navigate(`/devices/${device.id}/code`);
     } catch (error) {
@@ -83,6 +96,9 @@ const DeviceCreate = () => {
           Configure your ESP32 or other controller to connect with your hydroponics system.
         </p>
       </div>
+      
+      {/* Wi-Fi Manager Component */}
+      <WifiManager onConnect={handleWifiConnect} />
       
       <Card>
         <form onSubmit={handleSubmit}>
@@ -138,6 +154,16 @@ const DeviceCreate = () => {
               </Select>
             </div>
             
+            {/* Display selected Wi-Fi if connected */}
+            {wifiSSID && (
+              <div className="bg-green-50 p-4 rounded-lg border border-green-100">
+                <h4 className="font-medium text-green-800">Wi-Fi Configured</h4>
+                <p className="text-sm text-green-700">
+                  Your device will connect to: <strong>{wifiSSID}</strong>
+                </p>
+              </div>
+            )}
+            
             <div className="space-y-2">
               <Label htmlFor="device-description">Description (Optional)</Label>
               <Textarea
@@ -155,7 +181,7 @@ const DeviceCreate = () => {
                 <h4 className="font-medium text-hydro-blue">Next Steps</h4>
                 <p className="text-sm text-gray-600 mt-1">
                   After adding your device, you'll receive the code to upload to your {deviceType.toUpperCase()}.
-                  Then you can configure the pins for different sensors and actuators.
+                  {wifiSSID ? " Wi-Fi credentials will be automatically configured." : " You can set up Wi-Fi credentials before creating the device."}
                 </p>
               </div>
             </div>
