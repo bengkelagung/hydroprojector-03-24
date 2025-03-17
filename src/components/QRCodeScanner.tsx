@@ -37,6 +37,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const lastDetectionRef = useRef<string | null>(null);
   const cooldownRef = useRef<boolean>(false);
+  const animationFrameRef = useRef<number | null>(null);
 
   // When component mounts, start scanning automatically if on the wifi-setup page
   useEffect(() => {
@@ -63,7 +64,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     cooldownRef.current = true;
     setTimeout(() => {
       cooldownRef.current = false;
-    }, 2000);
+    }, 1500); // Shorter cooldown for faster response
     
     setError(null);
     console.log("Processing QR code:", qrData);
@@ -112,6 +113,14 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   };
 
   const handleSuccessfulScan = (ssid: string, password: string) => {
+    // Play a success sound for better user feedback
+    try {
+      const audio = new Audio('/public/success-sound.mp3');
+      audio.play().catch(e => console.log('Audio feedback not available'));
+    } catch (e) {
+      // Sound is optional, continue if not available
+    }
+    
     // Stop scanning
     setScanning(false);
     toast.success(`QR code scanned successfully`);
@@ -143,10 +152,15 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       // For real device, access the camera and start scanning
       const constraints = {
         video: { 
-          facingMode: 'environment',
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          frameRate: { ideal: 15 }
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920, min: 640 },
+          height: { ideal: 1080, min: 480 },
+          frameRate: { ideal: 30, min: 15 },
+          // Improve scanning in low light
+          advanced: [
+            { exposureMode: 'continuous' },
+            { focusMode: 'continuous' }
+          ] as any
         }
       };
       
@@ -160,25 +174,62 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
             setError('Failed to start video stream. Please check permissions.');
             setScanning(false);
           });
+          
+          // Start continuous frame analysis using requestAnimationFrame for smoother performance
+          requestScanningFrame();
         };
-        
-        // Start scanning frames at regular intervals - more frequently for better detection
-        scanIntervalRef.current = setInterval(() => {
-          if (videoRef.current && canvasRef.current) {
-            scanQRCode();
-          }
-        }, 100); // Check every 100ms for better responsiveness
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
-      setError('Failed to access camera. Please check permissions.');
-      setScanning(false);
       
-      // Fall back to mock data
-      toast.error('Camera access failed. Using mock data for demonstration.');
-      setUsingMockData(true);
-      startScanner();
+      // Try again with more basic settings
+      try {
+        const basicConstraints = {
+          video: { 
+            facingMode: 'environment',
+          }
+        };
+        
+        const stream = await navigator.mediaDevices.getUserMedia(basicConstraints);
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.onloadedmetadata = () => {
+            videoRef.current?.play().catch(err => {
+              console.error("Error playing video with basic settings:", err);
+              setError('Failed to access camera. Please check permissions.');
+              setScanning(false);
+              
+              // Fall back to mock data
+              setUsingMockData(true);
+              startScanner();
+            });
+            
+            // Start continuous frame analysis
+            requestScanningFrame();
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Error with fallback camera access:', fallbackError);
+        setError('Failed to access camera. Please check permissions.');
+        setScanning(false);
+        
+        // Fall back to mock data
+        toast.error('Camera access failed. Using mock data for demonstration.');
+        setUsingMockData(true);
+        startScanner();
+      }
     }
+  };
+
+  // Request animation frame for continuous scanning
+  const requestScanningFrame = () => {
+    if (!scanning) return;
+    
+    animationFrameRef.current = requestAnimationFrame(() => {
+      scanQRCode();
+      requestScanningFrame();
+    });
   };
 
   // Stop the QR scanner
@@ -188,6 +239,11 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
+    }
+    
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
     
     if (videoRef.current && videoRef.current.srcObject) {
@@ -206,7 +262,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       // Draw video frame to canvas
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
       if (!ctx) return;
       
       canvas.height = video.videoHeight;
