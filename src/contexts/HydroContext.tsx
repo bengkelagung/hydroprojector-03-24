@@ -1,6 +1,6 @@
 
 import React, { createContext, useState, useContext, useEffect } from 'react';
-import { supabase } from '../integrations/supabase/client';
+import { supabase, logSupabaseError } from '../integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { toast } from 'sonner';
 
@@ -42,24 +42,19 @@ export interface Pin {
   data_type: string;
   unit?: string | null;
   value?: string;
-}
-
-interface Label {
-  id: string;
-  created_at?: string;
-  name: string;
+  label?: string;
 }
 
 interface HydroContextType {
   projects: Project[];
   devices: Device[];
   pins: Pin[];
-  labels: Label[];
+  labels: string[];
   selectedProjectId: string | null;
   setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
   setDevices: React.Dispatch<React.SetStateAction<Device[]>>;
   setPins: React.Dispatch<React.SetStateAction<Pin[]>>;
-  setLabels: React.Dispatch<React.SetStateAction<Label[]>>;
+  setLabels: React.Dispatch<React.SetStateAction<string[]>>;
   setSelectedProjectId: React.Dispatch<React.SetStateAction<string | null>>;
   createProject: (name: string) => Promise<void>;
   createDevice: (device: Omit<Device, 'id' | 'created_at'>) => Promise<void>;
@@ -76,6 +71,19 @@ interface HydroContextType {
   deleteLabel: (labelId: string) => Promise<void>;
   getDevicesByProject: (projectId: string) => Device[];
   getPinsByDevice: (deviceId: string) => Pin[];
+  configurePin: (
+    deviceId: string, 
+    pinId: string, 
+    dataType: string, 
+    signalType: string, 
+    mode: 'input' | 'output', 
+    name: string,
+    label?: string
+  ) => Promise<void>;
+  pinOptions: { id: string; name: string; pinNumber: number }[];
+  dataTypes: string[];
+  signalTypes: string[];
+  pinModes: string[];
 }
 
 export const HydroContext = createContext<HydroContextType>({} as HydroContextType);
@@ -84,8 +92,23 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
-  const [labels, setLabels] = useState<Label[]>([]);
+  const [labels, setLabels] = useState<string[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  // Mock data for pin configuration
+  const pinOptions = [
+    { id: 'pin-1', name: 'Digital Pin 1', pinNumber: 1 },
+    { id: 'pin-2', name: 'Digital Pin 2', pinNumber: 2 },
+    { id: 'pin-3', name: 'Digital Pin 3', pinNumber: 3 },
+    { id: 'pin-4', name: 'Digital Pin 4', pinNumber: 4 },
+    { id: 'pin-5', name: 'Analog Pin A0', pinNumber: 14 },
+    { id: 'pin-6', name: 'Analog Pin A1', pinNumber: 15 },
+    { id: 'pin-7', name: 'Analog Pin A2', pinNumber: 16 },
+  ];
+  
+  const dataTypes = ['integer', 'float', 'boolean', 'string'];
+  const signalTypes = ['digital', 'analog', 'pwm', 'i2c', 'spi', 'uart'];
+  const pinModes = ['input', 'output'];
 
   const { user } = useAuth();
 
@@ -103,12 +126,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'creating project');
+        throw error;
+      }
 
       setProjects([...projects, data]);
       toast.success('Project created successfully!');
-      
-      return data;
     } catch (error: any) {
       console.error('Error creating project:', error);
       toast.error('Failed to create project');
@@ -134,7 +158,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'creating device');
+        throw error;
+      }
 
       // Add the wifiConfig if it exists
       if (device.wifiConfig) {
@@ -148,13 +175,14 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .update({ description: JSON.stringify(descriptionObj) })
           .eq('id', data.id);
           
-        if (updateError) throw updateError;
+        if (updateError) {
+          logSupabaseError(updateError, 'updating device with WiFi config');
+          throw updateError;
+        }
       }
 
       await fetchDevices();
       toast.success('Device created successfully!');
-      
-      return data;
     } catch (error: any) {
       console.error('Error creating device:', error);
       toast.error('Failed to create device');
@@ -173,7 +201,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         name: pin.name,
         signal_type: pin.signal_type,
         data_type: pin.data_type,
-        unit: pin.unit
+        unit: pin.unit,
+        label: pin.label
       };
 
       const { data, error } = await supabase
@@ -182,28 +211,64 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'creating pin configuration');
+        throw error;
+      }
 
       setPins([...pins, data as Pin]);
       toast.success('Pin configuration created successfully!');
-      
-      return data;
     } catch (error: any) {
       console.error('Error creating pin configuration:', error);
       toast.error('Failed to create pin configuration');
     }
   };
 
+  const configurePin = async (
+    deviceId: string, 
+    pinId: string, 
+    dataType: string, 
+    signalType: string, 
+    mode: 'input' | 'output', 
+    name: string,
+    label?: string
+  ) => {
+    try {
+      // Find the pin from our options
+      const pinOption = pinOptions.find(p => p.id === pinId);
+      if (!pinOption) {
+        throw new Error('Invalid pin selected');
+      }
+
+      // Create the pin configuration
+      const pinData: Omit<Pin, 'id' | 'created_at'> = {
+        device_id: deviceId,
+        pin_number: pinOption.pinNumber,
+        mode,
+        name,
+        signal_type: signalType,
+        data_type: dataType,
+        label
+      };
+
+      await createPin(pinData);
+      
+      toast.success(`Pin ${name} configured successfully!`);
+    } catch (error: any) {
+      console.error('Error configuring pin:', error);
+      toast.error('Failed to configure pin');
+      throw error;
+    }
+  };
+
   const createLabel = async (name: string) => {
     try {
-      if (!user) throw new Error('User not authenticated');
-
-      // This assumes there's actually a 'label' table in the database
-      // From the error messages, it's possible this table doesn't exist
-      setLabels([...labels, { id: Math.random().toString(), name }]);
-      toast.success('Label created successfully!');
-      
-      return { id: Math.random().toString(), name };
+      if (!labels.includes(name)) {
+        setLabels([...labels, name]);
+        toast.success('Label created successfully!');
+      } else {
+        toast.info('Label already exists');
+      }
     } catch (error: any) {
       console.error('Error creating label:', error);
       toast.error('Failed to create label');
@@ -232,7 +297,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .eq('id', deviceId)
           .single();
           
-        if (deviceError) throw deviceError;
+        if (deviceError) {
+          logSupabaseError(deviceError, 'getting device for WiFi update');
+          throw deviceError;
+        }
         
         // If the device has a description, try to parse it, otherwise create new object
         let descriptionObj = {};
@@ -261,7 +329,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .update(deviceUpdates)
         .eq('id', deviceId);
       
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'updating device');
+        throw error;
+      }
       
       // Refresh devices list
       await fetchDevices();
@@ -291,7 +362,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         `)
         .eq('projects.user_id', user.id);
         
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'fetching devices');
+        throw error;
+      }
       
       // Process the devices to extract wifiConfig from description
       const processedDevices = data.map(device => {
@@ -331,7 +405,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .from('pin_configs')
         .select('*');
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'fetching pin configurations');
+        throw error;
+      }
 
       setPins(data as Pin[]);
     } catch (error: any) {
@@ -350,7 +427,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'fetching projects');
+        throw error;
+      }
 
       setProjects(data);
     } catch (error: any) {
@@ -360,8 +440,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const fetchLabels = async () => {
-    // We'll just use an empty array since the label table might not exist
-    setLabels([]);
+    // Using fixed labels for now since there's no labels table
+    setLabels(['pH', 'TDS', 'Temperature', 'Humidity', 'Light', 'Water Level', 'Nutrients']);
   };
 
   const deleteProject = async (projectId: string) => {
@@ -373,7 +453,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .delete()
         .eq('id', projectId);
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'deleting project');
+        throw error;
+      }
 
       setProjects(projects.filter(project => project.id !== projectId));
       toast.success('Project deleted successfully!');
@@ -392,7 +475,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .delete()
         .eq('id', deviceId);
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'deleting device');
+        throw error;
+      }
 
       setDevices(devices.filter(device => device.id !== deviceId));
       toast.success('Device deleted successfully!');
@@ -411,7 +497,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .delete()
         .eq('id', pinId);
 
-      if (error) throw error;
+      if (error) {
+        logSupabaseError(error, 'deleting pin configuration');
+        throw error;
+      }
 
       setPins(pins.filter(pin => pin.id !== pinId));
       toast.success('Pin configuration deleted successfully!');
@@ -423,7 +512,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const deleteLabel = async (labelId: string) => {
     try {
-      setLabels(labels.filter(label => label.id !== labelId));
+      setLabels(labels.filter(label => label !== labelId));
       toast.success('Label deleted successfully!');
     } catch (error: any) {
       console.error('Error deleting label:', error);
@@ -443,10 +532,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     if (user) {
-      fetchDevices();
-      fetchProjects();
-      fetchPins();
-      // We're not calling fetchLabels here since it doesn't do anything useful
+      Promise.all([
+        fetchProjects(),
+        fetchDevices(),
+        fetchPins(),
+        fetchLabels()
+      ]);
     }
   }, [user]);
 
@@ -478,6 +569,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         deleteLabel,
         getDevicesByProject,
         getPinsByDevice,
+        configurePin,
+        pinOptions,
+        dataTypes,
+        signalTypes,
+        pinModes,
       }}
     >
       {children}

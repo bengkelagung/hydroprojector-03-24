@@ -71,7 +71,7 @@ const DeviceConfig = () => {
         deviceId,
         selectedPinId,
         dataType,
-        signalType as any,
+        signalType,
         mode,
         name,
         label === 'none' ? undefined : label
@@ -104,7 +104,7 @@ const DeviceConfig = () => {
     <div className="container mx-auto p-6">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold">{device.name} Configuration</h1>
+          <h1 className="text-2xl font-bold">{device.device_name} Configuration</h1>
           <p className="text-gray-500">{device.description}</p>
         </div>
         <Button onClick={() => navigate(`/devices/${deviceId}/code`)}>View Device Code</Button>
@@ -255,10 +255,10 @@ const DeviceConfig = () => {
                   <tbody>
                     {devicePins.map((pin) => (
                       <tr key={pin.id} className="border-b hover:bg-muted/50">
-                        <td className="p-2">{pin.pinNumber}</td>
+                        <td className="p-2">{pin.pin_number}</td>
                         <td className="p-2">{pin.name}</td>
-                        <td className="p-2">{pin.dataType}</td>
-                        <td className="p-2">{pin.signalType}</td>
+                        <td className="p-2">{pin.data_type}</td>
+                        <td className="p-2">{pin.signal_type}</td>
                         <td className="p-2">{pin.mode}</td>
                         <td className="p-2">{pin.label || '-'}</td>
                         <td className="p-2">{pin.value !== undefined ? pin.value : 'No data'}</td>

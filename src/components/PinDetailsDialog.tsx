@@ -47,7 +47,13 @@ const PinDetailsDialog: React.FC<PinDetailsDialogProps> = ({ open, onOpenChange,
                 <div>{pin.unit}</div>
               </div>
             )}
-            {pin.value && (
+            {pin.label && (
+              <div>
+                <div className="text-sm font-medium text-gray-500">Label</div>
+                <div>{pin.label}</div>
+              </div>
+            )}
+            {pin.value !== undefined && (
               <div>
                 <div className="text-sm font-medium text-gray-500">Current Value</div>
                 <div>{pin.value}{pin.unit}</div>
