@@ -69,7 +69,7 @@ const DeviceCode = () => {
     toast.success('Device connected successfully!');
   };
 
-  // Display Wi-Fi information if it exists in device wifiConfig
+  // Check if device has Wi-Fi config
   const hasWifiConfig = device.wifiConfig && device.wifiConfig.wifiSSID;
 
   return (

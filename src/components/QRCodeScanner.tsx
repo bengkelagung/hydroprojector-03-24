@@ -248,7 +248,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       <CardContent>
         {!serverConnected && !useMockData && (
-          <Alert variant="warning" className="mb-4">
+          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Cannot connect to Wi-Fi server. Using demo mode for demonstration.
