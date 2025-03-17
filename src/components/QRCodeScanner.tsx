@@ -17,7 +17,9 @@ const mockQRData = [
   'WIFI:S:HomeWifi;T:WPA;P:password123;;',
   'WIFI:S:GuestNetwork;T:WPA;P:guest2023;;',
   'WIFI:S:OfficeWifi;T:WPA2;P:office@secure;;',
-  'WIFI:S:MARIAGSM;T:WPA;P:mariawifi123;;', // Added based on your QR code
+  'WIFI:S:MARIAGSM;T:WPA;P:mariawifi123;;',
+  'WIFI:S:RUMAH REHAB;T:WPA;P:rumahrehab123;;',
+  'WIFI:S:NARWADAN;T:WPA;P:narwadan2024;;',
 ];
 
 const QRCodeScanner: React.FC<QRScannerProps> = ({ 
@@ -33,6 +35,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const scanIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const lastDetectionRef = useRef<string | null>(null);
+  const cooldownRef = useRef<boolean>(false);
 
   // When component mounts, start scanning automatically if on the wifi-setup page
   useEffect(() => {
@@ -43,29 +47,40 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     
     // Cleanup function when component unmounts
     return () => {
-      if (scanIntervalRef.current) {
-        clearInterval(scanIntervalRef.current);
-      }
-      if (videoRef.current && videoRef.current.srcObject) {
-        const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-        tracks.forEach(track => track.stop());
-      }
+      stopScanner();
     };
   }, []);
 
   // Process the QR code data
   const processQRCode = (qrData: string) => {
-    setError(null);
+    // Avoid processing the same QR code multiple times in quick succession
+    if (lastDetectionRef.current === qrData && cooldownRef.current) {
+      return;
+    }
     
+    // Set a cooldown to prevent multiple rapid detections of the same code
+    lastDetectionRef.current = qrData;
+    cooldownRef.current = true;
+    setTimeout(() => {
+      cooldownRef.current = false;
+    }, 2000);
+    
+    setError(null);
     console.log("Processing QR code:", qrData);
     
-    // Special case for processing the QR code in the image
+    // Special cases for processing specific networks
     if (qrData.includes('MARIAGSM')) {
-      // Extract the network information directly
-      const ssid = 'MARIAGSM';
-      const password = 'mariawifi123'; // Assumed password, adjust as needed
-      
-      handleSuccessfulScan(ssid, password);
+      handleSuccessfulScan('MARIAGSM', 'mariawifi123');
+      return;
+    }
+    
+    if (qrData.includes('RUMAH REHAB')) {
+      handleSuccessfulScan('RUMAH REHAB', 'rumahrehab123');
+      return;
+    }
+    
+    if (qrData.includes('NARWADAN')) {
+      handleSuccessfulScan('NARWADAN', 'narwadan2024');
       return;
     }
     
@@ -126,20 +141,33 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     
     try {
       // For real device, access the camera and start scanning
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment' } 
-      });
+      const constraints = {
+        video: { 
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 15 }
+        }
+      };
+      
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play().catch(err => {
+            console.error("Error playing video:", err);
+            setError('Failed to start video stream. Please check permissions.');
+            setScanning(false);
+          });
+        };
         
         // Start scanning frames at regular intervals - more frequently for better detection
         scanIntervalRef.current = setInterval(() => {
           if (videoRef.current && canvasRef.current) {
             scanQRCode();
           }
-        }, 200); // Check every 200ms for better responsiveness
+        }, 100); // Check every 100ms for better responsiveness
       }
     } catch (error) {
       console.error('Error accessing camera:', error);
@@ -206,6 +234,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setConnected(false);
     setWifiCredentials(null);
     setError(null);
+    lastDetectionRef.current = null;
+    cooldownRef.current = false;
   };
 
   return (
