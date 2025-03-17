@@ -20,6 +20,10 @@ export interface Device {
   type: string;
   isConnected: boolean;
   lastSeen?: string;
+  wifiConfig?: {
+    wifiSSID: string;
+    wifiPassword?: string;
+  };
 }
 
 export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'analog' | 'digital' | 'custom';
@@ -176,7 +180,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         type: device.device_type,
         isConnected: device.is_connected,
         lastSeen: device.last_seen,
-        createdAt: device.created_at
+        createdAt: device.created_at,
+        wifiConfig: device.wifi_config ? {
+          wifiSSID: device.wifi_config.ssid,
+          wifiPassword: device.wifi_config.password
+        } : undefined
       })));
     } catch (error) {
       console.error('Error fetching devices:', error);
@@ -292,10 +300,19 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
+      const { data: tableExists } = await supabase
+        .from('information_schema.tables')
+        .select('*')
+        .eq('table_name', 'label')
+        .single();
+      
+      if (!tableExists) {
+        await ensureLabelTableExists();
+        return;
+      }
+      
       const { data, error } = await supabase
-        .from('label')
-        .select('name')
-        .order('id', { ascending: true });
+        .rpc('get_labels');
       
       if (error) {
         console.error('Error fetching labels:', error);
@@ -303,7 +320,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
-      setLabels(data ? data.map(item => item.name) : []);
+      setLabels(data ? data.map((item: { name: string }) => item.name) : []);
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
@@ -312,66 +329,60 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const ensureLabelTableExists = async () => {
     try {
-      const { data, error } = await supabase
-        .from('label')
-        .select('name')
-        .limit(1);
-      
-      if (error) {
-        console.log('Creating label table...');
-        
-        const { error: sqlError } = await supabase.rpc('exec_sql', {
-          sql: `
-            CREATE TABLE IF NOT EXISTS public.label (
-              id SERIAL PRIMARY KEY,
-              name VARCHAR(50) UNIQUE NOT NULL
-            );
-            
-            INSERT INTO public.label (name) 
-            VALUES 
-              ('pH'),
-              ('Suhu'),
-              ('Kelembaban'),
-              ('Pompa'),
-              ('Lampu'),
-              ('Level Air')
-            ON CONFLICT (name) DO NOTHING;
-            
-            ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
-            
-            CREATE POLICY "Allow authenticated users to read labels" 
-              ON public.label
-              FOR SELECT
-              TO authenticated
-              USING (true);
-          `
-        });
-        
-        if (sqlError) {
-          console.error('Error creating label table with RPC:', sqlError);
+      const { error: sqlError } = await supabase.rpc('exec_sql', {
+        sql: `
+          CREATE TABLE IF NOT EXISTS public.label (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(50) UNIQUE NOT NULL
+          );
           
-          await supabase.from('label').insert([
-            { name: 'pH' },
-            { name: 'Suhu' },
-            { name: 'Kelembaban' },
-            { name: 'Pompa' },
-            { name: 'Lampu' },
-            { name: 'Level Air' }
-          ]).select();
-        }
+          INSERT INTO public.label (name) 
+          VALUES 
+            ('pH'),
+            ('Suhu'),
+            ('Kelembaban'),
+            ('Pompa'),
+            ('Lampu'),
+            ('Level Air')
+          ON CONFLICT (name) DO NOTHING;
+          
+          CREATE OR REPLACE FUNCTION get_labels()
+          RETURNS TABLE (name TEXT) 
+          LANGUAGE SQL
+          AS $$
+            SELECT name FROM public.label ORDER BY id ASC;
+          $$;
+          
+          ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
+          
+          CREATE POLICY "Allow authenticated users to read labels" 
+            ON public.label
+            FOR SELECT
+            TO authenticated
+            USING (true);
+        `
+      });
+      
+      if (sqlError) {
+        console.error('Error creating label table with RPC:', sqlError);
+        const defaultLabels = [
+          { name: 'pH' },
+          { name: 'Suhu' },
+          { name: 'Kelembaban' },
+          { name: 'Pompa' },
+          { name: 'Lampu' },
+          { name: 'Level Air' }
+        ];
         
-        const { data: newData } = await supabase
-          .from('label')
-          .select('name')
-          .order('id', { ascending: true });
-        
-        setLabels(newData ? newData.map(item => item.name) : []);
-        console.log('Label table created successfully');
+        setLabels(defaultLabels.map(l => l.name));
       } else {
-        setLabels(data ? data.map(item => item.name) : []);
+        const { data } = await supabase.rpc('get_labels');
+        setLabels(data ? data.map((item: { name: string }) => item.name) : []);
       }
+      
     } catch (error) {
       console.error('Error ensuring label table exists:', error);
+      setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
     }
   };
 

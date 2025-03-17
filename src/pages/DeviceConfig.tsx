@@ -31,6 +31,7 @@ const DeviceConfig = () => {
   const [mode, setMode] = useState<'input' | 'output'>('input');
   const [name, setName] = useState<string>('');
   const [label, setLabel] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
@@ -48,6 +49,23 @@ const DeviceConfig = () => {
       return;
     }
 
+    if (!name.trim()) {
+      toast.error('Pin name is required');
+      return;
+    }
+
+    if (!dataType) {
+      toast.error('Data type is required');
+      return;
+    }
+
+    if (!signalType) {
+      toast.error('Signal type is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    
     try {
       await configurePin(
         deviceId,
@@ -61,11 +79,15 @@ const DeviceConfig = () => {
       
       // Reset form
       setSelectedPinId('');
+      setDataType('');
+      setSignalType('');
       setName('');
       setLabel('');
     } catch (error) {
+      console.error('Error configuring pin:', error);
       toast.error('Failed to configure pin');
-      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -182,7 +204,7 @@ const DeviceConfig = () => {
               
               <div className="space-y-2">
                 <Label htmlFor="label">Label</Label>
-                <Select value={label} onValueChange={setLabel}>
+                <Select value={label || 'none'} onValueChange={setLabel}>
                   <SelectTrigger id="label">
                     <SelectValue placeholder="Select Label" />
                   </SelectTrigger>
@@ -197,7 +219,13 @@ const DeviceConfig = () => {
                 </Select>
               </div>
               
-              <Button type="submit" className="w-full">Configure Pin</Button>
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Configuring...' : 'Configure Pin'}
+              </Button>
             </form>
           </CardContent>
         </Card>
