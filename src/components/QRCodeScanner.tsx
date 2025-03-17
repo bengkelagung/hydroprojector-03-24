@@ -59,12 +59,12 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       return;
     }
     
-    // Set a cooldown to prevent multiple rapid detections of the same code
+    // Set a very short cooldown to prevent multiple rapid detections of the same code
     lastDetectionRef.current = qrData;
     cooldownRef.current = true;
     setTimeout(() => {
       cooldownRef.current = false;
-    }, 1000); // Even shorter cooldown for faster response
+    }, 500); // Super short cooldown for very fast response
     
     setError(null);
     console.log("Processing QR code:", qrData);
@@ -155,12 +155,13 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
           facingMode: { ideal: 'environment' },
           width: { ideal: 1920, min: 640 },
           height: { ideal: 1080, min: 480 },
-          frameRate: { ideal: 60, min: 30 },
+          frameRate: { ideal: 120, min: 60 }, // Significantly higher frame rate for faster detection
           // Enhanced settings for better QR detection
           advanced: [
             { exposureMode: 'continuous' },
             { focusMode: 'continuous' },
-            { whiteBalanceMode: 'continuous' }
+            { whiteBalanceMode: 'continuous' },
+            { zoom: 0 } // No digital zoom to maintain full field of view
           ] as any
         }
       };
@@ -170,14 +171,23 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play().catch(err => {
-            console.error("Error playing video:", err);
-            setError('Failed to start video stream. Please check permissions.');
-            setScanning(false);
-          });
+          if (videoRef.current) {
+            // Set video to play as fast as possible
+            videoRef.current.playbackRate = 1.0;
+            
+            // Start the video with high priority
+            const playPromise = videoRef.current.play();
+            
+            if (playPromise !== undefined) {
+              playPromise.catch(err => {
+                console.error("Error playing video:", err);
+                setError('Failed to start video stream. Please check permissions.');
+                setScanning(false);
+              });
+            }
+          }
           
-          // Start continuous frame analysis using requestAnimationFrame for smoother performance
-          // And enable more frequent scanning
+          // Start continuous frame analysis immediately
           requestScanningFrame();
         };
       }
@@ -186,9 +196,11 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       // Try again with more basic settings
       try {
+        // Fallback to simpler constraints
         const basicConstraints = {
           video: { 
             facingMode: 'environment',
+            frameRate: { min: 30 }
           }
         };
         
@@ -224,14 +236,14 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  // Request animation frame for continuous scanning
+  // Request animation frame for continuous scanning - optimized to scan every frame
   const requestScanningFrame = () => {
     if (!scanning) return;
     
-    // Scan immediately and schedule the next scan
+    // Scan immediately the current frame
     scanQRCode();
     
-    // Request next frame
+    // Request next frame with high priority
     animationFrameRef.current = requestAnimationFrame(requestScanningFrame);
   };
 
@@ -256,7 +268,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
   };
 
-  // Scan video frames for QR codes
+  // Scan video frames for QR codes - optimized performance
   const scanQRCode = () => {
     if (!scanning || !videoRef.current || !canvasRef.current) return;
     
@@ -265,20 +277,30 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
       // Draw video frame to canvas
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const ctx = canvas.getContext('2d', { 
+        willReadFrequently: true,
+        alpha: false // Disable alpha channel for better performance
+      });
+      
       if (!ctx) return;
       
-      // Match canvas dimensions to video
+      // Match canvas dimensions to video - essential for accurate detection
       canvas.height = video.videoHeight;
       canvas.width = video.videoWidth;
       
-      // Draw the video frame to the canvas
+      // Draw the video frame to the canvas - optimized with full frame
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Get image data for QR code scanning
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // Get image data for QR code scanning - restrict to center area for better performance
+      // Using about 60% of the center area where QR codes are most likely to be
+      const centerWidth = Math.floor(canvas.width * 0.6);
+      const centerHeight = Math.floor(canvas.height * 0.6);
+      const x = Math.floor((canvas.width - centerWidth) / 2);
+      const y = Math.floor((canvas.height - centerHeight) / 2);
       
-      // Use jsQR to detect QR code with optimized settings
+      const imageData = ctx.getImageData(x, y, centerWidth, centerHeight);
+      
+      // Use jsQR to detect QR code with aggressive settings for real-time scanning
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
         inversionAttempts: "attemptBoth", // Try both normal and inverted colors
       });
@@ -369,7 +391,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                   />
                   <canvas 
                     ref={canvasRef}
-                    className="hidden" // We still need the canvas but hide it
+                    className="hidden" // Canvas is hidden but still processes frames
                   />
                   <div className="absolute inset-0 border-2 border-hydro-blue/50 pointer-events-none flex justify-center items-center">
                     <div className="absolute w-56 h-56 border-2 border-hydro-blue animate-pulse">
@@ -378,6 +400,9 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                       <div className="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-hydro-blue"></div>
                       <div className="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-hydro-blue"></div>
                     </div>
+                    <p className="absolute bottom-10 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full">
+                      Position QR code in frame
+                    </p>
                   </div>
                 </>
               )}
