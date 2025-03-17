@@ -1,12 +1,9 @@
-
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Leaf, Droplet, Cpu, LayoutDashboard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-
 const Index = () => {
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-blue-50">
+  return <div className="min-h-screen bg-gradient-to-b from-white to-blue-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
@@ -126,13 +123,11 @@ const Index = () => {
               <span className="text-xl font-bold">HydroProjekt</span>
             </div>
             <div className="mt-4 md:mt-0">
-              <p className="text-gray-400">© 2023 HydroProjekt. All rights reserved.</p>
+              <p className="text-gray-400">© 2025 HydroProjekt. All rights reserved.</p>
             </div>
           </div>
         </div>
       </footer>
-    </div>
-  );
+    </div>;
 };
-
 export default Index;
