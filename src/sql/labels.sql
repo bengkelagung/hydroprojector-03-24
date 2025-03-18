@@ -27,20 +27,13 @@ CREATE POLICY "Allow authenticated users to read labels"
   TO authenticated
   USING (true);
 
--- Function to get all labels
-DROP FUNCTION IF EXISTS public.get_all_labels();
-CREATE OR REPLACE FUNCTION public.get_all_labels()
-RETURNS SETOF public.label
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-  SELECT * FROM public.label ORDER BY name;
-$$;
-
--- Grant execute permission on the function to all users
-GRANT EXECUTE ON FUNCTION public.get_all_labels() TO authenticated;
-GRANT EXECUTE ON FUNCTION public.get_all_labels() TO anon;
+-- Allow access to anonymous users too (for demo purposes)
+DROP POLICY IF EXISTS "Allow anonymous users to read labels" ON public.label;
+CREATE POLICY "Allow anonymous users to read labels" 
+  ON public.label
+  FOR SELECT
+  TO anon
+  USING (true);
 
 -- Grant select permission on the label table
 GRANT SELECT ON public.label TO authenticated;

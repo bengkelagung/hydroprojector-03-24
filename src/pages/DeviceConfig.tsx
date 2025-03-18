@@ -269,7 +269,8 @@ const DeviceConfig = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          {/* Fixed: Changed empty string to "none" with value of null */}
+                          <SelectItem value="none">None</SelectItem>
                           {labels.map((labelOption) => (
                             <SelectItem key={labelOption} value={labelOption}>
                               {labelOption}

@@ -170,7 +170,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   <SelectValue placeholder="Select label" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None</SelectItem>
+                  {/* Fixed: Changed empty SelectItem to have a non-empty value */}
+                  <SelectItem value="none">None</SelectItem>
                   {labels.map(label => (
                     <SelectItem key={label} value={label}>
                       {label}
