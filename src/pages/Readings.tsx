@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power } from 'lucide-react';
+import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power, FileInput, FileOutput } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ const Readings = () => {
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
+  const [viewMode, setViewMode] = useState<'input' | 'output'>('input');
   
   useEffect(() => {
     // Check if label column exists
@@ -243,83 +244,119 @@ const Readings = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold text-gray-800">Sensor Readings</h2>
+        <div className="flex space-x-2 mt-4 sm:mt-0">
+          <Button 
+            variant={viewMode === 'input' ? 'default' : 'outline'}
+            onClick={() => setViewMode('input')}
+            className={viewMode === 'input' ? 'bg-hydro-blue hover:bg-blue-700' : ''}
+          >
+            <FileInput className="mr-2 h-4 w-4" />
+            Input Pins
+          </Button>
+          <Button 
+            variant={viewMode === 'output' ? 'default' : 'outline'}
+            onClick={() => setViewMode('output')}
+            className={viewMode === 'output' ? 'bg-hydro-blue hover:bg-blue-700' : ''}
+          >
+            <FileOutput className="mr-2 h-4 w-4" />
+            Output Pins
+          </Button>
+        </div>
       </div>
 
-      {inputPins.length === 0 ? (
-        <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-          <div className="mb-4 inline-flex p-3 bg-gray-100 rounded-full">
-            <Activity className="h-8 w-8 text-gray-400" />
-          </div>
-          <h3 className="text-lg font-medium text-gray-800 mb-2">No sensor data yet</h3>
-          <p className="text-gray-600 mb-6 max-w-md mx-auto">
-            Configure your device pins to start collecting sensor data.
-          </p>
-        </div>
-      ) : (
+      {viewMode === 'input' && (
         <>
-          <h3 className="text-xl font-semibold text-gray-700 mb-3">Sensor Inputs</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {inputPins.map(pin => {
-              const device = devices.find(d => d.id === pin.deviceId);
-              const project = device ? projects.find(p => p.id === device.projectId) : null;
-              
-              const value = pin.value || getMockValue(pin);
-              const alert = getAlertStatus(pin, value);
-              
-              const colorClass = getPinColor(pin);
-              
-              return (
-                <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                  <CardHeader className={`bg-opacity-10 ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
-                    <div className="flex items-center">
-                      {getPinIcon(pin)}
-                      <CardTitle className="capitalize">{pin.name}</CardTitle>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-6">
-                    <div className="space-y-4">
-                      <div className="pb-4">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <h4 className="font-medium text-gray-800">
-                              {pin.label || pin.signalType.charAt(0).toUpperCase() + pin.signalType.slice(1)}
-                            </h4>
-                            <p className="text-xs text-gray-500">
-                              {device?.name} • {project?.name}
-                            </p>
-                          </div>
-                          <div className="flex items-center">
-                            {alert && (
-                              <AlertTriangle className="h-4 w-4 text-amber-500 mr-1.5" />
-                            )}
-                            <span className={`text-lg font-semibold ${alert ? 'text-amber-500' : 'text-gray-800'}`}>
-                              {getDisplayValue(pin, value)}
-                            </span>
-                          </div>
-                        </div>
-                        
-                        {getVisualIndicator(pin, value)}
-                        
-                        <div className="mt-2">
-                          <Button 
-                            variant="link" 
-                            className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
-                            onClick={() => handleOpenPinDetails(pin)}
-                          >
-                            View Details
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </div>
-        
-          {outputPins.length > 0 && (
+          {inputPins.length === 0 ? (
+            <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mb-4 inline-flex p-3 bg-gray-100 rounded-full">
+                <Activity className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No sensor data yet</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Configure your device pins to start collecting sensor data.
+              </p>
+            </div>
+          ) : (
             <>
-              <h3 className="text-xl font-semibold text-gray-700 mt-8 mb-3">Control Outputs</h3>
+              <h3 className="text-xl font-semibold text-gray-700 mb-3">Sensor Inputs</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                {inputPins.map(pin => {
+                  const device = devices.find(d => d.id === pin.deviceId);
+                  const project = device ? projects.find(p => p.id === device.projectId) : null;
+                  
+                  const value = pin.value || getMockValue(pin);
+                  const alert = getAlertStatus(pin, value);
+                  
+                  const colorClass = getPinColor(pin);
+                  
+                  return (
+                    <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                      <CardHeader className={`bg-opacity-10 ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
+                        <div className="flex items-center">
+                          {getPinIcon(pin)}
+                          <CardTitle className="capitalize">{pin.name}</CardTitle>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        <div className="space-y-4">
+                          <div className="pb-4">
+                            <div className="flex justify-between items-start mb-2">
+                              <div>
+                                <h4 className="font-medium text-gray-800">
+                                  {pin.label || pin.signalType.charAt(0).toUpperCase() + pin.signalType.slice(1)}
+                                </h4>
+                                <p className="text-xs text-gray-500">
+                                  {device?.name} • {project?.name}
+                                </p>
+                              </div>
+                              <div className="flex items-center">
+                                {alert && (
+                                  <AlertTriangle className="h-4 w-4 text-amber-500 mr-1.5" />
+                                )}
+                                <span className={`text-lg font-semibold ${alert ? 'text-amber-500' : 'text-gray-800'}`}>
+                                  {getDisplayValue(pin, value)}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            {getVisualIndicator(pin, value)}
+                            
+                            <div className="mt-2">
+                              <Button 
+                                variant="link" 
+                                className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
+                                onClick={() => handleOpenPinDetails(pin)}
+                              >
+                                View Details
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </>
+      )}
+    
+      {viewMode === 'output' && (
+        <>
+          {outputPins.length === 0 ? (
+            <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mb-4 inline-flex p-3 bg-gray-100 rounded-full">
+                <Power className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No output pins configured</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Configure your device output pins to control your hydroponics system.
+              </p>
+            </div>
+          ) : (
+            <>
+              <h3 className="text-xl font-semibold text-gray-700 mb-3">Control Outputs</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {outputPins.map(pin => {
                   const device = devices.find(d => d.id === pin.deviceId);

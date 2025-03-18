@@ -1,6 +1,7 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle } from 'lucide-react';
+import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, FileInput, FileOutput } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ const Dashboard = () => {
   const { projects, devices, pins, getDevicesByProject, getPinsByDevice } = useHydro();
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'input' | 'output'>('input');
 
   useEffect(() => {
     const mockDataUpdate = () => {
@@ -272,7 +274,30 @@ const Dashboard = () => {
         </TabsContent>
         
         <TabsContent value="readings" className="space-y-6">
-          {pins.filter(p => p.mode === 'input').length === 0 ? (
+          <div className="flex justify-end mb-4">
+            <div className="flex space-x-2">
+              <Button 
+                variant={viewMode === 'input' ? 'default' : 'outline'}
+                onClick={() => setViewMode('input')}
+                className={viewMode === 'input' ? 'bg-hydro-blue hover:bg-blue-700' : ''}
+                size="sm"
+              >
+                <FileInput className="mr-2 h-4 w-4" />
+                Input Pins
+              </Button>
+              <Button 
+                variant={viewMode === 'output' ? 'default' : 'outline'}
+                onClick={() => setViewMode('output')}
+                className={viewMode === 'output' ? 'bg-hydro-blue hover:bg-blue-700' : ''}
+                size="sm"
+              >
+                <FileOutput className="mr-2 h-4 w-4" />
+                Output Pins
+              </Button>
+            </div>
+          </div>
+
+          {viewMode === 'input' && pins.filter(p => p.mode === 'input').length === 0 ? (
             <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
               <div className="mb-4 inline-flex p-3 bg-gray-100 rounded-full">
                 <Activity className="h-8 w-8 text-gray-400" />
@@ -295,7 +320,7 @@ const Dashboard = () => {
                 </Link>
               )}
             </div>
-          ) : (
+          ) : viewMode === 'input' && (
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
               {pins.filter(p => p.mode === 'input').map(pin => {
                 const device = devices.find(d => d.id === pin.deviceId);
@@ -395,6 +420,96 @@ const Dashboard = () => {
                               onClick={() => handleOpenPinDetails(pin)}
                             >
                               View Details
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+
+          {viewMode === 'output' && pins.filter(p => p.mode === 'output').length === 0 ? (
+            <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="mb-4 inline-flex p-3 bg-gray-100 rounded-full">
+                <FileOutput className="h-8 w-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No output pins configured</h3>
+              <p className="text-gray-600 mb-6 max-w-md mx-auto">
+                Configure your device output pins to control your hydroponics system.
+              </p>
+              {devices.length > 0 ? (
+                <Link to={`/devices/${devices[0].id}/config`}>
+                  <Button className="bg-hydro-blue hover:bg-blue-700">
+                    Configure Device Pins
+                  </Button>
+                </Link>
+              ) : (
+                <Link to="/devices/create">
+                  <Button className="bg-hydro-blue hover:bg-blue-700">
+                    Add Your First Device
+                  </Button>
+                </Link>
+              )}
+            </div>
+          ) : viewMode === 'output' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              {pins.filter(p => p.mode === 'output').map(pin => {
+                const device = devices.find(d => d.id === pin.deviceId);
+                const project = device ? projects.find(p => p.id === device.projectId) : null;
+                
+                const value = pin.value || '0';
+                const isOn = value === '1' || value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
+                
+                return (
+                  <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+                    <CardHeader className={`bg-opacity-10 ${getSignalColor(pin.signalType).replace('bg-', 'bg-opacity-10 bg-')}`}>
+                      <div className="flex items-center">
+                        {pin.signalType === 'light' && <LightbulbIcon className="h-5 w-5 mr-2 text-yellow-500" />}
+                        {pin.signalType === 'pump' && <Droplet className="h-5 w-5 mr-2 text-blue-500" />}
+                        {(pin.signalType === 'custom' || pin.signalType === 'digital') && (
+                          <Activity className="h-5 w-5 mr-2 text-gray-500" />
+                        )}
+                        <CardTitle className="capitalize">{pin.name}</CardTitle>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="pt-6">
+                      <div className="space-y-4">
+                        <div className="pb-4">
+                          <div className="flex justify-between items-center mb-4">
+                            <div>
+                              <h4 className="font-medium text-gray-800">{pin.signalType.charAt(0).toUpperCase() + pin.signalType.slice(1)}</h4>
+                              <p className="text-xs text-gray-500">
+                                {device?.name} • {project?.name}
+                              </p>
+                            </div>
+                            <div className="flex items-center">
+                              <span className={`text-sm font-medium ${isOn ? 'text-green-500' : 'text-gray-400'}`}>
+                                {isOn ? 'ON' : 'OFF'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center">
+                            <Button 
+                              variant="outline" 
+                              className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
+                              onClick={() => handleOpenPinDetails(pin)}
+                            >
+                              Details
+                            </Button>
+                            
+                            <Button
+                              onClick={() => {
+                                const { togglePinValue } = useHydro();
+                                togglePinValue(pin.id);
+                              }}
+                              variant={isOn ? "destructive" : "default"}
+                              size="sm"
+                            >
+                              {isOn ? 'Turn Off' : 'Turn On'}
                             </Button>
                           </div>
                         </div>
