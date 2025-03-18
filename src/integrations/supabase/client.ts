@@ -11,20 +11,34 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-// Check if essential tables exist
-export const checkTablesExist = async (): Promise<boolean> => {
+// Check if a specific table exists
+export const checkIfTableExists = async (tableName: string): Promise<boolean> => {
   try {
     const { data, error } = await supabase
-      .from('pins')
-      .select('id')
-      .limit(1);
+      .rpc('get_tables');
     
     if (error) {
-      console.error('Error checking tables:', error);
+      console.error('Error checking if table exists:', error);
       return false;
     }
     
-    return true;
+    return data ? data.some((table: { table_name: string }) => table.table_name === tableName) : false;
+  } catch (e) {
+    console.error('Error checking if table exists:', e);
+    return false;
+  }
+};
+
+// Check if essential tables exist
+export const checkTablesExist = async (): Promise<boolean> => {
+  try {
+    const pinsExist = await checkIfTableExists('pins');
+    const pinConfigsExist = await checkIfTableExists('pin_configs');
+    const dataTypesExist = await checkIfTableExists('data_types');
+    const signalTypesExist = await checkIfTableExists('signal_types');
+    const modesExist = await checkIfTableExists('modes');
+    
+    return pinsExist && pinConfigsExist && dataTypesExist && signalTypesExist && modesExist;
   } catch (e) {
     console.error('Error checking tables:', e);
     return false;
@@ -34,6 +48,11 @@ export const checkTablesExist = async (): Promise<boolean> => {
 // Check if label column exists in pin_configs
 export const checkLabelColumnExists = async (): Promise<boolean> => {
   try {
+    const tableExists = await checkIfTableExists('pin_configs');
+    if (!tableExists) {
+      return false;
+    }
+    
     const { data, error } = await supabase
       .from('pin_configs')
       .select('label_id')
@@ -130,8 +149,16 @@ export const fetchModes = async (): Promise<string[]> => {
 // Function to get all labels
 export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
   try {
+    // First check if the label table exists
+    const labelTableExists = await checkIfTableExists('label');
+    if (!labelTableExists) {
+      return getDefaultLabels();
+    }
+    
+    // Direct query to the label table instead of using RPC
     const { data, error } = await supabase
-      .rpc('get_labels');
+      .from('label')
+      .select('name');
       
     if (error) {
       console.error('Error fetching labels from database:', error);
@@ -153,6 +180,11 @@ export const getDefaultLabels = (): string[] => {
 // Function to fetch pin configs with all relations
 export const fetchPinConfigsWithRelations = async (userId: string): Promise<any[]> => {
   try {
+    const tablesExist = await checkTablesExist();
+    if (!tablesExist) {
+      return [];
+    }
+    
     const { data, error } = await supabase
       .rpc('get_pin_configs_with_relations', { user_uuid: userId });
       
@@ -236,6 +268,11 @@ export const findLabelIdByName = async (name: string): Promise<number | null> =>
   if (!name) return null;
   
   try {
+    const labelTableExists = await checkIfTableExists('label');
+    if (!labelTableExists) {
+      return null;
+    }
+    
     const { data, error } = await supabase
       .from('label')
       .select('id')

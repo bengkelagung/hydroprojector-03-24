@@ -112,6 +112,10 @@ BEGIN
   SELECT l.id, l.name
   FROM public.label l
   ORDER BY l.name;
+EXCEPTION
+  WHEN undefined_table THEN
+    RAISE NOTICE 'The label table does not exist yet.';
+    RETURN;
 END;
 $$;
 
@@ -141,6 +145,15 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
+  -- Check if all required tables exist
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'pin_configs';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'pins';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'data_types';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'signal_types';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'modes';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'devices';
+  PERFORM 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'projects';
+  
   RETURN QUERY
   SELECT 
     pc.id, 
@@ -174,6 +187,10 @@ BEGIN
     pr.user_id = user_uuid
   ORDER BY 
     pc.device_id, p.pin_number;
+EXCEPTION
+  WHEN undefined_table THEN
+    RAISE NOTICE 'One or more tables do not exist yet.';
+    RETURN;
 END;
 $$;
 
@@ -183,10 +200,15 @@ GRANT EXECUTE ON FUNCTION public.get_tables() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_columns(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_columns(text) TO anon;
 GRANT EXECUTE ON FUNCTION public.get_pins_with_info() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_pins_with_info() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_data_types() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_data_types() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_signal_types() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_signal_types() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_modes() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_modes() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_labels() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_labels() TO anon;
 GRANT EXECUTE ON FUNCTION public.get_pin_configs_with_relations(uuid) TO authenticated;
 
 -- Set security definer for RLS bypassing

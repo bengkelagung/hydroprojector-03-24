@@ -16,7 +16,8 @@ import {
   findSignalTypeIdByName,
   findModeIdByType,
   findLabelIdByName,
-  findPinIdByNumber
+  findPinIdByNumber,
+  checkIfTableExists
 } from '@/integrations/supabase/client';
 
 export interface Project {
