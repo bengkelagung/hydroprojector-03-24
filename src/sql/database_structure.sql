@@ -66,21 +66,21 @@ CREATE TABLE IF NOT EXISTS public.label (
   name VARCHAR(50) UNIQUE NOT NULL
 );
 
--- Create pin_configs table
+-- Create pin_configs table with foreign key references
 CREATE TABLE IF NOT EXISTS public.pin_configs (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   device_id UUID NOT NULL REFERENCES public.devices(id) ON DELETE CASCADE,
-  pin_number INTEGER NOT NULL,
-  data_type TEXT NOT NULL,
-  signal_type TEXT NOT NULL,
-  mode TEXT NOT NULL,
+  pin_id UUID NOT NULL REFERENCES public.pins(id) ON DELETE RESTRICT,
+  data_type_id INTEGER NOT NULL REFERENCES public.data_types(id) ON DELETE RESTRICT,
+  signal_type_id INTEGER NOT NULL REFERENCES public.signal_types(id) ON DELETE RESTRICT,
+  mode_id INTEGER NOT NULL REFERENCES public.modes(id) ON DELETE RESTRICT,
+  label_id INTEGER REFERENCES public.label(id) ON DELETE SET NULL,
   name TEXT NOT NULL,
-  label TEXT,  
   unit TEXT,
   value TEXT,
   last_updated TIMESTAMP WITH TIME ZONE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now() NOT NULL,
-  UNIQUE(device_id, pin_number)
+  UNIQUE(device_id, pin_id)
 );
 
 -- Create pin_data table for historical data
@@ -169,6 +169,10 @@ ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pin_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pin_data ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.label ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.pins ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.data_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.signal_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.modes ENABLE ROW LEVEL SECURITY;
 
 -- Create RLS policies
 CREATE POLICY "Users can view their own profile" ON public.profiles

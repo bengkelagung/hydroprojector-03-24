@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import { checkTablesExist } from '@/integrations/supabase/client';
 import {
   Table,
   TableBody,
@@ -54,7 +54,7 @@ const DeviceConfig = () => {
   } = useHydro();
   
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
+  const [tablesExist, setTablesExist] = useState<boolean>(false);
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
@@ -77,13 +77,13 @@ const DeviceConfig = () => {
   }, [fetchLabels]);
   
   useEffect(() => {
-    // Check if label column exists
-    const checkColumn = async () => {
-      const exists = await checkLabelColumnExists();
-      setHasLabelColumn(exists);
+    // Check if tables exist
+    const checkTables = async () => {
+      const exist = await checkTablesExist();
+      setTablesExist(exist);
     };
     
-    checkColumn();
+    checkTables();
   }, []);
 
   const onSubmit = async (values: PinConfigFormValues) => {
@@ -102,7 +102,7 @@ const DeviceConfig = () => {
         values.signalType as any,
         values.mode,
         values.name,
-        hasLabelColumn ? values.label || '' : ''
+        values.label === 'none' ? '' : values.label
       );
       
       // Reset form
@@ -269,7 +269,6 @@ const DeviceConfig = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {/* Fixed: Changed empty string to "none" with value of null */}
                           <SelectItem value="none">None</SelectItem>
                           {labels.map((labelOption) => (
                             <SelectItem key={labelOption} value={labelOption}>

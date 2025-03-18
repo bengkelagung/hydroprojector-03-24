@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
-import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import { checkTablesExist } from '@/integrations/supabase/client';
 
 interface PinDetailsDialogProps {
   open: boolean;
@@ -40,20 +40,20 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [editPinSignalType, setEditPinSignalType] = useState<string>('');
   const [editPinDataType, setEditPinDataType] = useState<string>('');
   const [editPinLabel, setEditPinLabel] = useState<string>('');
-  const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
+  const [tablesExist, setTablesExist] = useState<boolean>(false);
   
   // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
   
   useEffect(() => {
-    // Check if label column exists
-    const checkColumn = async () => {
-      const exists = await checkLabelColumnExists();
-      setHasLabelColumn(exists);
+    // Check if tables exist
+    const checkTables = async () => {
+      const exist = await checkTablesExist();
+      setTablesExist(exist);
     };
     
-    checkColumn();
+    checkTables();
   }, []);
   
   useEffect(() => {
@@ -80,8 +80,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
         dataType: editPinDataType
       };
       
-      // Only include label if the column exists
-      if (hasLabelColumn) {
+      // Only include label if the tables exist
+      if (tablesExist) {
         updates.label = editPinLabel || '';
       }
       
@@ -159,28 +159,25 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
               </SelectContent>
             </Select>
           </div>
-          {hasLabelColumn && (
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label className="text-right">Label:</Label>
-              <Select 
-                value={editPinLabel || ''} 
-                onValueChange={setEditPinLabel}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select label" />
-                </SelectTrigger>
-                <SelectContent>
-                  {/* Fixed: Changed empty SelectItem to have a non-empty value */}
-                  <SelectItem value="none">None</SelectItem>
-                  {labels.map(label => (
-                    <SelectItem key={label} value={label}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label className="text-right">Label:</Label>
+            <Select 
+              value={editPinLabel || ''} 
+              onValueChange={setEditPinLabel}
+            >
+              <SelectTrigger className="col-span-3">
+                <SelectValue placeholder="Select label" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">None</SelectItem>
+                {labels.map(label => (
+                  <SelectItem key={label} value={label}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Pin:</Label>
             <div className="col-span-3">
