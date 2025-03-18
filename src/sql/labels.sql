@@ -27,11 +27,16 @@ CREATE POLICY "Allow authenticated users to read labels"
   TO authenticated
   USING (true);
 
--- Function to get all labels
+-- Function to get all labels - Fix the function definition
 CREATE OR REPLACE FUNCTION public.get_all_labels()
 RETURNS SETOF public.label
 LANGUAGE sql
 SECURITY DEFINER
+SET search_path = public
 AS $$
   SELECT * FROM public.label ORDER BY name;
 $$;
+
+-- Grant execute permission on the function
+GRANT EXECUTE ON FUNCTION public.get_all_labels() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_all_labels() TO anon;

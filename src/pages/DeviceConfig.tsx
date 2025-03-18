@@ -9,6 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import { 
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormDescription,
+  FormMessage,
+} from "@/components/ui/form";
+import { useForm } from "react-hook-form";
+
+// Define the form values type
+type PinConfigFormValues = {
+  pinId: string;
+  name: string;
+  dataType: string;
+  signalType: string;
+  label: string;
+  mode: 'input' | 'output';
+};
 
 const DeviceConfig = () => {
   const { deviceId } = useParams();
@@ -26,17 +46,23 @@ const DeviceConfig = () => {
     fetchLabels
   } = useHydro();
   
-  const [selectedPinId, setSelectedPinId] = useState<string>('');
-  const [dataType, setDataType] = useState<string>('');
-  const [signalType, setSignalType] = useState<string>('');
-  const [mode, setMode] = useState<'input' | 'output'>('input');
-  const [name, setName] = useState<string>('');
-  const [label, setLabel] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
+  
+  // Initialize the form with react-hook-form
+  const form = useForm<PinConfigFormValues>({
+    defaultValues: {
+      pinId: '',
+      name: '',
+      dataType: '',
+      signalType: '',
+      label: '',
+      mode: 'input'
+    }
+  });
   
   useEffect(() => {
     // Refresh labels when component mounts
@@ -53,26 +79,9 @@ const DeviceConfig = () => {
     checkColumn();
   }, []);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (!deviceId || !selectedPinId) {
-      toast.error('Device ID or Pin is missing');
-      return;
-    }
-
-    if (!name.trim()) {
-      toast.error('Pin name is required');
-      return;
-    }
-
-    if (!dataType) {
-      toast.error('Data type is required');
-      return;
-    }
-
-    if (!signalType) {
-      toast.error('Signal type is required');
+  const onSubmit = async (values: PinConfigFormValues) => {
+    if (!deviceId) {
+      toast.error('Device ID is missing');
       return;
     }
 
@@ -81,20 +90,23 @@ const DeviceConfig = () => {
     try {
       await configurePin(
         deviceId,
-        selectedPinId,
-        dataType,
-        signalType as any,
-        mode,
-        name,
-        hasLabelColumn ? label || undefined : undefined
+        values.pinId,
+        values.dataType,
+        values.signalType as any,
+        values.mode,
+        values.name,
+        hasLabelColumn ? values.label || undefined : undefined
       );
       
       // Reset form
-      setSelectedPinId('');
-      setDataType('');
-      setSignalType('');
-      setName('');
-      setLabel('');
+      form.reset({
+        pinId: '',
+        name: '',
+        dataType: '',
+        signalType: '',
+        label: '',
+        mode: 'input'
+      });
     } catch (error) {
       console.error('Error configuring pin:', error);
       toast.error('Failed to configure pin');
@@ -129,121 +141,181 @@ const DeviceConfig = () => {
             <CardDescription>Set up a new pin for your device</CardDescription>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="pinNumber">Pin</Label>
-                <Select 
-                  value={selectedPinId} 
-                  onValueChange={setSelectedPinId}
-                >
-                  <SelectTrigger id="pinNumber">
-                    <SelectValue placeholder="Select Pin" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pinOptions.map((pin) => (
-                      <SelectItem key={pin.id} value={pin.id}>
-                        {pin.name} (Pin {pin.pinNumber})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="name">Pin Name</Label>
-                <Input 
-                  id="name" 
-                  value={name} 
-                  onChange={(e) => setName(e.target.value)} 
-                  placeholder="e.g., pH Sensor" 
-                  required 
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="pinId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pin</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Pin" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {pinOptions.map((pin) => (
+                            <SelectItem key={pin.id} value={pin.id}>
+                              {pin.name} (Pin {pin.pinNumber})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="dataType">Data Type</Label>
-                <Select value={dataType} onValueChange={setDataType}>
-                  <SelectTrigger id="dataType">
-                    <SelectValue placeholder="Select Data Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dataTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="signalType">Signal Type</Label>
-                <Select 
-                  value={signalType} 
-                  onValueChange={setSignalType}
+                
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Pin Name</FormLabel>
+                      <FormControl>
+                        <Input 
+                          placeholder="e.g., pH Sensor" 
+                          required 
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="dataType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Data Type</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Data Type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {dataTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="signalType"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Signal Type</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Signal Type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {signalTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                {hasLabelColumn && (
+                  <FormField
+                    control={form.control}
+                    name="label"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Label</FormLabel>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select Label (Optional)" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="">None</SelectItem>
+                            {labels.map((labelOption) => (
+                              <SelectItem key={labelOption} value={labelOption}>
+                                {labelOption}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormDescription>
+                          Label determines the display style for this pin
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
+                
+                <FormField
+                  control={form.control}
+                  name="mode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Mode</FormLabel>
+                      <Select
+                        onValueChange={field.onChange as (value: string) => void}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Mode" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {pinModes.map((modeOption) => (
+                            <SelectItem key={modeOption} value={modeOption}>
+                              {modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <Button 
+                  type="submit" 
+                  className="w-full"
+                  disabled={isSubmitting}
                 >
-                  <SelectTrigger id="signalType">
-                    <SelectValue placeholder="Select Signal Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {signalTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {hasLabelColumn && (
-                <div className="space-y-2">
-                  <Label htmlFor="label">Label</Label>
-                  <Select 
-                    value={label} 
-                    onValueChange={setLabel}
-                  >
-                    <SelectTrigger id="label">
-                      <SelectValue placeholder="Select Label (Optional)" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {labels.map((labelOption) => (
-                        <SelectItem key={labelOption} value={labelOption}>
-                          {labelOption}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              
-              <div className="space-y-2">
-                <Label htmlFor="mode">Mode</Label>
-                <Select 
-                  value={mode} 
-                  onValueChange={(value: 'input' | 'output') => setMode(value)}
-                >
-                  <SelectTrigger id="mode" className="w-full">
-                    <SelectValue placeholder="Select Mode" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pinModes.map((modeOption) => (
-                      <SelectItem key={modeOption} value={modeOption}>
-                        {modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <Button 
-                type="submit" 
-                className="w-full"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? 'Configuring...' : 'Configure Pin'}
-              </Button>
-            </form>
+                  {isSubmitting ? 'Configuring...' : 'Configure Pin'}
+                </Button>
+              </form>
+            </Form>
           </CardContent>
         </Card>
 

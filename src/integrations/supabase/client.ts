@@ -28,12 +28,27 @@ export const checkLabelColumnExists = async (): Promise<boolean> => {
 // Function to get all labels from the label table
 export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
   try {
-    const { data, error } = await supabase
+    // First try to use the RPC function
+    const { data: rpcData, error: rpcError } = await supabase
       .rpc('get_all_labels');
+      
+    if (!rpcError && rpcData) {
+      return rpcData.map(label => label.name);
+    }
+    
+    // If RPC fails, fall back to direct select
+    const { data, error } = await supabase
+      .from('label')
+      .select('name')
+      .order('name');
       
     if (error) throw error;
     
-    return data.map(label => label.name);
+    if (data && data.length > 0) {
+      return data.map(label => label.name as string);
+    }
+    
+    return getDefaultLabels();
   } catch (error) {
     console.error('Error fetching labels from database:', error);
     return getDefaultLabels();

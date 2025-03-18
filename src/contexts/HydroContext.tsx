@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -238,9 +239,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit,
-        label: hasLabelColumn && pin.label ? pin.label : undefined,
-        value: pin.value || undefined,
-        lastUpdated: pin.last_updated || undefined
+        label: hasLabelColumn && 'label' in pin ? pin.label : undefined,
+        value: 'value' in pin ? pin.value : undefined,
+        lastUpdated: 'last_updated' in pin ? pin.last_updated : undefined
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
@@ -952,4 +953,3 @@ void read${pin.name.replace(/\s+/g, '')}() {
 };
 
 export default HydroProvider;
-
