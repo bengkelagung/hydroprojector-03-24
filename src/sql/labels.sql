@@ -27,7 +27,8 @@ CREATE POLICY "Allow authenticated users to read labels"
   TO authenticated
   USING (true);
 
--- Function to get all labels - Fix the function definition
+-- Function to get all labels
+DROP FUNCTION IF EXISTS public.get_all_labels();
 CREATE OR REPLACE FUNCTION public.get_all_labels()
 RETURNS SETOF public.label
 LANGUAGE sql

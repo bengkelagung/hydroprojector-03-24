@@ -61,7 +61,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinName(pin.name);
       setEditPinSignalType(pin.signalType);
       setEditPinDataType(pin.dataType);
-      setEditPinLabel(pin.label || '');
+      setEditPinLabel(pin.label as string || '');
     }
   }, [pin]);
   
@@ -82,7 +82,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       
       // Only include label if the column exists
       if (hasLabelColumn) {
-        updates.label = editPinLabel === 'none' ? undefined : editPinLabel || undefined;
+        updates.label = editPinLabel === 'none' ? '' : editPinLabel || '';
       }
       
       await updatePin(pin.id, updates);

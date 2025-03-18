@@ -4,11 +4,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Form,
   FormField,
@@ -95,7 +102,7 @@ const DeviceConfig = () => {
         values.signalType as any,
         values.mode,
         values.name,
-        hasLabelColumn ? values.label || undefined : undefined
+        hasLabelColumn ? values.label || '' : ''
       );
       
       // Reset form
@@ -107,6 +114,7 @@ const DeviceConfig = () => {
         label: '',
         mode: 'input'
       });
+      toast.success('Pin configured successfully');
     } catch (error) {
       console.error('Error configuring pin:', error);
       toast.error('Failed to configure pin');
@@ -329,32 +337,32 @@ const DeviceConfig = () => {
               <p className="text-muted-foreground">No pins configured yet.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="text-left p-2">Pin</th>
-                      <th className="text-left p-2">Name</th>
-                      <th className="text-left p-2">Type</th>
-                      <th className="text-left p-2">Signal</th>
-                      <th className="text-left p-2">Mode</th>
-                      {hasLabelColumn && <th className="text-left p-2">Label</th>}
-                      <th className="text-left p-2">Last Value</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Pin</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Signal</TableHead>
+                      <TableHead>Mode</TableHead>
+                      {hasLabelColumn && <TableHead>Label</TableHead>}
+                      <TableHead>Last Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {devicePins.map((pin) => (
-                      <tr key={pin.id} className="border-b hover:bg-muted/50">
-                        <td className="p-2">{pin.pinNumber}</td>
-                        <td className="p-2">{pin.name}</td>
-                        <td className="p-2">{pin.dataType}</td>
-                        <td className="p-2">{pin.signalType}</td>
-                        <td className="p-2">{pin.mode}</td>
-                        {hasLabelColumn && <td className="p-2">{pin.label || 'None'}</td>}
-                        <td className="p-2">{pin.value !== undefined ? pin.value : 'No data'}</td>
-                      </tr>
+                      <TableRow key={pin.id}>
+                        <TableCell>{pin.pinNumber}</TableCell>
+                        <TableCell>{pin.name}</TableCell>
+                        <TableCell>{pin.dataType}</TableCell>
+                        <TableCell>{pin.signalType}</TableCell>
+                        <TableCell className="capitalize">{pin.mode}</TableCell>
+                        {hasLabelColumn && <TableCell>{pin.label ? pin.label as string : 'None'}</TableCell>}
+                        <TableCell>{pin.value !== undefined ? pin.value as string : 'No data'}</TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
