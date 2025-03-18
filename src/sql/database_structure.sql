@@ -77,34 +77,13 @@ VALUES
 ON CONFLICT (name) DO NOTHING;
 
 -- =========================================================
--- TABLE: pin_configs
--- Stores pin configuration details
+-- TABLE: signal_types
+-- Stores available signal types
 -- =========================================================
-CREATE TABLE IF NOT EXISTS public.pin_configs (
+CREATE TABLE IF NOT EXISTS public.signal_types (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  device_id UUID REFERENCES public.devices(id),
-  pin_number INTEGER NOT NULL,
-  name TEXT NOT NULL,
-  mode TEXT NOT NULL,
-  signal_type TEXT NOT NULL,
-  data_type TEXT NOT NULL,
-  unit TEXT,
-  label TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Create an index on the label column for faster lookups
-CREATE INDEX IF NOT EXISTS idx_pin_configs_label ON public.pin_configs (label);
-
--- =========================================================
--- TABLE: pin_data
--- Stores data readings from pins
--- =========================================================
-CREATE TABLE IF NOT EXISTS public.pin_data (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  pin_config_id UUID REFERENCES public.pin_configs(id),
-  value TEXT NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  name TEXT,
+  type TEXT NOT NULL
 );
 
 -- =========================================================
@@ -134,6 +113,46 @@ CREATE TABLE IF NOT EXISTS public.pins (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   pin_name TEXT NOT NULL,
   pin_number INTEGER NOT NULL
+);
+
+-- =========================================================
+-- TABLE: pin_configs
+-- Stores pin configuration details
+-- =========================================================
+CREATE TABLE IF NOT EXISTS public.pin_configs (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  device_id UUID REFERENCES public.devices(id),
+  pin_number INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  mode TEXT NOT NULL,
+  signal_type TEXT NOT NULL,
+  data_type TEXT NOT NULL,
+  unit TEXT,
+  label TEXT,
+  value TEXT,
+  last_updated TIMESTAMP WITH TIME ZONE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create an index on the label column for faster lookups
+CREATE INDEX IF NOT EXISTS idx_pin_configs_label ON public.pin_configs (label);
+
+-- Create foreign key relationship to devices
+ALTER TABLE IF EXISTS public.pin_configs 
+  DROP CONSTRAINT IF EXISTS pin_configs_device_id_fkey,
+  ADD CONSTRAINT pin_configs_device_id_fkey 
+  FOREIGN KEY (device_id) 
+  REFERENCES public.devices(id);
+
+-- =========================================================
+-- TABLE: pin_data
+-- Stores data readings from pins
+-- =========================================================
+CREATE TABLE IF NOT EXISTS public.pin_data (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  pin_config_id UUID REFERENCES public.pin_configs(id),
+  value TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =========================================================
@@ -171,16 +190,6 @@ CREATE TABLE IF NOT EXISTS public.pin_logs (
 CREATE TABLE IF NOT EXISTS public.pin_modes (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL
-);
-
--- =========================================================
--- TABLE: signal_types
--- Stores available signal types
--- =========================================================
-CREATE TABLE IF NOT EXISTS public.signal_types (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  name TEXT,
-  type TEXT NOT NULL
 );
 
 -- =========================================================
