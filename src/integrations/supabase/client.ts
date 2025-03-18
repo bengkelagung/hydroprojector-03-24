@@ -10,3 +10,22 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+
+// Check if the label column exists in pin_configs
+export const checkLabelColumnExists = async (): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('pin_configs')
+      .select('label')
+      .limit(1);
+    
+    return !error || error.code !== '42703';
+  } catch (e) {
+    return false;
+  }
+};
+
+// Function to get default labels
+export const getDefaultLabels = (): string[] => {
+  return ['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air'];
+};

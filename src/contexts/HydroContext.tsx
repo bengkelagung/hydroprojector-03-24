@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, checkLabelColumnExists, getDefaultLabels } from '@/integrations/supabase/client';
 
 export interface Project {
   id: string;
@@ -113,6 +113,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [signalTypes, setSignalTypes] = useState<SignalType[]>([]);
   const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
+  const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
+
+  useEffect(() => {
+    const checkColumn = async () => {
+      const exists = await checkLabelColumnExists();
+      setHasLabelColumn(exists);
+    };
+    
+    checkColumn();
+  }, []);
 
   useEffect(() => {
     if (user) {
@@ -173,7 +183,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) throw error;
       
       setDevices(data.map(device => {
-        // Check if there's a description field for wifi config (using JSON format in description)
         let wifiConfig;
         try {
           const descriptionObj = JSON.parse(device.description);
@@ -181,7 +190,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             wifiConfig = descriptionObj.wifiConfig;
           }
         } catch (e) {
-          // Not JSON or doesn't have wifi config - that's fine
         }
         
         return {
@@ -230,7 +238,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit,
-        label: pin.label || undefined,
+        label: hasLabelColumn ? pin.label || undefined : undefined,
         value: pin.value || undefined,
         lastUpdated: pin.last_updated || undefined
       })));
@@ -310,7 +318,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      // Try to fetch labels from database
+      if (!hasLabelColumn) {
+        setLabels(getDefaultLabels());
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('pin_configs')
         .select('label')
@@ -319,49 +331,31 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (error) {
         console.error('Error fetching labels:', error);
-        setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
+        setLabels(getDefaultLabels());
         return;
       }
       
-      // Extract unique labels
       const uniqueLabels = Array.from(new Set(data.map(item => item.label).filter(Boolean)));
       
       if (uniqueLabels.length === 0) {
-        setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
+        setLabels(getDefaultLabels());
       } else {
         setLabels(uniqueLabels as string[]);
       }
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
-      setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
+      setLabels(getDefaultLabels());
     }
   };
 
   const ensureLabelTableExists = async () => {
     try {
-      const defaultLabels = [
-        { name: 'pH' },
-        { name: 'Suhu' },
-        { name: 'Kelembaban' },
-        { name: 'Pompa' },
-        { name: 'Lampu' },
-        { name: 'Level Air' }
-      ];
-      
-      setLabels(defaultLabels.map(l => l.name));
-      
-      for (const label of defaultLabels) {
-        await supabase
-          .from('label')
-          .insert(label)
-          .onConflict('name')
-          .ignore();
-      }
-      
+      const defaultLabels = getDefaultLabels();
+      setLabels(defaultLabels);
     } catch (error) {
       console.error('Error ensuring label table exists:', error);
-      setLabels(['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air']);
+      setLabels(getDefaultLabels());
     }
   };
 
@@ -474,16 +468,21 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       let pinData;
       
+      const pinConfigData: any = {
+        data_type: dataType,
+        signal_type: signalType,
+        mode,
+        name
+      };
+      
+      if (hasLabelColumn && label) {
+        pinConfigData.label = label;
+      }
+      
       if (existingPin) {
         const { data, error } = await supabase
           .from('pin_configs')
-          .update({
-            data_type: dataType,
-            signal_type: signalType,
-            mode,
-            name,
-            label
-          })
+          .update(pinConfigData)
           .eq('id', existingPin.id)
           .select()
           .single();
@@ -498,11 +497,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .insert([{
             device_id: deviceId,
             pin_number: pinNumber,
-            data_type: dataType,
-            signal_type: signalType,
-            mode,
-            name,
-            label
+            ...pinConfigData
           }])
           .select()
           .single();
@@ -521,7 +516,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pinData.signal_type as SignalType,
         mode: pinData.mode as 'input' | 'output',
         name: pinData.name,
-        label: pinData.label,
+        label: hasLabelColumn ? pinData.label : undefined,
         value: pinData.value,
         lastUpdated: pinData.last_updated
       };
@@ -759,28 +754,22 @@ void read${pin.name.replace(/\s+/g, '')}() {
       
       if (updates.name) supabaseUpdates.device_name = updates.name;
       
-      // Handle description and WiFi config
       if (updates.wifiConfig) {
-        // Get the current device first
         const currentDevice = devices.find(d => d.id === deviceId);
         let descriptionObj = {};
         
-        // Try to parse existing description if it exists and is JSON
         try {
           if (currentDevice && currentDevice.description) {
             descriptionObj = JSON.parse(currentDevice.description);
           }
         } catch (e) {
-          // Not valid JSON, create a new object
         }
         
-        // Update the wifiConfig property
         descriptionObj = {
           ...descriptionObj,
           wifiConfig: updates.wifiConfig
         };
         
-        // Store the updated WiFi config in the description as JSON
         supabaseUpdates.description = JSON.stringify(descriptionObj);
       } else if (updates.description !== undefined) {
         supabaseUpdates.description = updates.description;
@@ -911,14 +900,19 @@ void read${pin.name.replace(/\s+/g, '')}() {
 
   const updatePin = async (pinId: string, updates: Partial<Pin>) => {
     try {
+      const updateData: any = {
+        name: updates.name,
+        signal_type: updates.signalType,
+        data_type: updates.dataType
+      };
+      
+      if (hasLabelColumn && updates.label !== undefined) {
+        updateData.label = updates.label;
+      }
+      
       const { error } = await supabase
         .from('pin_configs')
-        .update({
-          name: updates.name,
-          signal_type: updates.signalType,
-          label: updates.label,
-          data_type: updates.dataType
-        })
+        .update(updateData)
         .eq('id', pinId);
       
       if (error) throw error;
@@ -978,3 +972,5 @@ void read${pin.name.replace(/\s+/g, '')}() {
     </HydroContext.Provider>
   );
 };
+
+export default HydroProvider;

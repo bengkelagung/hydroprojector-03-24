@@ -25,6 +25,7 @@ import {
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
+import { checkLabelColumnExists } from '@/integrations/supabase/client';
 
 interface PinDetailsDialogProps {
   open: boolean;
@@ -39,10 +40,21 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [editPinSignalType, setEditPinSignalType] = useState<string>('');
   const [editPinDataType, setEditPinDataType] = useState<string>('');
   const [editPinLabel, setEditPinLabel] = useState<string>('');
+  const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   
   // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
+  
+  useEffect(() => {
+    // Check if label column exists
+    const checkColumn = async () => {
+      const exists = await checkLabelColumnExists();
+      setHasLabelColumn(exists);
+    };
+    
+    checkColumn();
+  }, []);
   
   useEffect(() => {
     // Refresh labels when component mounts
@@ -67,12 +79,18 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
     }
     
     try {
-      await updatePin(pin.id, {
+      const updates: Partial<Pin> = {
         name: editPinName,
         signalType: editPinSignalType as any,
-        dataType: editPinDataType,
-        label: editPinLabel === 'none' ? undefined : editPinLabel || undefined
-      });
+        dataType: editPinDataType
+      };
+      
+      // Only include label if the column exists
+      if (hasLabelColumn) {
+        updates.label = editPinLabel === 'none' ? undefined : editPinLabel || undefined;
+      }
+      
+      await updatePin(pin.id, updates);
       
       onOpenChange(false);
     } catch (error) {
@@ -146,25 +164,27 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
               </SelectContent>
             </Select>
           </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label className="text-right">Label:</Label>
-            <Select 
-              value={editPinLabel || 'none'} 
-              onValueChange={setEditPinLabel}
-            >
-              <SelectTrigger className="col-span-3">
-                <SelectValue placeholder="Select label" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">None</SelectItem>
-                {labels.map(label => (
-                  <SelectItem key={label} value={label}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {hasLabelColumn && (
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label className="text-right">Label:</Label>
+              <Select 
+                value={editPinLabel || 'none'} 
+                onValueChange={setEditPinLabel}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Select label" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {labels.map(label => (
+                    <SelectItem key={label} value={label}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
           <div className="grid grid-cols-4 items-center gap-4">
             <Label className="text-right">Pin:</Label>
             <div className="col-span-3">
