@@ -22,7 +22,8 @@ const DeviceConfig = () => {
     dataTypes, 
     signalTypes, 
     pinModes,
-    labels
+    labels,
+    fetchLabels
   } = useHydro();
   
   const [selectedPinId, setSelectedPinId] = useState<string>('');
@@ -36,6 +37,11 @@ const DeviceConfig = () => {
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
+  
+  useEffect(() => {
+    // Refresh labels when component mounts
+    fetchLabels();
+  }, [fetchLabels]);
   
   useEffect(() => {
     // Check if label column exists

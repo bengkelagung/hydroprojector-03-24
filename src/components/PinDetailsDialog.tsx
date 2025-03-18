@@ -34,7 +34,7 @@ interface PinDetailsDialogProps {
 }
 
 const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) => {
-  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin, fetchLabels } = useHydro();
+  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin } = useHydro();
   
   const [editPinName, setEditPinName] = useState('');
   const [editPinSignalType, setEditPinSignalType] = useState<string>('');
@@ -55,11 +55,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
     
     checkColumn();
   }, []);
-  
-  useEffect(() => {
-    // Refresh labels when component mounts
-    fetchLabels();
-  }, [fetchLabels]);
   
   useEffect(() => {
     if (pin) {

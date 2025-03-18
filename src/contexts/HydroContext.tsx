@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
-import { supabase, checkLabelColumnExists, getDefaultLabels } from '@/integrations/supabase/client';
+import { supabase, checkLabelColumnExists, getDefaultLabels, fetchLabelsFromDatabase } from '@/integrations/supabase/client';
 
 export interface Project {
   id: string;
@@ -238,7 +238,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit,
-        label: hasLabelColumn ? pin.label || undefined : undefined,
+        label: hasLabelColumn && pin.label ? pin.label : undefined,
         value: pin.value || undefined,
         lastUpdated: pin.last_updated || undefined
       })));
@@ -318,30 +318,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async () => {
     try {
-      if (!hasLabelColumn) {
-        setLabels(getDefaultLabels());
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('pin_configs')
-        .select('label')
-        .not('label', 'is', null)
-        .limit(20);
-      
-      if (error) {
-        console.error('Error fetching labels:', error);
-        setLabels(getDefaultLabels());
-        return;
-      }
-      
-      const uniqueLabels = Array.from(new Set(data.map(item => item.label).filter(Boolean)));
-      
-      if (uniqueLabels.length === 0) {
-        setLabels(getDefaultLabels());
-      } else {
-        setLabels(uniqueLabels as string[]);
-      }
+      const databaseLabels = await fetchLabelsFromDatabase();
+      setLabels(databaseLabels);
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
@@ -974,3 +952,4 @@ void read${pin.name.replace(/\s+/g, '')}() {
 };
 
 export default HydroProvider;
+

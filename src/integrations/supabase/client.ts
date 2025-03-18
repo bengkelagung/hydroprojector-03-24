@@ -25,6 +25,21 @@ export const checkLabelColumnExists = async (): Promise<boolean> => {
   }
 };
 
+// Function to get all labels from the label table
+export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_all_labels');
+      
+    if (error) throw error;
+    
+    return data.map(label => label.name);
+  } catch (error) {
+    console.error('Error fetching labels from database:', error);
+    return getDefaultLabels();
+  }
+};
+
 // Function to get default labels
 export const getDefaultLabels = (): string[] => {
   return ['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air'];

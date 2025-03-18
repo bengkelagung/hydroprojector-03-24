@@ -1,5 +1,5 @@
 
--- Create the label table
+-- Create the label table if it doesn't exist
 CREATE TABLE IF NOT EXISTS public.label (
   id SERIAL PRIMARY KEY,
   name VARCHAR(50) UNIQUE NOT NULL
