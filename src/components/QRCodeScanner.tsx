@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -5,12 +6,15 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Loader2, QrCode, Scan, Check, Wifi, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Html5Qrcode } from 'html5-qrcode';
+
 interface QRScannerProps {
   onConnect: (ssid: string, password: string) => void;
   serverConnected?: boolean;
   useMockData?: boolean;
 }
-const mockQRData = ['WIFI:S:HomeWifi;T:WPA;P:password123;;', 'WIFI:S:GuestNetwork;T:WPA;P:guest2023;;', 'WIFI:S:OfficeWifi;T:WPA2;P:office@secure;;', 'WIFI:S:MARIAGSM;T:WPA;P:mariawifi123;;', 'WIFI:S:RUMAH REHAB;T:WPA;P:rumahrehab123;;', 'WIFI:S:NARWADAN;T:WPA;P:narwadan2024;;'];
+
+const mockQRData = ['WIFI:S:HomeWifi;T:WPA;P:password123;;', 'WIFI:S:GuestNetwork;T:WPA;P:guest2023;;', 'WIFI:S:OfficeWifi;T:WPA2;P:office@secure;;'];
+
 const QRCodeScanner: React.FC<QRScannerProps> = ({
   onConnect,
   serverConnected = false,
@@ -40,33 +44,24 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setError(null);
     console.log("Processing QR code:", qrData);
 
-    // Special cases for processing specific networks
-    if (qrData.includes('MARIAGSM')) {
-      handleSuccessfulScan('MARIAGSM', 'mariawifi123');
-      return;
-    }
-    if (qrData.includes('RUMAH REHAB')) {
-      handleSuccessfulScan('RUMAH REHAB', 'rumahrehab123');
-      return;
-    }
-    if (qrData.includes('NARWADAN')) {
-      handleSuccessfulScan('NARWADAN', 'narwadan2024');
-      return;
-    }
     if (!qrData.includes('WIFI:S:')) {
       setError('Invalid QR code format. Not a Wi-Fi QR code.');
       toast.error('Invalid QR code format. Not a Wi-Fi QR code.');
       return;
     }
+    
     try {
       // Process Wi-Fi QR code format
       const ssidMatch = qrData.match(/S:(.*?);/);
       const passwordMatch = qrData.match(/P:(.*?);/);
+      
       if (!ssidMatch) {
         throw new Error('Invalid QR code format. SSID not found.');
       }
+      
       const ssid = ssidMatch[1];
       const password = passwordMatch ? passwordMatch[1] : '';
+      
       handleSuccessfulScan(ssid, password);
     } catch (error: any) {
       console.error('Error processing QR:', error);
@@ -74,6 +69,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       toast.error(`Failed to process QR code: ${error.message}`);
     }
   };
+
   const handleSuccessfulScan = (ssid: string, password: string) => {
     // Play a success sound for better user feedback
     try {
@@ -94,12 +90,14 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         }
       }, 2000);
     }
+    
     toast.success(`QR code scanned successfully`);
     setConnected(true);
     setWifiCredentials({
       ssid,
       password
     });
+    
     toast.success(`Found network: ${ssid}`);
     onConnect(ssid, password);
   };
@@ -108,6 +106,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const startScanner = async () => {
     setScanning(true);
     setError(null);
+    
     if (usingMockData) {
       // For mock data, simulate scanning delay then pick a random mock QR code
       setTimeout(() => {
@@ -116,6 +115,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       }, 1500);
       return;
     }
+    
     try {
       // Create scanner container if it doesn't exist
       if (!document.getElementById(scannerContainerId)) {
@@ -138,11 +138,9 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       // Simplified config - remove QR box and any frame styling
       const config = {
         fps: 10,
-        formatsToSupport: [2],
-        // QR_CODE only
-        qrbox: undefined,
-        // Remove qrbox to scan the entire camera view
-        rememberLastUsedCamera: true,
+        formatsToSupport: [2], // QR_CODE only
+        qrbox: undefined, // Remove qrbox to scan the entire camera view
+        rememberLastUsedCamera: false, // Don't remember last camera to avoid history
         aspectRatio: 1,
         showTorchButtonIfSupported: false,
         showZoomSliderIfSupported: false,
@@ -179,7 +177,6 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       });
 
       // Apply custom styling to remove scan frame/box and helper text
-      // Find and hide any elements added by the Html5QrCode library that create visual frames
       setTimeout(() => {
         // Remove any qr frame or scan region indicators added by the library
         const scanRegion = document.querySelector('#qr-shaded-region');
@@ -242,6 +239,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       });
     }
   };
+
   const reset = () => {
     setConnected(false);
     setWifiCredentials(null);
@@ -250,25 +248,32 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       stopScanner();
     }
   };
-  return <Card className="mb-4">
+
+  return (
+    <Card className="mb-4">
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle className="text-lg">Wi-Fi QR Code Scanner</CardTitle>
       </CardHeader>
       
       <CardContent>
-        {!serverConnected && !usingMockData && <Alert variant="destructive" className="mb-4">
+        {!serverConnected && !usingMockData && (
+          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>
               Cannot connect to Wi-Fi server. The scanner will still work but without server validation.
             </AlertDescription>
-          </Alert>}
+          </Alert>
+        )}
         
-        {error && <Alert variant="destructive" className="mb-4">
+        {error && (
+          <Alert variant="destructive" className="mb-4">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
-          </Alert>}
+          </Alert>
+        )}
         
-        {wifiCredentials && <div className="space-y-4">
+        {wifiCredentials && (
+          <div className="space-y-4">
             <div className="p-4 bg-green-50 border border-green-200 rounded-md">
               <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
                 <Check className="h-5 w-5 text-green-600" />
@@ -286,26 +291,39 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                 </span>
               </div>
             </div>
-          </div>}
+          </div>
+        )}
         
-        {scanning ? <div className="space-y-4">
+        {scanning ? (
+          <div className="space-y-4">
             <div className="relative bg-black rounded-md overflow-hidden" style={{
-          minHeight: '300px'
-        }}>
-              {usingMockData ? <div className="absolute inset-0 flex flex-col items-center justify-center">
+              minHeight: '300px'
+            }}>
+              {usingMockData ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-hydro-blue mb-4" />
                   <p className="text-white">Scanning for Wi-Fi QR code...</p>
-                </div> : <div id={scannerContainerId} ref={containerRef} className="w-full h-full" style={{
-            minHeight: '300px',
-            border: 'none',
-            background: '#000'
-          }}></div>}
+                </div>
+              ) : (
+                <div 
+                  id={scannerContainerId} 
+                  ref={containerRef} 
+                  className="w-full h-full" 
+                  style={{
+                    minHeight: '300px',
+                    border: 'none',
+                    background: '#000'
+                  }}
+                ></div>
+              )}
             </div>
             
             <Button onClick={stopScanner} variant="outline" className="w-full">
               Cancel Scanning
             </Button>
-          </div> : <div className="flex flex-col items-center p-6 space-y-4">
+          </div>
+        ) : (
+          <div className="flex flex-col items-center p-6 space-y-4">
             <QrCode className="h-16 w-16 text-hydro-blue mb-2" />
             <h3 className="text-lg font-medium text-center">Scan a Wi-Fi QR Code</h3>
             <p className="text-center text-gray-600 max-w-md">
@@ -315,12 +333,15 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
               <Scan className="mr-2 h-4 w-4" />
               Start Scanning
             </Button>
-          </div>}
+          </div>
+        )}
       </CardContent>
       
       <CardFooter className="bg-gray-50 px-6 py-4">
         <p className="text-xs text-gray-500"></p>
       </CardFooter>
-    </Card>;
+    </Card>
+  );
 };
+
 export default QRCodeScanner;

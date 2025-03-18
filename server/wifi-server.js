@@ -22,10 +22,11 @@ wifi.init({
   iface: null // network interface, choose a random wifi interface if set to null
 });
 
-// Endpoint to scan networks
+// Endpoint to scan networks - no history storage
 app.get('/api/scan-wifi', async (req, res) => {
   try {
     const networks = await wifi.scan();
+    // Return only the current scan results without storing history
     res.json({ success: true, networks });
   } catch (error) {
     console.error('Error scanning networks:', error);
@@ -33,7 +34,7 @@ app.get('/api/scan-wifi', async (req, res) => {
   }
 });
 
-// Endpoint to connect to a network from QR code data
+// Endpoint to connect to a network from QR code data - no history storage
 app.post('/api/connect-wifi-qr', async (req, res) => {
   try {
     const { qrData } = req.body;
@@ -55,6 +56,8 @@ app.post('/api/connect-wifi-qr', async (req, res) => {
     const password = passwordMatch ? passwordMatch[1] : '';
     
     await wifi.connect({ ssid, password });
+    
+    // Return success but don't store connection history
     res.json({ 
       success: true, 
       message: `Connected to ${ssid}`,
@@ -66,7 +69,7 @@ app.post('/api/connect-wifi-qr', async (req, res) => {
   }
 });
 
-// Regular endpoint to connect to a network
+// Regular endpoint to connect to a network - no history storage
 app.post('/api/connect-wifi', async (req, res) => {
   try {
     const { ssid, password } = req.body;
@@ -83,7 +86,7 @@ app.post('/api/connect-wifi', async (req, res) => {
   }
 });
 
-// WebSocket for real-time updates
+// WebSocket for real-time updates - no history storage
 io.on('connection', (socket) => {
   console.log('Client connected');
   
@@ -108,6 +111,7 @@ io.on('connection', (socket) => {
       // Connect to the network
       await wifi.connect({ ssid, password });
       
+      // Send success response but don't store connection history
       socket.emit('wifi_connected', { 
         ssid, 
         password,

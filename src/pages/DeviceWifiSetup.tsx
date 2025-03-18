@@ -29,12 +29,6 @@ const DeviceWifiSetup = () => {
   }, []);
 
   useEffect(() => {
-    if (device?.wifiConfig) {
-      setWifiSSID(device.wifiConfig.wifiSSID);
-      if (device.wifiConfig.wifiPassword) {
-        setWifiPassword(device.wifiConfig.wifiPassword);
-      }
-    }
   }, [device]);
 
   const handleWifiConnect = (ssid: string, password: string) => {
@@ -323,7 +317,8 @@ const DeviceWifiSetup = () => {
                   id="ssid" 
                   name="ssid" 
                   placeholder="Enter Wi-Fi network name" 
-                  defaultValue={wifiSSID}
+                  value={wifiSSID}
+                  onChange={(e) => setWifiSSID(e.target.value)}
                   required
                 />
               </div>
@@ -337,7 +332,8 @@ const DeviceWifiSetup = () => {
                   name="password" 
                   type="text" 
                   placeholder="Enter Wi-Fi password" 
-                  defaultValue={wifiPassword}
+                  value={wifiPassword}
+                  onChange={(e) => setWifiPassword(e.target.value)}
                 />
               </div>
               
