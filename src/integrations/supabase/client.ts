@@ -14,21 +14,43 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 // Check if essential tables exist
 export const checkTablesExist = async (): Promise<boolean> => {
   try {
-    const requiredTables = ['pins', 'data_types', 'signal_types', 'modes', 'label', 'pin_configs'];
-    const { data: tables, error } = await supabase.rpc('get_tables');
+    const { data, error } = await supabase
+      .from('pins')
+      .select('id')
+      .limit(1);
     
     if (error) {
       console.error('Error checking tables:', error);
       return false;
     }
     
-    if (!tables || !Array.isArray(tables)) {
+    return true;
+  } catch (e) {
+    console.error('Error checking tables:', e);
+    return false;
+  }
+};
+
+// Check if label column exists in pin_configs
+export const checkLabelColumnExists = async (): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .from('pin_configs')
+      .select('label_id')
+      .limit(1);
+    
+    if (error) {
+      // If the error includes a message about the column not existing, return false
+      if (error.message && error.message.includes('column "label_id" does not exist')) {
+        return false;
+      }
+      console.error('Error checking for label_id column:', error);
       return false;
     }
     
-    return requiredTables.every(table => tables.includes(table));
+    return true;
   } catch (e) {
-    console.error('Error checking tables:', e);
+    console.error('Error checking for label_id column:', e);
     return false;
   }
 };
@@ -52,7 +74,7 @@ export const fetchPinsWithInfo = async (): Promise<any[]> => {
 };
 
 // Function to get all data types
-export const fetchDataTypes = async (): Promise<any[]> => {
+export const fetchDataTypes = async (): Promise<string[]> => {
   try {
     const { data, error } = await supabase
       .rpc('get_data_types');
@@ -62,7 +84,7 @@ export const fetchDataTypes = async (): Promise<any[]> => {
       return [];
     }
     
-    return data?.map(item => item.name) || [];
+    return data && Array.isArray(data) ? data.map(item => item.name) : [];
   } catch (error) {
     console.error('Error fetching data types:', error);
     return [];
@@ -70,7 +92,7 @@ export const fetchDataTypes = async (): Promise<any[]> => {
 };
 
 // Function to get all signal types
-export const fetchSignalTypes = async (): Promise<any[]> => {
+export const fetchSignalTypes = async (): Promise<string[]> => {
   try {
     const { data, error } = await supabase
       .rpc('get_signal_types');
@@ -80,7 +102,7 @@ export const fetchSignalTypes = async (): Promise<any[]> => {
       return [];
     }
     
-    return data?.map(item => item.name) || [];
+    return data && Array.isArray(data) ? data.map(item => item.name) : [];
   } catch (error) {
     console.error('Error fetching signal types:', error);
     return [];
@@ -88,7 +110,7 @@ export const fetchSignalTypes = async (): Promise<any[]> => {
 };
 
 // Function to get all modes
-export const fetchModes = async (): Promise<any[]> => {
+export const fetchModes = async (): Promise<string[]> => {
   try {
     const { data, error } = await supabase
       .rpc('get_modes');
@@ -98,7 +120,7 @@ export const fetchModes = async (): Promise<any[]> => {
       return [];
     }
     
-    return data?.map(item => item.type) || [];
+    return data && Array.isArray(data) ? data.map(item => item.type) : [];
   } catch (error) {
     console.error('Error fetching modes:', error);
     return [];
@@ -116,7 +138,7 @@ export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
       return getDefaultLabels();
     }
     
-    return data?.map(item => item.name) || getDefaultLabels();
+    return data && Array.isArray(data) ? data.map(item => item.name) : getDefaultLabels();
   } catch (error) {
     console.error('Error fetching labels from database:', error);
     return getDefaultLabels();
@@ -160,7 +182,7 @@ export const findDataTypeIdByName = async (name: string): Promise<number | null>
       return null;
     }
     
-    return data.id;
+    return parseInt(data.id);
   } catch (error) {
     console.error('Error finding data type ID:', error);
     return null;
@@ -181,7 +203,7 @@ export const findSignalTypeIdByName = async (name: string): Promise<number | nul
       return null;
     }
     
-    return data.id;
+    return parseInt(data.id);
   } catch (error) {
     console.error('Error finding signal type ID:', error);
     return null;
@@ -202,7 +224,7 @@ export const findModeIdByType = async (type: string): Promise<number | null> => 
       return null;
     }
     
-    return data.id;
+    return parseInt(data.id);
   } catch (error) {
     console.error('Error finding mode ID:', error);
     return null;
@@ -225,7 +247,7 @@ export const findLabelIdByName = async (name: string): Promise<number | null> =>
       return null;
     }
     
-    return data.id;
+    return parseInt(data.id);
   } catch (error) {
     console.error('Error finding label ID:', error);
     return null;
