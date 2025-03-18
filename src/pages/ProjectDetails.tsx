@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { PlusCircle, Pencil, ChevronLeft, Cpu, Trash2 } from 'lucide-react';
@@ -20,7 +19,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "sonner";
 
 const ProjectDetails = () => {
   const { projectId } = useParams<{ projectId: string }>();
@@ -49,26 +48,24 @@ const ProjectDetails = () => {
   const devices = getDevicesByProject(project.id);
   const connectedDevices = devices.filter(d => d.isConnected);
   
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editName.trim() === '') {
-      toast({
-        title: "Error",
-        description: "Project name cannot be empty",
-        variant: "destructive"
-      });
+      toast.error("Project name cannot be empty");
       return;
     }
     
-    updateProject(project.id, {
-      name: editName,
-      description: editDescription
-    });
-    
-    setIsEditing(false);
-    toast({
-      title: "Project updated",
-      description: "The project has been updated successfully",
-    });
+    try {
+      await updateProject(project.id, {
+        name: editName,
+        description: editDescription
+      });
+      
+      setIsEditing(false);
+      toast.success("Project updated successfully");
+    } catch (error) {
+      console.error("Error updating project:", error);
+      toast.error("Failed to update project");
+    }
   };
   
   const handleDeleteProject = async () => {
@@ -78,17 +75,12 @@ const ProjectDetails = () => {
       navigate('/projects');
     } catch (error) {
       console.error("Error deleting project:", error);
-      toast({
-        title: "Error deleting project",
-        description: "There was a problem deleting the project. Please try again.",
-        variant: "destructive"
-      });
+      toast.error("Failed to delete project");
     } finally {
       setIsDeleting(false);
     }
   };
   
-  // Function to clean device description for display (remove WiFi config)
   const getCleanDeviceDescription = (description: string) => {
     try {
       const descObj = JSON.parse(description);

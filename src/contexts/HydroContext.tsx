@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -157,7 +156,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     if (user && tablesChecked) {
-      // Ensure profile exists whenever user logs in
       ensureProfileExists(user.id).then(success => {
         if (success) {
           fetchProjects();
@@ -385,13 +383,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) throw new Error('User must be logged in to create a project');
 
     try {
-      // Make sure profile exists first
       const profileExists = await ensureProfileExists(user.id);
       if (!profileExists) {
         throw new Error('Failed to ensure user profile exists');
       }
       
-      // Use maybeSingle instead of single to avoid errors when no profile is found
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('profile_id')
@@ -406,13 +402,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (!profileData) {
         console.error('No profile found for user, attempting to create one');
         
-        // One more attempt to create profile
         const createSuccess = await ensureProfileExists(user.id);
         if (!createSuccess) {
           throw new Error('Failed to create user profile');
         }
         
-        // Get the newly created profile
         const { data: newProfileData, error: newProfileError } = await supabase
           .from('profiles')
           .select('profile_id')
@@ -424,7 +418,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           throw new Error('Failed to fetch newly created profile');
         }
         
-        // Use the newly created profile
         const { data, error } = await supabase
           .from('projects')
           .insert([{
@@ -451,7 +444,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return newProject;
       }
       
-      // Use the existing profile
       const { data, error } = await supabase
         .from('projects')
         .insert([{
@@ -826,12 +818,32 @@ void read${pin.name.replace(/\s+/g, '')}() {
 `;
   };
 
-  const updateProject = (projectId: string, updates: Partial<Project>) => {
-    setProjects(prev => 
-      prev.map(project => 
-        project.id === projectId ? { ...project, ...updates } : project
-      )
-    );
+  const updateProject = async (projectId: string, updates: Partial<Project>) => {
+    try {
+      const supabaseUpdates: any = {};
+      
+      if (updates.name) supabaseUpdates.project_name = updates.name;
+      if (updates.description !== undefined) supabaseUpdates.description = updates.description;
+      
+      const { error } = await supabase
+        .from('projects')
+        .update(supabaseUpdates)
+        .eq('id', projectId);
+      
+      if (error) throw error;
+      
+      setProjects(prev => 
+        prev.map(project => 
+          project.id === projectId ? { ...project, ...updates } : project
+        )
+      );
+      
+      toast.success('Project updated successfully');
+    } catch (error) {
+      console.error('Error updating project:', error);
+      toast.error('Failed to update project');
+      throw error;
+    }
   };
 
   const updateDevice = async (deviceId: string, updates: Partial<Device>): Promise<void> => {
