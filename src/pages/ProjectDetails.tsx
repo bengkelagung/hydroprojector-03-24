@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { PlusCircle, Pencil, ChevronLeft, Cpu, Trash2 } from 'lucide-react';
@@ -85,6 +86,19 @@ const ProjectDetails = () => {
     } finally {
       setIsDeleting(false);
     }
+  };
+  
+  // Function to clean device description for display (remove WiFi config)
+  const getCleanDeviceDescription = (description: string) => {
+    try {
+      const descObj = JSON.parse(description);
+      if (descObj && descObj.wifiConfig) {
+        return ''; 
+      }
+    } catch (e) {
+      // Not JSON or no WiFi config, use as is
+    }
+    return description;
   };
   
   return (
@@ -207,7 +221,8 @@ const ProjectDetails = () => {
                         <div className="ml-3">
                           <h4 className="font-medium text-gray-800">{device.name}</h4>
                           <p className="text-xs text-gray-500">
-                            {device.description?.substring(0, 60)}{device.description && device.description.length > 60 ? '...' : ''}
+                            {getCleanDeviceDescription(device.description)?.substring(0, 60)}
+                            {getCleanDeviceDescription(device.description) && getCleanDeviceDescription(device.description).length > 60 ? '...' : ''}
                           </p>
                         </div>
                       </div>

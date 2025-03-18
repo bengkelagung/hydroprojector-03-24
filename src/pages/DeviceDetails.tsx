@@ -35,15 +35,34 @@ const DeviceDetails = () => {
     updateDevice, 
     deleteDevice, 
     deletePin,
-    togglePinValue 
+    togglePinValue,
+    updatePin
   } = useHydro();
   
   const device = devices.find(d => d.id === deviceId);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(device?.name || '');
-  const [editDescription, setEditDescription] = useState(device?.description || '');
+  const [editDescription, setEditDescription] = useState('');
   const [editProjectId, setEditProjectId] = useState(device?.projectId || '');
+  
+  React.useEffect(() => {
+    if (device) {
+      setEditName(device.name);
+      // Remove WiFi config from description if it exists
+      let cleanDescription = device.description || '';
+      try {
+        const descObj = JSON.parse(cleanDescription);
+        if (descObj && descObj.wifiConfig) {
+          cleanDescription = '';
+        }
+      } catch (e) {
+        // Not JSON or no WiFi config, use as is
+      }
+      setEditDescription(cleanDescription);
+      setEditProjectId(device.projectId);
+    }
+  }, [device]);
   
   if (!device) {
     return (
@@ -123,6 +142,44 @@ const DeviceDetails = () => {
     });
   };
   
+  // Function to handle pin edit within the DeviceDetails page
+  const handlePinEdit = async (pin: any, newName: string, newSignalType: string, newDataType: string, newLabel: string = '') => {
+    try {
+      await updatePin(pin.id, {
+        name: newName,
+        signalType: newSignalType as any,
+        dataType: newDataType,
+        label: newLabel
+      });
+      
+      toast({
+        title: "Pin updated",
+        description: `The pin "${newName}" has been updated successfully`,
+      });
+    } catch (error) {
+      console.error('Error updating pin:', error);
+      toast({
+        title: "Update failed",
+        description: "There was a problem updating the pin",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Clean the device description to remove WiFi config
+  const getCleanDescription = () => {
+    let description = device.description;
+    try {
+      const descObj = JSON.parse(description);
+      if (descObj && descObj.wifiConfig) {
+        return ''; // Don't show anything if it's just WiFi config
+      }
+    } catch (e) {
+      // Not JSON or no WiFi config, use as is
+    }
+    return description;
+  };
+  
   return (
     <div className="space-y-8">
       <div className="flex items-center space-x-2">
@@ -188,7 +245,7 @@ const DeviceDetails = () => {
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-sm font-medium text-gray-500">Description</h3>
-                    <p className="text-gray-800 mt-1">{device.description}</p>
+                    <p className="text-gray-800 mt-1">{getCleanDescription()}</p>
                   </div>
                   
                   <div>

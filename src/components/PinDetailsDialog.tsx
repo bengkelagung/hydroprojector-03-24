@@ -87,9 +87,14 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       
       await updatePin(pin.id, updates);
       
+      // Show success message
+      toast.success(`Pin "${editPinName}" updated successfully`);
+      
+      // Close the dialog
       onOpenChange(false);
     } catch (error) {
       console.error(error);
+      toast.error('Failed to update pin');
     }
   };
   
@@ -169,7 +174,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 <SelectValue placeholder="Select label" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="">None</SelectItem>
                 {labels.map(label => (
                   <SelectItem key={label} value={label}>
                     {label}
