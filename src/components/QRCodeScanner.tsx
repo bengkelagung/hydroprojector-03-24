@@ -153,51 +153,105 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         processQRCode(decodedText);
       };
       
-      // Simplified config with no QR box (clean camera view)
+      // Simplified config - remove QR box and any frame styling
       const config = { 
         fps: 10,
         formatsToSupport: [2], // QR_CODE only
+        qrbox: undefined, // Remove qrbox to scan the entire camera view
+        rememberLastUsedCamera: true,
+        aspectRatio: 1,
+        showTorchButtonIfSupported: false,
+        showZoomSliderIfSupported: false,
+        defaultZoomValueIfSupported: 2,
       };
       
-      // Try with default camera first 
+      // Try first with environment camera (back camera) for mobile devices
       await scannerRef.current.start(
         { facingMode: "environment" }, 
         config,
         qrCodeSuccessCallback,
         () => {} // Silent error for normal no-qr-found state
-      );
-      
-    } catch (err) {
-      console.error('Error accessing camera:', err);
-      
-      // Try with any available camera as fallback for desktop browsers
-      try {
-        if (scannerRef.current) {
+      ).catch(async (err) => {
+        console.log("Failed to start with environment camera:", err);
+        
+        try {
+          // Try to get available cameras as fallback
           const devices = await Html5Qrcode.getCameras();
-          if (devices && devices.length > 0) {
-            await scannerRef.current.start(
-              { deviceId: devices[0].id },
-              { fps: 10 },
-              (decodedText) => {
-                console.log(`QR Code detected: ${decodedText}`);
-                processQRCode(decodedText);
-              },
-              () => {} // Silent error handling for normal operation
+          
+          if (devices && devices.length) {
+            // If cameras are found, use the first one
+            await scannerRef.current?.start(
+              { deviceId: devices[0].id }, 
+              config,
+              qrCodeSuccessCallback,
+              () => {}
             );
           } else {
             throw new Error("No cameras found");
           }
+        } catch (fallbackError) {
+          console.error("Failed to use fallback camera:", fallbackError);
+          setError('Failed to access camera. Please check permissions.');
+          setScanning(false);
+          
+          // Fall back to mock data for testing purposes
+          toast.error('Camera access failed. Using mock data for demonstration.');
+          setUsingMockData(true);
+          startScanner();
         }
-      } catch (fallbackError) {
-        console.error('Error with fallback camera access:', fallbackError);
-        setError('Failed to access camera. Please check permissions or try on a mobile device.');
-        setScanning(false);
+      });
+      
+      // Apply custom styling to remove scan frame/box and helper text
+      // Find and hide any elements added by the Html5QrCode library that create visual frames
+      setTimeout(() => {
+        // Remove any qr frame or scan region indicators added by the library
+        const scanRegion = document.querySelector('#qr-shaded-region');
+        if (scanRegion) {
+          (scanRegion as HTMLElement).style.display = 'none';
+        }
         
-        // Fall back to mock data
-        toast.error('Camera access failed. Using mock data for demonstration.');
-        setUsingMockData(true);
-        startScanner();
-      }
+        // Remove any scan line animations
+        const scanLine = document.querySelector('.scan-region-highlight');
+        if (scanLine) {
+          (scanLine as HTMLElement).style.display = 'none';
+        }
+        
+        // Remove any overlay text
+        const textElements = document.querySelectorAll('#qr-reader__dashboard_section_csr span');
+        textElements.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+        
+        // Remove borders around the scanner
+        const qrReader = document.getElementById('qr-reader');
+        if (qrReader) {
+          qrReader.style.border = 'none';
+          qrReader.style.boxShadow = 'none';
+          qrReader.style.background = '#000';
+        }
+        
+        // Remove any helper text elements
+        const helperText = document.getElementById('qr-reader__status_span');
+        if (helperText) {
+          helperText.style.display = 'none';
+        }
+        
+        // Remove any other overlays or indicators
+        const indicators = document.querySelectorAll('.qr-region-indicator');
+        indicators.forEach(el => {
+          (el as HTMLElement).style.display = 'none';
+        });
+      }, 100);
+      
+    } catch (err) {
+      console.error('Error accessing camera:', err);
+      setError('Failed to access camera. Please check permissions.');
+      setScanning(false);
+      
+      // Fall back to mock data
+      toast.error('Camera access failed. Using mock data for demonstration.');
+      setUsingMockData(true);
+      startScanner();
     }
   };
 
@@ -273,18 +327,22 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
         
         {scanning ? (
           <div className="space-y-4">
-            <div className="relative bg-gray-100 rounded-md overflow-hidden" style={{ minHeight: '300px' }}>
+            <div className="relative bg-black rounded-md overflow-hidden" style={{ minHeight: '300px' }}>
               {usingMockData ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-hydro-blue mb-4" />
-                  <p className="text-gray-600">Scanning for Wi-Fi QR code...</p>
+                  <p className="text-white">Scanning for Wi-Fi QR code...</p>
                 </div>
               ) : (
                 <div 
                   id={scannerContainerId} 
                   ref={containerRef}
                   className="w-full h-full"
-                  style={{ minHeight: '300px' }}
+                  style={{ 
+                    minHeight: '300px',
+                    border: 'none',
+                    background: '#000'
+                  }}
                 ></div>
               )}
             </div>
@@ -317,7 +375,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       <CardFooter className="bg-gray-50 px-6 py-4">
         <p className="text-xs text-gray-500">
-          Scan multiple QR codes by pointing camera at each code.
+          Wi-Fi QR codes typically follow the format: WIFI:S:&lt;SSID&gt;;T:&lt;Authentication&gt;;P:&lt;Password&gt;;;
         </p>
       </CardFooter>
     </Card>
