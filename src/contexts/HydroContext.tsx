@@ -238,10 +238,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pin.signal_type as SignalType,
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
-        unit: pin.unit,
-        label: hasLabelColumn && 'label' in pin ? pin.label : undefined,
-        value: 'value' in pin ? pin.value : undefined,
-        lastUpdated: 'last_updated' in pin ? pin.last_updated : undefined
+        unit: pin.unit || '',
+        label: hasLabelColumn && 'label' in pin ? (pin.label as string || '') : '',
+        value: pin.value as string || '',
+        lastUpdated: pin.last_updated as string || ''
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);

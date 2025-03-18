@@ -38,6 +38,10 @@ AS $$
   SELECT * FROM public.label ORDER BY name;
 $$;
 
--- Grant execute permission on the function
+-- Grant execute permission on the function to all users
 GRANT EXECUTE ON FUNCTION public.get_all_labels() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_all_labels() TO anon;
+
+-- Grant select permission on the label table
+GRANT SELECT ON public.label TO authenticated;
+GRANT SELECT ON public.label TO anon;

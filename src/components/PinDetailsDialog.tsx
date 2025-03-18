@@ -61,7 +61,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinName(pin.name);
       setEditPinSignalType(pin.signalType);
       setEditPinDataType(pin.dataType);
-      setEditPinLabel(pin.label as string || '');
+      setEditPinLabel(pin.label || '');
     }
   }, [pin]);
   
@@ -82,7 +82,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       
       // Only include label if the column exists
       if (hasLabelColumn) {
-        updates.label = editPinLabel === 'none' ? '' : editPinLabel || '';
+        updates.label = editPinLabel || '';
       }
       
       await updatePin(pin.id, updates);
@@ -163,14 +163,14 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Label:</Label>
               <Select 
-                value={editPinLabel || 'none'} 
+                value={editPinLabel || ''} 
                 onValueChange={setEditPinLabel}
               >
                 <SelectTrigger className="col-span-3">
                   <SelectValue placeholder="Select label" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">None</SelectItem>
+                  <SelectItem value="">None</SelectItem>
                   {labels.map(label => (
                     <SelectItem key={label} value={label}>
                       {label}

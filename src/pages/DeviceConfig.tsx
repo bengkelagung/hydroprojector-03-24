@@ -253,39 +253,37 @@ const DeviceConfig = () => {
                   )}
                 />
                 
-                {hasLabelColumn && (
-                  <FormField
-                    control={form.control}
-                    name="label"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Label</FormLabel>
-                        <Select
-                          onValueChange={field.onChange}
-                          defaultValue={field.value}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select Label (Optional)" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            <SelectItem value="">None</SelectItem>
-                            {labels.map((labelOption) => (
-                              <SelectItem key={labelOption} value={labelOption}>
-                                {labelOption}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormDescription>
-                          Label determines the display style for this pin
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
+                <FormField
+                  control={form.control}
+                  name="label"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Label</FormLabel>
+                      <Select
+                        onValueChange={field.onChange}
+                        defaultValue={field.value}
+                      >
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select Label" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="">None</SelectItem>
+                          {labels.map((labelOption) => (
+                            <SelectItem key={labelOption} value={labelOption}>
+                              {labelOption}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <FormDescription>
+                        Label determines how this pin will be displayed in the dashboard
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 
                 <FormField
                   control={form.control}
@@ -344,8 +342,8 @@ const DeviceConfig = () => {
                       <TableHead>Name</TableHead>
                       <TableHead>Type</TableHead>
                       <TableHead>Signal</TableHead>
+                      <TableHead>Label</TableHead>
                       <TableHead>Mode</TableHead>
-                      {hasLabelColumn && <TableHead>Label</TableHead>}
                       <TableHead>Last Value</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -356,9 +354,9 @@ const DeviceConfig = () => {
                         <TableCell>{pin.name}</TableCell>
                         <TableCell>{pin.dataType}</TableCell>
                         <TableCell>{pin.signalType}</TableCell>
+                        <TableCell>{pin.label || 'None'}</TableCell>
                         <TableCell className="capitalize">{pin.mode}</TableCell>
-                        {hasLabelColumn && <TableCell>{pin.label ? pin.label as string : 'None'}</TableCell>}
-                        <TableCell>{pin.value !== undefined ? pin.value as string : 'No data'}</TableCell>
+                        <TableCell>{pin.value !== undefined ? pin.value : 'No data'}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
