@@ -78,16 +78,65 @@ export const checkLabelColumnExists = async (): Promise<boolean> => {
       return false;
     }
     
-    const { data, error } = await supabase.rpc('get_columns', { table_name: 'pin_configs' });
+    // Use a direct query instead of the problematic RPC
+    const { data, error } = await supabase
+      .from('pin_configs')
+      .select('label_id')
+      .limit(1);
     
     if (error) {
+      // If there's an error about the column not existing
+      if (error.message.includes('column "label_id" does not exist')) {
+        return false;
+      }
       console.error('Error checking for label_id column:', error);
       return false;
     }
     
-    return data.some((column: { column_name: string }) => column.column_name === 'label_id');
+    // If we got here, the column exists
+    return true;
   } catch (error) {
     console.error('Error in checkLabelColumnExists:', error);
+    return false;
+  }
+};
+
+/**
+ * Create a profile for a user if it doesn't exist
+ * @param userId The user ID to create a profile for
+ * @returns A boolean indicating if the profile was created successfully
+ */
+export const ensureProfileExists = async (userId: string): Promise<boolean> => {
+  try {
+    // Check if profile exists
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('profile_id')
+      .eq('user_id', userId);
+    
+    if (error) {
+      console.error('Error checking profile:', error);
+      return false;
+    }
+    
+    // If profile exists, return true
+    if (data && data.length > 0) {
+      return true;
+    }
+    
+    // Create profile
+    const { error: insertError } = await supabase
+      .from('profiles')
+      .insert([{ user_id: userId }]);
+    
+    if (insertError) {
+      console.error('Error creating profile:', insertError);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in ensureProfileExists:', error);
     return false;
   }
 };
@@ -137,16 +186,78 @@ export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
  */
 export const fetchPinConfigsWithRelations = async (userId: string) => {
   try {
-    const { data, error } = await supabase.rpc('get_pin_configs_with_relations', {
-      user_uuid: userId
-    });
+    // Instead of using RPC function with type issues, query directly
+    const { data: projects } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('user_id', userId);
     
-    if (error) {
-      console.error('Error fetching pin configs with relations:', error);
+    if (!projects || projects.length === 0) {
       return [];
     }
     
-    return data;
+    const projectIds = projects.map(p => p.id);
+    
+    const { data: devices } = await supabase
+      .from('devices')
+      .select('id')
+      .in('project_id', projectIds);
+    
+    if (!devices || devices.length === 0) {
+      return [];
+    }
+    
+    const deviceIds = devices.map(d => d.id);
+    
+    const { data: pinConfigs, error } = await supabase
+      .from('pin_configs')
+      .select(`
+        id, 
+        device_id,
+        pin_id,
+        data_type_id,
+        signal_type_id,
+        mode_id,
+        label_id,
+        name,
+        unit,
+        value,
+        last_updated,
+        created_at,
+        pins!inner(pin_number, pin_name),
+        data_types!inner(name),
+        signal_types!inner(name),
+        modes!inner(type),
+        label(name)
+      `)
+      .in('device_id', deviceIds);
+    
+    if (error) {
+      console.error('Error fetching pin configs:', error);
+      return [];
+    }
+    
+    // Transform the data to match the expected format
+    return pinConfigs.map(pc => ({
+      id: pc.id,
+      device_id: pc.device_id,
+      pin_id: pc.pin_id,
+      pin_number: pc.pins.pin_number,
+      pin_name: pc.pins.pin_name,
+      data_type_id: pc.data_type_id,
+      data_type_name: pc.data_types.name,
+      signal_type_id: pc.signal_type_id,
+      signal_type_name: pc.signal_types.name,
+      mode_id: pc.mode_id,
+      mode_type: pc.modes.type,
+      label_id: pc.label_id,
+      label_name: pc.label?.name || null,
+      name: pc.name,
+      unit: pc.unit || '',
+      value: pc.value || '',
+      last_updated: pc.last_updated,
+      created_at: pc.created_at
+    }));
   } catch (error) {
     console.error('Error in fetchPinConfigsWithRelations:', error);
     return [];
@@ -159,7 +270,10 @@ export const fetchPinConfigsWithRelations = async (userId: string) => {
  */
 export const fetchPinsWithInfo = async () => {
   try {
-    const { data, error } = await supabase.rpc('get_pins_with_info');
+    const { data, error } = await supabase
+      .from('pins')
+      .select('id, pin_name, pin_number')
+      .order('pin_number');
     
     if (error) {
       console.error('Error fetching pins with info:', error);
@@ -179,7 +293,10 @@ export const fetchPinsWithInfo = async () => {
  */
 export const fetchDataTypes = async (): Promise<string[]> => {
   try {
-    const { data, error } = await supabase.rpc('get_data_types');
+    const { data, error } = await supabase
+      .from('data_types')
+      .select('name')
+      .order('name');
     
     if (error) {
       console.error('Error fetching data types:', error);
@@ -199,7 +316,10 @@ export const fetchDataTypes = async (): Promise<string[]> => {
  */
 export const fetchSignalTypes = async (): Promise<string[]> => {
   try {
-    const { data, error } = await supabase.rpc('get_signal_types');
+    const { data, error } = await supabase
+      .from('signal_types')
+      .select('name')
+      .order('name');
     
     if (error) {
       console.error('Error fetching signal types:', error);
@@ -219,7 +339,10 @@ export const fetchSignalTypes = async (): Promise<string[]> => {
  */
 export const fetchModes = async (): Promise<string[]> => {
   try {
-    const { data, error } = await supabase.rpc('get_modes');
+    const { data, error } = await supabase
+      .from('modes')
+      .select('type')
+      .order('type');
     
     if (error) {
       console.error('Error fetching modes:', error);

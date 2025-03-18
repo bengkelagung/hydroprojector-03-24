@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
@@ -17,7 +18,8 @@ import {
   findModeIdByType,
   findLabelIdByName,
   findPinIdByNumber,
-  checkIfTableExists
+  checkIfTableExists,
+  ensureProfileExists
 } from '@/integrations/supabase/client';
 
 export interface Project {
@@ -155,14 +157,21 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     if (user && tablesChecked) {
-      fetchProjects();
-      fetchDevices();
-      fetchPins();
-      fetchDataTypes();
-      fetchSignalTypes();
-      fetchPinModes();
-      fetchPinOptions();
-      fetchLabels();
+      // Ensure profile exists whenever user logs in
+      ensureProfileExists(user.id).then(success => {
+        if (success) {
+          fetchProjects();
+          fetchDevices();
+          fetchPins();
+          fetchDataTypes();
+          fetchSignalTypes();
+          fetchPinModes();
+          fetchPinOptions();
+          fetchLabels();
+        } else {
+          toast.error('Failed to create or verify user profile');
+        }
+      });
     } else if (!user) {
       setProjects([]);
       setDevices([]);
@@ -376,15 +385,26 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) throw new Error('User must be logged in to create a project');
 
     try {
+      // Make sure profile exists first
+      const profileExists = await ensureProfileExists(user.id);
+      if (!profileExists) {
+        throw new Error('Failed to ensure user profile exists');
+      }
+      
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('profile_id')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
       
       if (profileError) {
         console.error('Error fetching profile:', profileError);
         throw new Error('Failed to fetch user profile');
+      }
+      
+      if (!profileData) {
+        console.error('No profile found for user');
+        throw new Error('No profile found for user');
       }
       
       const { data, error } = await supabase
