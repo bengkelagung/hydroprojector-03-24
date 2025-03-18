@@ -86,10 +86,12 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       }
       
       await updatePin(pin.id, updates);
+      toast.success('Pin updated successfully');
       
       onOpenChange(false);
     } catch (error) {
       console.error(error);
+      toast.error('Failed to update pin');
     }
   };
   

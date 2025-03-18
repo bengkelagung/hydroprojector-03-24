@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power } from 'lucide-react';
+import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Power } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
@@ -26,6 +26,16 @@ const Readings = () => {
   // Get all pins
   const inputPins = pins.filter(p => p.mode === 'input');
   const outputPins = pins.filter(p => p.mode === 'output');
+
+  // Count of total devices and total connected devices
+  const totalDevices = devices.length;
+  const connectedDevices = devices.filter(d => d.isConnected).length;
+  
+  // Count of triggered alerts
+  const alertCount = inputPins.filter(pin => {
+    const value = pin.value || getMockValue(pin);
+    return getAlertStatus(pin, value);
+  }).length;
 
   const handleOpenPinDetails = (pin: Pin) => {
     setSelectedPin(pin);
@@ -243,6 +253,53 @@ const Readings = () => {
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-3xl font-bold text-gray-800">Sensor Readings</h2>
+      </div>
+
+      {/* Dashboard Summary */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+        {/* Sensors Summary */}
+        <Card>
+          <CardHeader className="bg-blue-50">
+            <CardTitle className="text-lg">Input Sensors</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-blue-600">{inputPins.length}</div>
+            <p className="text-sm text-gray-500 mt-1">Active sensors</p>
+          </CardContent>
+        </Card>
+        
+        {/* Controls Summary */}
+        <Card>
+          <CardHeader className="bg-green-50">
+            <CardTitle className="text-lg">Output Controls</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-green-600">{outputPins.length}</div>
+            <p className="text-sm text-gray-500 mt-1">Controllable outputs</p>
+          </CardContent>
+        </Card>
+
+        {/* Device Status */}
+        <Card>
+          <CardHeader className="bg-purple-50">
+            <CardTitle className="text-lg">Connected Devices</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-purple-600">{connectedDevices} / {totalDevices}</div>
+            <p className="text-sm text-gray-500 mt-1">Active devices</p>
+          </CardContent>
+        </Card>
+
+        {/* Alert Status */}
+        <Card>
+          <CardHeader className="bg-amber-50">
+            <CardTitle className="text-lg">Alerts</CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <div className="text-3xl font-bold text-amber-600">{alertCount}</div>
+            <p className="text-sm text-gray-500 mt-1">Active alerts</p>
+          </CardContent>
+        </Card>
       </div>
 
       {inputPins.length === 0 ? (

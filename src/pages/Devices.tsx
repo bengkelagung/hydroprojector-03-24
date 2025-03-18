@@ -66,6 +66,9 @@ const Devices = () => {
             const devicePins = getPinsByDevice(device.id);
             const project = projects.find(p => p.id === device.projectId);
             
+            // Filter out WiFi configuration text if it exists in the description
+            const cleanDescription = device.description?.replace(/\{"wifiConfig":\{.*?\}\}/g, '') || '';
+            
             return (
               <Card key={device.id} className="overflow-hidden hover:shadow-lg transition-shadow">
                 <CardHeader>
@@ -78,7 +81,7 @@ const Devices = () => {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 mb-4">{device.description}</p>
+                  <p className="text-gray-600 mb-4">{cleanDescription}</p>
                   
                   <div className="mb-4">
                     <h4 className="text-sm font-medium text-gray-500 mb-2">Configured Pins</h4>
