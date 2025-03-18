@@ -14,13 +14,32 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 // Check if the label column exists in pin_configs
 export const checkLabelColumnExists = async (): Promise<boolean> => {
   try {
-    const { error } = await supabase
-      .from('pin_configs')
-      .select('label')
-      .limit(1);
+    // First check if pin_configs table exists
+    const { data: tables, error: tableError } = await supabase
+      .rpc('get_tables');
     
-    return !error || error.code !== '42703';
+    if (tableError) {
+      console.error('Error checking tables:', tableError);
+      return false;
+    }
+    
+    // If pin_configs table doesn't exist yet, return false
+    if (!tables || !Array.isArray(tables) || !tables.includes('pin_configs')) {
+      return false;
+    }
+    
+    // Now check if the label column exists
+    const { data: columns, error: columnError } = await supabase
+      .rpc('get_columns', { table_name: 'pin_configs' });
+    
+    if (columnError) {
+      console.error('Error checking columns:', columnError);
+      return false;
+    }
+    
+    return columns && Array.isArray(columns) && columns.includes('label');
   } catch (e) {
+    console.error('Error checking label column:', e);
     return false;
   }
 };
@@ -28,7 +47,15 @@ export const checkLabelColumnExists = async (): Promise<boolean> => {
 // Function to get all labels from the label table
 export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
   try {
-    // First try to fetch directly from the label table
+    // Check if label table exists first
+    const { data: tables, error: tableError } = await supabase
+      .rpc('get_tables');
+    
+    if (tableError || !tables || !Array.isArray(tables) || !tables.includes('label')) {
+      return getDefaultLabels();
+    }
+    
+    // Try to fetch directly from the label table
     const { data, error } = await supabase
       .from('label')
       .select('name');
@@ -52,4 +79,22 @@ export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
 // Function to get default labels
 export const getDefaultLabels = (): string[] => {
   return ['pH', 'Suhu', 'Kelembaban', 'Pompa', 'Lampu', 'Level Air'];
+};
+
+// Utility function to check if a table exists
+export const checkIfTableExists = async (tableName: string): Promise<boolean> => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_tables');
+    
+    if (error) {
+      console.error(`Error checking if table ${tableName} exists:`, error);
+      return false;
+    }
+    
+    return data && Array.isArray(data) && data.includes(tableName);
+  } catch (e) {
+    console.error(`Error checking if table ${tableName} exists:`, e);
+    return false;
+  }
 };

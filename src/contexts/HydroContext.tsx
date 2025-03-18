@@ -1,8 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useAuth } from './AuthContext';
-import { supabase, checkLabelColumnExists, getDefaultLabels, fetchLabelsFromDatabase } from '@/integrations/supabase/client';
+import { supabase, checkLabelColumnExists, getDefaultLabels, fetchLabelsFromDatabase, checkIfTableExists } from '@/integrations/supabase/client';
 
 export interface Project {
   id: string;
@@ -115,18 +114,30 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
   const [labels, setLabels] = useState<string[]>([]);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
+  const [tablesChecked, setTablesChecked] = useState<boolean>(false);
 
   useEffect(() => {
-    const checkColumn = async () => {
-      const exists = await checkLabelColumnExists();
-      setHasLabelColumn(exists);
+    const checkTables = async () => {
+      try {
+        const tableExists = await checkIfTableExists('pin_configs');
+        if (!tableExists) {
+          toast.error('Database tables not set up. Please run the setup script.');
+        }
+        
+        const exists = await checkLabelColumnExists();
+        setHasLabelColumn(exists);
+        setTablesChecked(true);
+      } catch (error) {
+        console.error('Error checking tables:', error);
+        setTablesChecked(true);
+      }
     };
     
-    checkColumn();
+    checkTables();
   }, []);
 
   useEffect(() => {
-    if (user) {
+    if (user && tablesChecked) {
       fetchProjects();
       fetchDevices();
       fetchPins();
@@ -135,17 +146,23 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       fetchPinModes();
       fetchPinOptions();
       fetchLabels();
-    } else {
+    } else if (!user) {
       setProjects([]);
       setDevices([]);
       setPins([]);
     }
-  }, [user]);
+  }, [user, tablesChecked]);
 
   const fetchProjects = async () => {
     if (!user) return;
     
     try {
+      const tableExists = await checkIfTableExists('projects');
+      if (!tableExists) {
+        console.warn('Projects table does not exist yet');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('projects')
         .select('*')
@@ -170,14 +187,21 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
+      const tableExists = await checkIfTableExists('devices');
+      if (!tableExists) {
+        console.warn('Devices table does not exist yet');
+        return;
+      }
+      
+      const projectsExist = await checkIfTableExists('projects');
+      if (!projectsExist) {
+        console.warn('Projects table does not exist yet');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('devices')
-        .select(`
-          *,
-          projects!inner (
-            user_id
-          )
-        `)
+        .select('*, projects!inner(user_id)')
         .eq('projects.user_id', user.id)
         .order('created_at', { ascending: false });
       
@@ -191,6 +215,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             wifiConfig = descriptionObj.wifiConfig;
           }
         } catch (e) {
+          // Invalid JSON, ignore
         }
         
         return {
@@ -215,18 +240,32 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
+      const pinConfigsExist = await checkIfTableExists('pin_configs');
+      const devicesExist = await checkIfTableExists('devices');
+      
+      if (!pinConfigsExist || !devicesExist) {
+        console.warn('Pin configs or devices tables do not exist yet');
+        return;
+      }
+      
+      const { data: userDevices, error: deviceError } = await supabase
+        .from('devices')
+        .select('id, projects!inner(user_id)')
+        .eq('projects.user_id', user.id);
+      
+      if (deviceError) throw deviceError;
+      
+      if (!userDevices || userDevices.length === 0) {
+        setPins([]);
+        return;
+      }
+      
+      const deviceIds = userDevices.map(d => d.id);
+      
       const { data, error } = await supabase
         .from('pin_configs')
-        .select(`
-          *,
-          devices!inner (
-            id,
-            projects!inner (
-              user_id
-            )
-          )
-        `)
-        .eq('devices.projects.user_id', user.id);
+        .select('*')
+        .in('device_id', deviceIds);
       
       if (error) throw error;
       
@@ -239,9 +278,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit || '',
-        label: hasLabelColumn && 'label' in pin ? (pin.label as string || '') : '',
-        value: pin.value as string || '',
-        lastUpdated: pin.last_updated as string || ''
+        label: hasLabelColumn && pin.label ? pin.label : '',
+        value: pin.value || '',
+        lastUpdated: pin.last_updated || ''
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);
@@ -251,6 +290,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchPinOptions = async () => {
     try {
+      const tableExists = await checkIfTableExists('pins');
+      if (!tableExists) {
+        console.warn('Pins table does not exist yet');
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('pins')
         .select('*')
@@ -271,6 +316,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchDataTypes = async () => {
     try {
+      const tableExists = await checkIfTableExists('data_types');
+      if (!tableExists) {
+        console.warn('Data types table does not exist yet');
+        setDataTypes(['integer', 'float', 'boolean', 'string', 'analog', 'digital']);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('data_types')
         .select('name')
@@ -282,11 +334,19 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Error fetching data types:', error);
       toast.error('Failed to load data types');
+      setDataTypes(['integer', 'float', 'boolean', 'string', 'analog', 'digital']);
     }
   };
 
   const fetchSignalTypes = async () => {
     try {
+      const tableExists = await checkIfTableExists('signal_types');
+      if (!tableExists) {
+        console.warn('Signal types table does not exist yet');
+        setSignalTypes(['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'analog', 'digital', 'custom']);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('signal_types')
         .select('name')
@@ -298,11 +358,19 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Error fetching signal types:', error);
       toast.error('Failed to load signal types');
+      setSignalTypes(['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'analog', 'digital', 'custom']);
     }
   };
 
   const fetchPinModes = async () => {
     try {
+      const tableExists = await checkIfTableExists('modes');
+      if (!tableExists) {
+        console.warn('Modes table does not exist yet');
+        setPinModes(['input', 'output']);
+        return;
+      }
+      
       const { data, error } = await supabase
         .from('modes')
         .select('type')
@@ -314,26 +382,17 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Error fetching pin modes:', error);
       toast.error('Failed to load pin modes');
+      setPinModes(['input', 'output']);
     }
   };
 
   const fetchLabels = async () => {
     try {
-      const databaseLabels = await fetchLabelsFromDatabase();
-      setLabels(databaseLabels);
+      const labels = await fetchLabelsFromDatabase();
+      setLabels(labels);
     } catch (error) {
       console.error('Error in fetchLabels:', error);
       toast.error('Failed to load labels');
-      setLabels(getDefaultLabels());
-    }
-  };
-
-  const ensureLabelTableExists = async () => {
-    try {
-      const defaultLabels = getDefaultLabels();
-      setLabels(defaultLabels);
-    } catch (error) {
-      console.error('Error ensuring label table exists:', error);
       setLabels(getDefaultLabels());
     }
   };
@@ -436,6 +495,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     label?: string
   ): Promise<Pin> => {
     try {
+      const tableExists = await checkIfTableExists('pin_configs');
+      if (!tableExists) {
+        toast.error('Pin configs table does not exist yet. Please run the setup script.');
+        throw new Error('Pin configs table does not exist');
+      }
+      
       const selectedPin = pinOptions.find(p => p.id === pinId);
       if (!selectedPin) {
         throw new Error('Selected pin not found');
@@ -495,9 +560,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         signalType: pinData.signal_type as SignalType,
         mode: pinData.mode as 'input' | 'output',
         name: pinData.name,
-        label: hasLabelColumn ? pinData.label : undefined,
-        value: pinData.value,
-        lastUpdated: pinData.last_updated
+        label: hasLabelColumn && pinData.label ? pinData.label : '',
+        value: pinData.value || '',
+        lastUpdated: pinData.last_updated || ''
       };
       
       if (existingPin) {
