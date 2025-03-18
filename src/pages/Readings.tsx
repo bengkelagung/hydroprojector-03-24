@@ -1,11 +1,23 @@
 
 import React, { useState, useEffect } from 'react';
-import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { 
+  Activity, 
+  Droplet, 
+  ThermometerIcon, 
+  AlertTriangle, 
+  Cloud, 
+  LightbulbIcon, 
+  Waves, 
+  Flower, 
+  Power,
+  BarChart4
+} from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
 import PinDetailsDialog from '@/components/PinDetailsDialog';
 import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import { Separator } from '@/components/ui/separator';
 
 const Readings = () => {
   const { pins, devices, projects, togglePinValue } = useHydro();
@@ -26,6 +38,12 @@ const Readings = () => {
   // Get all pins
   const inputPins = pins.filter(p => p.mode === 'input');
   const outputPins = pins.filter(p => p.mode === 'output');
+
+  // Calculate some summary statistics
+  const totalSensors = inputPins.length;
+  const totalControls = outputPins.length;
+  const connectedDevices = devices.filter(d => d.isConnected).length;
+  const totalDevices = devices.length;
 
   const handleOpenPinDetails = (pin: Pin) => {
     setSelectedPin(pin);
@@ -242,8 +260,75 @@ const Readings = () => {
   return (
     <div className="space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-3xl font-bold text-gray-800">Sensor Readings</h2>
+        <h2 className="text-3xl font-bold text-gray-800">Sensor Readings Dashboard</h2>
       </div>
+
+      {/* Dashboard Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-medium">Input Sensors</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Activity className="h-8 w-8 text-blue-500 mr-2" />
+              </div>
+              <div className="text-2xl font-bold">{totalSensors}</div>
+            </div>
+            <CardDescription className="mt-2">Total sensor inputs configured</CardDescription>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-medium">Output Controls</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Power className="h-8 w-8 text-green-500 mr-2" />
+              </div>
+              <div className="text-2xl font-bold">{totalControls}</div>
+            </div>
+            <CardDescription className="mt-2">Total output controls configured</CardDescription>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-medium">Connected Devices</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <BarChart4 className="h-8 w-8 text-indigo-500 mr-2" />
+              </div>
+              <div className="text-2xl font-bold">{connectedDevices}/{totalDevices}</div>
+            </div>
+            <CardDescription className="mt-2">Active monitoring devices</CardDescription>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg font-medium">Alert Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <AlertTriangle className="h-8 w-8 text-amber-500 mr-2" />
+              </div>
+              <div className="text-2xl font-bold">
+                {inputPins.filter(p => getAlertStatus(p, p.value || getMockValue(p))).length}
+              </div>
+            </div>
+            <CardDescription className="mt-2">Sensors requiring attention</CardDescription>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Separator className="my-6" />
 
       {inputPins.length === 0 ? (
         <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
