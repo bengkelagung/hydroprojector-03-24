@@ -112,7 +112,8 @@ export const ensureProfileExists = async (userId: string): Promise<boolean> => {
     const { data, error } = await supabase
       .from('profiles')
       .select('profile_id')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .maybeSingle();
     
     if (error) {
       console.error('Error checking profile:', error);
@@ -120,14 +121,20 @@ export const ensureProfileExists = async (userId: string): Promise<boolean> => {
     }
     
     // If profile exists, return true
-    if (data && data.length > 0) {
+    if (data) {
       return true;
     }
     
-    // Create profile
-    const { error: insertError } = await supabase
-      .from('profiles')
-      .insert([{ user_id: userId }]);
+    // Create profile with correct RLS approach
+    const { error: insertError } = await supabase.auth.getSession().then(async ({ data: sessionData }) => {
+      if (!sessionData.session) {
+        throw new Error('No active session');
+      }
+      
+      return await supabase
+        .from('profiles')
+        .insert([{ user_id: userId }]);
+    });
     
     if (insertError) {
       console.error('Error creating profile:', insertError);

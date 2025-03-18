@@ -391,6 +391,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         throw new Error('Failed to ensure user profile exists');
       }
       
+      // Use maybeSingle instead of single to avoid errors when no profile is found
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('profile_id')
@@ -403,10 +404,54 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
       
       if (!profileData) {
-        console.error('No profile found for user');
-        throw new Error('No profile found for user');
+        console.error('No profile found for user, attempting to create one');
+        
+        // One more attempt to create profile
+        const createSuccess = await ensureProfileExists(user.id);
+        if (!createSuccess) {
+          throw new Error('Failed to create user profile');
+        }
+        
+        // Get the newly created profile
+        const { data: newProfileData, error: newProfileError } = await supabase
+          .from('profiles')
+          .select('profile_id')
+          .eq('user_id', user.id)
+          .maybeSingle();
+          
+        if (newProfileError || !newProfileData) {
+          console.error('Error fetching newly created profile:', newProfileError);
+          throw new Error('Failed to fetch newly created profile');
+        }
+        
+        // Use the newly created profile
+        const { data, error } = await supabase
+          .from('projects')
+          .insert([{
+            project_name: name,
+            description,
+            user_id: user.id,
+            profile_id: newProfileData.profile_id
+          }])
+          .select()
+          .single();
+        
+        if (error) throw error;
+        
+        const newProject: Project = {
+          id: data.id,
+          name: data.project_name,
+          description: data.description || '',
+          userId: data.user_id,
+          createdAt: data.created_at
+        };
+        
+        setProjects(prev => [newProject, ...prev]);
+        toast.success('Project created successfully!');
+        return newProject;
       }
       
+      // Use the existing profile
       const { data, error } = await supabase
         .from('projects')
         .insert([{
