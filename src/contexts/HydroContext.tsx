@@ -215,33 +215,18 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      // First, get all devices for the user to ensure we have valid device IDs
-      const { data: deviceData, error: deviceError } = await supabase
-        .from('devices')
-        .select(`
-          id, 
-          projects!inner (
-            user_id
-          )
-        `)
-        .eq('projects.user_id', user.id);
-      
-      if (deviceError) throw deviceError;
-      
-      if (!deviceData || deviceData.length === 0) {
-        // No devices found, set empty pins array
-        setPins([]);
-        return;
-      }
-      
-      // Extract device IDs
-      const deviceIds = deviceData.map(d => d.id);
-      
-      // Now get pin configs for these devices
       const { data, error } = await supabase
         .from('pin_configs')
-        .select('*')
-        .in('device_id', deviceIds);
+        .select(`
+          *,
+          devices!inner (
+            id,
+            projects!inner (
+              user_id
+            )
+          )
+        `)
+        .eq('devices.projects.user_id', user.id);
       
       if (error) throw error;
       
@@ -254,11 +239,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         mode: pin.mode as 'input' | 'output',
         name: pin.name,
         unit: pin.unit || '',
-        // Handle "value" and "last_updated" which might not exist in the type but in the DB
-        value: pin.value || '',
-        lastUpdated: pin.last_updated || '',
-        // If hasLabelColumn is true and label field exists in the data
-        label: hasLabelColumn && pin.label ? pin.label : ''
+        label: hasLabelColumn && 'label' in pin ? (pin.label as string || '') : '',
+        value: pin.value as string || '',
+        lastUpdated: pin.last_updated as string || ''
       })));
     } catch (error) {
       console.error('Error fetching pins:', error);

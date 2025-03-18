@@ -14,15 +14,13 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
 // Check if the label column exists in pin_configs
 export const checkLabelColumnExists = async (): Promise<boolean> => {
   try {
-    // Use a simple query to see if the column exists
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('pin_configs')
-      .select('id, label')
+      .select('label')
       .limit(1);
     
-    return !error;
+    return !error || error.code !== '42703';
   } catch (e) {
-    console.error('Error checking label column:', e);
     return false;
   }
 };
@@ -32,24 +30,16 @@ export const fetchLabelsFromDatabase = async (): Promise<string[]> => {
   try {
     // First try to fetch directly from the label table
     const { data, error } = await supabase
-      .rpc('get_labels');
+      .from('label')
+      .select('name');
       
     if (error) {
-      // Try direct table access if RPC fails
-      const { data: labelData, error: labelError } = await supabase
-        .from('label')
-        .select('name');
-        
-      if (labelError) {
-        console.error('Error fetching labels from database:', labelError);
-        return getDefaultLabels();
-      }
-      
-      if (labelData && labelData.length > 0) {
-        return labelData.map((item: any) => item.name);
-      }
-    } else if (data && data.length > 0) {
-      return data;
+      console.error('Error fetching labels from database:', error);
+      return getDefaultLabels();
+    }
+    
+    if (data && data.length > 0) {
+      return data.map((item: any) => item.name);
     }
     
     return getDefaultLabels();
