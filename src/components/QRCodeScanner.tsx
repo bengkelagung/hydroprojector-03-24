@@ -36,18 +36,8 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
   const scannerContainerId = 'qr-reader';
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Check if we're on the wifi setup page when component mounts
+  // Clean up the scanner when component unmounts
   useEffect(() => {
-    // Create the scanner instance with a delay to ensure the DOM is ready
-    const path = window.location.pathname;
-    if (path.includes('/wifi-setup')) {
-      // Wait for the DOM to be ready
-      setTimeout(() => {
-        startScanner();
-      }, 500);
-    }
-    
-    // Cleanup function when component unmounts
     return () => {
       stopScanner();
     };
@@ -110,17 +100,23 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       // Sound is optional, continue if not available
     }
     
-    // Stop scanning
-    setScanning(false);
-    toast.success(`QR code scanned successfully`);
+    // Don't stop scanning, just pause to allow multiple scans
+    if (scannerRef.current && scannerRef.current.isScanning) {
+      scannerRef.current.pause();
+      
+      // Resume scanning after a brief pause to give user feedback
+      setTimeout(() => {
+        if (scannerRef.current && !usingMockData) {
+          scannerRef.current.resume();
+        }
+      }, 2000);
+    }
     
+    toast.success(`QR code scanned successfully`);
     setConnected(true);
     setWifiCredentials({ ssid, password });
     toast.success(`Found network: ${ssid}`);
     onConnect(ssid, password);
-    
-    // Stop scanner
-    stopScanner();
   };
 
   // Start the QR scanner
@@ -138,77 +134,63 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     }
     
     try {
-      // Make sure container exists before initializing scanner
+      // Create scanner container if it doesn't exist
       if (!document.getElementById(scannerContainerId)) {
-        console.log("QR reader container not found - may need to wait for render");
-        
-        // If the container doesn't exist yet but we're in scan mode, wait briefly and try again
-        setTimeout(() => {
-          if (containerRef.current && !scannerRef.current) {
-            console.log("Retrying scanner initialization...");
-            startScanner();
-          }
-        }, 500);
+        setTimeout(() => startScanner(), 500);
         return;
       }
       
-      // Create new scanner instance if it doesn't exist
-      if (!scannerRef.current) {
-        console.log("Creating new Html5Qrcode instance for", scannerContainerId);
-        scannerRef.current = new Html5Qrcode(scannerContainerId);
+      // Clean up any existing scanner
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        await scannerRef.current.stop();
       }
+      
+      // Create new scanner instance
+      scannerRef.current = new Html5Qrcode(scannerContainerId);
       
       const qrCodeSuccessCallback = (decodedText: string) => {
         console.log(`QR Code detected: ${decodedText}`);
         processQRCode(decodedText);
       };
       
+      // Simplified config with no QR box (clean camera view)
       const config = { 
-        fps: 20,               // Higher frames per second
-        qrbox: { width: 250, height: 250 },  // Define scan region size
-        aspectRatio: 1.0,      // Square aspect ratio for the camera feed
-        formatsToSupport: [2], // 2 corresponds to QR_CODE in the html5-qrcode library
-        rememberLastUsedCamera: true,
-        showTorchButtonIfSupported: true,  // Show flashlight button if available
+        fps: 10,
+        formatsToSupport: [2], // QR_CODE only
       };
       
-      console.log("Starting scanner with environment camera");
-      
-      // Start the scanner with environment camera (rear camera on mobile devices)
+      // Try with default camera first 
       await scannerRef.current.start(
         { facingMode: "environment" }, 
         config,
         qrCodeSuccessCallback,
-        (errorMessage: string) => {
-          // QR code not found - this is a normal operation state, not an error
-          // console.log(errorMessage);
-        }
+        () => {} // Silent error for normal no-qr-found state
       );
       
     } catch (err) {
       console.error('Error accessing camera:', err);
       
-      // Try again with more basic settings
+      // Try with any available camera as fallback for desktop browsers
       try {
         if (scannerRef.current) {
-          const basicConfig = { 
-            fps: 10, 
-            qrbox: 250
-          };
-          
-          await scannerRef.current.start(
-            { facingMode: "environment" },
-            basicConfig,
-            (decodedText: string) => {
-              console.log(`QR Code detected: ${decodedText}`);
-              processQRCode(decodedText);
-            },
-            () => {} // Silent error handling for normal operation
-          );
+          const devices = await Html5Qrcode.getCameras();
+          if (devices && devices.length > 0) {
+            await scannerRef.current.start(
+              { deviceId: devices[0].id },
+              { fps: 10 },
+              (decodedText) => {
+                console.log(`QR Code detected: ${decodedText}`);
+                processQRCode(decodedText);
+              },
+              () => {} // Silent error handling for normal operation
+            );
+          } else {
+            throw new Error("No cameras found");
+          }
         }
       } catch (fallbackError) {
         console.error('Error with fallback camera access:', fallbackError);
-        setError('Failed to access camera. Please check permissions.');
+        setError('Failed to access camera. Please check permissions or try on a mobile device.');
         setScanning(false);
         
         // Fall back to mock data
@@ -239,6 +221,9 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     setConnected(false);
     setWifiCredentials(null);
     setError(null);
+    if (scanning) {
+      stopScanner();
+    }
   };
 
   return (
@@ -264,7 +249,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
           </Alert>
         )}
         
-        {connected && wifiCredentials ? (
+        {wifiCredentials && (
           <div className="space-y-4">
             <div className="p-4 bg-green-50 border border-green-200 rounded-md">
               <div className="flex items-center gap-2 text-green-700 font-medium mb-2">
@@ -282,35 +267,25 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
                   <strong>Password:</strong> {wifiCredentials.password}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-2">
-                These credentials will be used for your device configuration.
-              </p>
             </div>
-            
-            <Button variant="outline" onClick={reset}>
-              Scan a Different Network
-            </Button>
           </div>
-        ) : scanning ? (
+        )}
+        
+        {scanning ? (
           <div className="space-y-4">
-            <div className="relative aspect-video bg-gray-100 rounded-md overflow-hidden">
+            <div className="relative bg-gray-100 rounded-md overflow-hidden" style={{ minHeight: '300px' }}>
               {usingMockData ? (
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <Loader2 className="h-10 w-10 animate-spin text-hydro-blue mb-4" />
                   <p className="text-gray-600">Scanning for Wi-Fi QR code...</p>
-                  <p className="text-xs text-gray-500 mt-2">Simulating scan</p>
                 </div>
               ) : (
-                <>
-                  <div 
-                    id={scannerContainerId} 
-                    ref={containerRef}
-                    className="w-full h-full"
-                  ></div>
-                  <p className="absolute bottom-4 left-0 right-0 text-sm text-hydro-blue font-medium bg-white/80 px-3 py-1 rounded-full mx-auto w-max">
-                    Position QR code in frame
-                  </p>
-                </>
+                <div 
+                  id={scannerContainerId} 
+                  ref={containerRef}
+                  className="w-full h-full"
+                  style={{ minHeight: '300px' }}
+                ></div>
               )}
             </div>
             
@@ -328,7 +303,6 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
             <h3 className="text-lg font-medium text-center">Scan a Wi-Fi QR Code</h3>
             <p className="text-center text-gray-600 max-w-md">
               Point your camera at a Wi-Fi QR code to connect your device to the network.
-              You can generate Wi-Fi QR codes using various apps or websites.
             </p>
             <Button 
               onClick={startScanner}
@@ -343,7 +317,7 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
       
       <CardFooter className="bg-gray-50 px-6 py-4">
         <p className="text-xs text-gray-500">
-          Wi-Fi QR codes typically follow the format: WIFI:S:&lt;SSID&gt;;T:&lt;Authentication&gt;;P:&lt;Password&gt;;;
+          Scan multiple QR codes by pointing camera at each code.
         </p>
       </CardFooter>
     </Card>
