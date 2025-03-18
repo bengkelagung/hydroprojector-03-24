@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -39,9 +38,9 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   
   const [editMode, setEditMode] = useState(false);
   const [editPinName, setEditPinName] = useState('');
-  const [editPinSignalType, setEditPinSignalType] = useState<string>('');
-  const [editPinDataType, setEditPinDataType] = useState<string>('');
-  const [editPinLabel, setEditPinLabel] = useState<string>('');
+  const [editPinSignalType, setEditPinSignalType] = useState('');
+  const [editPinDataType, setEditPinDataType] = useState('');
+  const [editPinLabel, setEditPinLabel] = useState('');
   const [tablesExist, setTablesExist] = useState<boolean>(false);
   
   // Find the device and project for this pin
@@ -78,8 +77,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
     try {
       const updates: Partial<Pin> = {
         name: editPinName,
-        signalType: editPinSignalType,
-        dataType: editPinDataType
+        signalType: editPinSignalType as Pin['signalType'],
+        dataType: editPinDataType as Pin['dataType']
       };
       
       // Only include label if the tables exist
@@ -197,14 +196,14 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 <div className="grid grid-cols-4 items-center gap-4">
                   <Label className="text-right">Label:</Label>
                   <Select 
-                    value={editPinLabel || ''} 
+                    value={editPinLabel} 
                     onValueChange={setEditPinLabel}
                   >
                     <SelectTrigger className="col-span-3">
                       <SelectValue placeholder="Select label" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
+                      <SelectItem key="none" value="_none">None</SelectItem>
                       {labels.map(label => (
                         <SelectItem key={label} value={label}>
                           {label}
