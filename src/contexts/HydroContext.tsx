@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
@@ -498,7 +499,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       
       setPins(prev => [...prev, newPin]);
-      toast.success('Pin created successfully');
+      toast({
+        title: "Success",
+        description: "Pin created successfully"
+      });
     } catch (error) {
       console.error('Error creating pin:', error);
       toast({
