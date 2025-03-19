@@ -2,7 +2,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 import { 
   subscribeToDevices, 
   subscribeToPinConfigs, 
@@ -33,7 +33,7 @@ export interface Pin {
   name: string;
   pinNumber: number;
   mode: 'input' | 'output';
-  signalType: 'pH' | 'temperature' | 'humidity' | 'water-level' | 'light' | 'digital' | 'nutrient';
+  signalType: 'pH' | 'temperature' | 'humidity' | 'water-level' | 'light' | 'digital' | 'nutrient' | 'pump' | 'water-pump' | 'custom';
   dataType: 'float' | 'integer' | 'boolean' | 'string' | 'digital';
   unit?: string;
   deviceId: string;
@@ -57,8 +57,9 @@ interface HydroContextType {
   getDevices: () => Promise<void>;
   getPins: () => Promise<void>;
   getPinsByDevice: (deviceId: string) => Pin[];
-  createProject: (name: string, description: string) => Promise<void>;
-  createDevice: (name: string, description: string, projectId: string) => Promise<void>;
+  getDevicesByProject: (projectId: string) => Device[];
+  createProject: (name: string, description: string) => Promise<string>;
+  createDevice: (name: string, description: string, projectId: string) => Promise<string>;
   createPin: (
     name: string,
     pinNumber: number,
@@ -94,7 +95,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
-  const signalTypes = ['pH', 'temperature', 'humidity', 'water-level', 'light', 'digital', 'nutrient'];
+  const signalTypes = ['pH', 'temperature', 'humidity', 'water-level', 'light', 'digital', 'nutrient', 'pump', 'water-pump', 'custom'];
   const dataTypes = ['float', 'integer', 'boolean', 'string', 'digital'];
   const labels: string[] = ['pH', 'Suhu', 'Kelembaban', 'Lampu', 'Pompa', 'Level Air'];
   const pinModes: ('input' | 'output')[] = ['input', 'output'];
@@ -220,7 +221,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setProjects(formattedProjects);
     } catch (error) {
       console.error('Error fetching projects:', error);
-      toast.error('Failed to load projects');
+      toast({
+        title: "Error",
+        description: "Failed to load projects",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -249,7 +254,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDevices(formattedDevices);
     } catch (error) {
       console.error('Error fetching devices:', error);
-      toast.error('Failed to load devices');
+      toast({
+        title: "Error",
+        description: "Failed to load devices",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -290,7 +299,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setPins(formattedPins);
     } catch (error) {
       console.error('Error fetching pins:', error);
-      toast.error('Failed to load pins');
+      toast({
+        title: "Error",
+        description: "Failed to load pins",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -300,7 +313,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return pins.filter(pin => pin.deviceId === deviceId);
   };
 
-  const createProject = async (name: string, description: string) => {
+  const getDevicesByProject = (projectId: string): Device[] => {
+    return devices.filter(device => device.projectId === projectId);
+  };
+
+  const createProject = async (name: string, description: string): Promise<string> => {
     try {
       const { data, error } = await supabase
         .from('projects')
@@ -321,14 +338,24 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
       
       setProjects(prev => [...newProjects, ...prev]);
-      toast.success('Project created successfully');
+      toast({
+        title: "Success",
+        description: "Project created successfully"
+      });
+      
+      return data[0].id;
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project');
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive"
+      });
+      return '';
     }
   };
 
-  const createDevice = async (name: string, description: string, projectId: string) => {
+  const createDevice = async (name: string, description: string, projectId: string): Promise<string> => {
     try {
       const { data, error } = await supabase
         .from('devices')
@@ -352,10 +379,20 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
       
       setDevices(prev => [...newDevices, ...prev]);
-      toast.success('Device created successfully');
+      toast({
+        title: "Success",
+        description: "Device created successfully"
+      });
+      
+      return data[0].id;
     } catch (error) {
       console.error('Error creating device:', error);
-      toast.error('Failed to create device');
+      toast({
+        title: "Error",
+        description: "Failed to create device",
+        variant: "destructive"
+      });
+      return '';
     }
   };
 
@@ -472,7 +509,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Pin created successfully');
     } catch (error) {
       console.error('Error creating pin:', error);
-      toast.error('Failed to create pin');
+      toast({
+        title: "Error",
+        description: "Failed to create pin",
+        variant: "destructive"
+      });
     }
   };
 
@@ -496,7 +537,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Project updated successfully');
     } catch (error) {
       console.error('Error updating project:', error);
-      toast.error('Failed to update project');
+      toast({
+        title: "Error",
+        description: "Failed to update project",
+        variant: "destructive"
+      });
     }
   };
 
@@ -522,7 +567,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Device updated successfully');
     } catch (error) {
       console.error('Error updating device:', error);
-      toast.error('Failed to update device');
+      toast({
+        title: "Error",
+        description: "Failed to update device",
+        variant: "destructive"
+      });
     }
   };
 
@@ -539,7 +588,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Project deleted successfully');
     } catch (error) {
       console.error('Error deleting project:', error);
-      toast.error('Failed to delete project');
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive"
+      });
     }
   };
 
@@ -556,7 +609,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Device deleted successfully');
     } catch (error) {
       console.error('Error deleting device:', error);
-      toast.error('Failed to delete device');
+      toast({
+        title: "Error",
+        description: "Failed to delete device",
+        variant: "destructive"
+      });
     }
   };
 
@@ -573,12 +630,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success('Pin deleted successfully');
     } catch (error) {
       console.error('Error deleting pin:', error);
-      toast.error('Failed to delete pin');
+      toast({
+        title: "Error",
+        description: "Failed to delete pin",
+        variant: "destructive"
+      });
     }
   };
 
   const updatePin = async (pinId: string, updates: Partial<Pin>): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    try {
       // Convert pin model to database model
       const supabaseUpdates: any = {};
       
@@ -588,31 +649,32 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       // We would need to look up IDs if these were changing, but for simplicity
       // we're assuming those fields aren't being changed here
       
-      supabase
+      const { error } = await supabase
         .from('pin_configs')
         .update(supabaseUpdates)
-        .eq('id', pinId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error updating pin:', error);
-            toast.error('Failed to update pin');
-            reject(error);
-            return;
-          }
-          
-          setPins(prev => prev.map(pin => 
-            pin.id === pinId ? { ...pin, ...updates } : pin
-          ));
-          
-          toast.success('Pin updated successfully');
-          resolve();
-        })
-        .catch((error) => {
-          console.error('Error updating pin:', error);
-          toast.error('Failed to update pin');
-          reject(error);
-        });
-    });
+        .eq('id', pinId);
+        
+      if (error) {
+        throw error;
+      }
+      
+      setPins(prev => prev.map(pin => 
+        pin.id === pinId ? { ...pin, ...updates } : pin
+      ));
+      
+      toast({
+        title: "Success",
+        description: "Pin updated successfully"
+      });
+    } catch (error) {
+      console.error('Error updating pin:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update pin",
+        variant: "destructive"
+      });
+      throw error;
+    }
   };
 
   const togglePinValue = async (pinId: string) => {
@@ -652,7 +714,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       toast.success(`${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`);
     } catch (error) {
       console.error('Error toggling pin value:', error);
-      toast.error('Failed to toggle pin value');
+      toast({
+        title: "Error",
+        description: "Failed to toggle pin value",
+        variant: "destructive"
+      });
     }
   };
 
@@ -670,6 +736,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getDevices,
     getPins,
     getPinsByDevice,
+    getDevicesByProject,
     createProject,
     createDevice,
     createPin,

@@ -1,5 +1,6 @@
+
 import { supabase } from '@/integrations/supabase/client';
-import { toast } from 'sonner';
+import { toast } from '@/hooks/use-toast';
 
 // Types for subscription callbacks
 type DeviceUpdateCallback = (deviceId: string, updates: any) => void;
@@ -86,7 +87,11 @@ const handleReconnection = (channelName: string, callback: () => void) => {
     }, delay);
   } else {
     console.error(`Max reconnect attempts (${maxReconnectAttempts}) reached for ${channelName}`);
-    toast.error(`Unable to establish a stable connection. Please refresh the page.`);
+    toast({
+      title: "Connection Error",
+      description: "Unable to establish a stable connection. Please refresh the page.",
+      variant: "destructive"
+    });
     isConnecting = false;
   }
 };
@@ -129,7 +134,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
   // Ensure realtime is available
   if (!isRealtimeAvailable()) {
     console.error('Realtime service is not available');
-    toast.error('Realtime service unavailable');
+    toast({
+      title: "Service Error",
+      description: "Realtime service unavailable",
+      variant: "destructive"
+    });
     return () => {};
   }
 
@@ -159,7 +168,10 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
             callback(payload.new.id, payload.new);
           } else if (payload.eventType === 'DELETE' || payload.eventType === 'INSERT') {
             // Handle these events by notifying the user instead of forcing reload
-            toast.info(`Device ${payload.eventType === 'DELETE' ? 'removed' : 'added'}. Refreshing data...`);
+            toast({
+              title: payload.eventType === 'DELETE' ? 'Device Removed' : 'Device Added',
+              description: 'Refreshing data...'
+            });
             // Trigger a refresh through callback with null values to indicate refresh needed
             callback('refresh-needed', null);
           }
@@ -172,7 +184,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
           isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to devices:', status);
-          toast.error('Device connection lost. Reconnecting...');
+          toast({
+            title: "Connection Error",
+            description: "Device connection lost. Reconnecting...",
+            variant: "destructive"
+          });
           isWebSocketConnected = false;
           
           // Clean up existing subscription
@@ -197,7 +213,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
     };
   } catch (error) {
     console.error('Error setting up device subscription:', error);
-    toast.error('Failed to setup device monitoring');
+    toast({
+      title: "Connection Error",
+      description: "Failed to setup device monitoring",
+      variant: "destructive"
+    });
     deviceSubscription = null;
     
     // Try to reconnect after error
@@ -214,7 +234,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
   // Ensure realtime is available
   if (!isRealtimeAvailable()) {
     console.error('Realtime service is not available');
-    toast.error('Realtime service unavailable');
+    toast({
+      title: "Service Error",
+      description: "Realtime service unavailable",
+      variant: "destructive"
+    });
     return () => {};
   }
   
@@ -244,7 +268,10 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
             callback(payload.new.id, payload.new);
           } else if (payload.eventType === 'DELETE' || payload.eventType === 'INSERT') {
             // Handle these events by notifying the user instead of forcing reload
-            toast.info(`Pin configuration ${payload.eventType === 'DELETE' ? 'removed' : 'added'}. Refreshing data...`);
+            toast({
+              title: payload.eventType === 'DELETE' ? 'Pin configuration removed' : 'Pin configuration added',
+              description: 'Refreshing data...'
+            });
             // Trigger a refresh through callback with null values to indicate refresh needed
             callback('refresh-needed', null);
           }
@@ -257,7 +284,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
           isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to pin configs:', status);
-          toast.error('Pin configuration connection lost. Reconnecting...');
+          toast({
+            title: "Connection Error",
+            description: "Pin configuration connection lost. Reconnecting...",
+            variant: "destructive"
+          });
           isWebSocketConnected = false;
           
           // Clean up existing subscription
@@ -282,7 +313,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
     };
   } catch (error) {
     console.error('Error setting up pin config subscription:', error);
-    toast.error('Failed to setup pin configuration monitoring');
+    toast({
+      title: "Connection Error",
+      description: "Failed to setup pin configuration monitoring",
+      variant: "destructive"
+    });
     pinConfigSubscription = null;
     
     // Try to reconnect after error
@@ -299,7 +334,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
   // Ensure realtime is available
   if (!isRealtimeAvailable()) {
     console.error('Realtime service is not available');
-    toast.error('Realtime service unavailable');
+    toast({
+      title: "Service Error",
+      description: "Realtime service unavailable",
+      variant: "destructive"
+    });
     return () => {};
   }
   
@@ -337,7 +376,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
           isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to pin data:', status);
-          toast.error('Pin data connection lost. Reconnecting...');
+          toast({
+            title: "Connection Error",
+            description: "Pin data connection lost. Reconnecting...",
+            variant: "destructive"
+          });
           isWebSocketConnected = false;
           
           // Clean up existing subscription
@@ -362,7 +405,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
     };
   } catch (error) {
     console.error('Error setting up pin data subscription:', error);
-    toast.error('Failed to setup pin data monitoring');
+    toast({
+      title: "Connection Error",
+      description: "Failed to setup pin data monitoring",
+      variant: "destructive"
+    });
     pinDataSubscription = null;
     
     // Try to reconnect after error
