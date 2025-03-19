@@ -2,6 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
+import { 
+  subscribeToDevices, 
+  subscribeToPinConfigs, 
+  subscribeToPinData,
+  unsubscribeAll
+} from '@/services/RealtimeService';
 
 export interface Project {
   id: string;
