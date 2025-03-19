@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Save, X, History } from 'lucide-react';
+import { Pencil, Trash2, Save, X, History, LineChart } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,8 +28,9 @@ import {
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { checkTablesExist } from '@/integrations/supabase/client';
-import { fetchPinHistory, PinHistoryEntry } from '@/utils/pin-history';
+import { fetchPinHistory, PinHistoryEntry, formatPinHistoryForRecharts } from '@/utils/pin-history';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import PinHistoryChart, { createPinHistoryChart } from '@/components/PinHistoryChart';
 
 interface PinDetailsDialogProps {
   open: boolean;
@@ -173,6 +175,10 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   
   const isOn = pinValue === '1' || pinValue.toLowerCase() === 'on' || pinValue.toLowerCase() === 'true';
   const colorClass = getSignalColor(pin.signalType);
+  
+  // Prepare chart data
+  const isDigital = pin.dataType === 'digital' || pin.dataType === 'boolean';
+  const chartData = formatPinHistoryForRecharts(pinHistory, isDigital, pin.name);
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -400,43 +406,73 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   </Select>
                 </div>
                 
-                {pinHistory.length === 0 ? (
-                  <div className="text-center py-8 bg-gray-50 rounded-lg">
-                    <History className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                    <p className="text-gray-500">No history data available</p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Changes to this pin will be recorded for future reference
-                    </p>
+                {/* Chart Section */}
+                <div className="mb-6">
+                  <h4 className="text-sm font-medium mb-2 flex items-center">
+                    <LineChart className="h-4 w-4 mr-1" />
+                    Data Visualization
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden p-2">
+                    {pinHistory.length === 0 ? (
+                      <div className="text-center py-8 bg-gray-50 rounded-lg">
+                        <LineChart className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                        <p className="text-gray-500">No chart data available</p>
+                      </div>
+                    ) : (
+                      <PinHistoryChart 
+                        historyData={chartData} 
+                        dataKey={pin.name} 
+                        isDigital={isDigital}
+                        color={getSignalColor(pin.signalType).replace('bg-', 'text-')}
+                      />
+                    )}
                   </div>
-                ) : (
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="grid grid-cols-3 bg-gray-100 text-xs font-medium text-gray-700 p-2">
-                      <div className="col-span-2">Timestamp</div>
-                      <div>Value</div>
+                </div>
+                
+                {/* History Table */}
+                <div>
+                  <h4 className="text-sm font-medium mb-2 flex items-center">
+                    <History className="h-4 w-4 mr-1" />
+                    Data Records
+                  </h4>
+                  {pinHistory.length === 0 ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <History className="h-12 w-12 text-gray-300 mx-auto mb-2" />
+                      <p className="text-gray-500">No history data available</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Changes to this pin will be recorded for future reference
+                      </p>
                     </div>
-                    <div className="max-h-[300px] overflow-y-auto">
-                      {pinHistory.map((entry) => (
-                        <div 
-                          key={entry.id} 
-                          className="grid grid-cols-3 text-sm p-2 border-t hover:bg-gray-50"
-                        >
-                          <div className="col-span-2">{formatTimestamp(entry.created_at)}</div>
-                          <div className="font-medium">
-                            {pin.mode === 'output' ? (
-                              entry.value === '1' ? (
-                                <span className="text-green-600">ON</span>
+                  ) : (
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className="grid grid-cols-3 bg-gray-100 text-xs font-medium text-gray-700 p-2">
+                        <div className="col-span-2">Timestamp</div>
+                        <div>Value</div>
+                      </div>
+                      <div className="max-h-[200px] overflow-y-auto">
+                        {pinHistory.map((entry) => (
+                          <div 
+                            key={entry.id} 
+                            className="grid grid-cols-3 text-sm p-2 border-t hover:bg-gray-50"
+                          >
+                            <div className="col-span-2">{formatTimestamp(entry.created_at)}</div>
+                            <div className="font-medium">
+                              {pin.mode === 'output' ? (
+                                entry.value === '1' ? (
+                                  <span className="text-green-600">ON</span>
+                                ) : (
+                                  <span className="text-gray-500">OFF</span>
+                                )
                               ) : (
-                                <span className="text-gray-500">OFF</span>
-                              )
-                            ) : (
-                              `${entry.value}${pin.unit || ''}`
-                            )}
+                                `${entry.value}${pin.unit || ''}`
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             </TabsContent>
           </Tabs>

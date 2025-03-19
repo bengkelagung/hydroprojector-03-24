@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
@@ -105,7 +104,7 @@ const DeviceConfig = () => {
         values.label === 'none' ? '' : values.label
       );
       
-      // Reset form
+      // Reset form after successful submission
       form.reset({
         pinId: '',
         name: '',
@@ -114,6 +113,7 @@ const DeviceConfig = () => {
         label: '',
         mode: 'input'
       });
+      
       toast.success('Pin configured successfully');
     } catch (error) {
       console.error('Error configuring pin:', error);
@@ -167,13 +167,22 @@ const DeviceConfig = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {pinOptions.map((pin) => (
-                            <SelectItem key={pin.id} value={pin.id}>
-                              {pin.name} (Pin {pin.pinNumber})
+                          {pinOptions.length === 0 ? (
+                            <SelectItem value="none" disabled>
+                              No available pins
                             </SelectItem>
-                          ))}
+                          ) : (
+                            pinOptions.map((pin) => (
+                              <SelectItem key={pin.id} value={pin.id}>
+                                {pin.name} (Pin {pin.pinNumber})
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
+                      <FormDescription>
+                        Only unused pins are shown in this list
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -316,7 +325,7 @@ const DeviceConfig = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || pinOptions.length === 0}
                 >
                   {isSubmitting ? 'Configuring...' : 'Configure Pin'}
                 </Button>
