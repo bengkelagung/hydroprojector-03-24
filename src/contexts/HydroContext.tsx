@@ -962,7 +962,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
     }
   };
 
-  const deleteProject = (projectId: string) => {
+  const deleteProject = async (projectId: string) => {
     try {
       const { error } = await supabase
         .from('projects')
@@ -979,7 +979,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
     }
   };
 
-  const deleteDevice = (deviceId: string) => {
+  const deleteDevice = async (deviceId: string) => {
     try {
       const { error } = await supabase
         .from('devices')
@@ -996,7 +996,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
     }
   };
 
-  const deletePin = (pinId: string) => {
+  const deletePin = async (pinId: string) => {
     try {
       const { error } = await supabase
         .from('pin_configs')
@@ -1015,25 +1015,25 @@ void read${pin.name.replace(/\s+/g, '')}() {
 
   const updatePin = (pinId: string, updates: Partial<Pin>): Promise<void> => {
     return new Promise((resolve, reject) => {
-      try {
-        const { error } = await supabase
-          .from('pin_configs')
-          .update(updates)
-          .eq('id', pinId);
-        
-        if (error) throw error;
-        
-        setPins(prev => prev.map(pin => 
-          pin.id === pinId ? { ...pin, ...updates } : pin
-        ));
-        
-        toast.success('Pin updated successfully');
-        resolve();
-      } catch (error) {
-        console.error('Error updating pin:', error);
-        toast.error('Failed to update pin');
-        reject(error);
-      }
+      supabase
+        .from('pin_configs')
+        .update(updates)
+        .eq('id', pinId)
+        .then(({ error }) => {
+          if (error) throw error;
+          
+          setPins(prev => prev.map(pin => 
+            pin.id === pinId ? { ...pin, ...updates } : pin
+          ));
+          
+          toast.success('Pin updated successfully');
+          resolve();
+        })
+        .catch(error => {
+          console.error('Error updating pin:', error);
+          toast.error('Failed to update pin');
+          reject(error);
+        });
     });
   };
 
