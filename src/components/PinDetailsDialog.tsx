@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Save, X, History, LineChart, Info } from 'lucide-react';
+import { Pencil, Trash2, Save, X, History, LineChart } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -52,7 +51,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [pinHistory, setPinHistory] = useState<PinHistoryEntry[]>([]);
   const [historyTimeRange, setHistoryTimeRange] = useState<'hour' | 'day' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState('details');
-  const [isLoading, setIsLoading] = useState(false);
   
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
@@ -75,23 +73,18 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinMode(pin.mode);
       setPinValue(pin.value || '0');
       
-      if (activeTab === 'chart' || activeTab === 'history') {
-        loadPinHistory();
-      }
+      loadPinHistory();
     }
-  }, [pin, historyTimeRange, activeTab]);
+  }, [pin, historyTimeRange]);
   
   const loadPinHistory = async () => {
     if (!pin) return;
     
     try {
-      setIsLoading(true);
       const history = await fetchPinHistory(pin.id, historyTimeRange);
       setPinHistory(history);
     } catch (error) {
       console.error('Error loading pin history:', error);
-    } finally {
-      setIsLoading(false);
     }
   };
   
@@ -201,18 +194,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
         <div className="py-4">
           <Tabs defaultValue="details" value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-4">
-              <TabsTrigger value="details" className="flex items-center">
-                <Info className="h-4 w-4 mr-2" />
-                Details
-              </TabsTrigger>
-              <TabsTrigger value="chart" className="flex items-center">
-                <LineChart className="h-4 w-4 mr-2" />
-                Chart
-              </TabsTrigger>
-              <TabsTrigger value="history" className="flex items-center">
-                <History className="h-4 w-4 mr-2" />
-                History
-              </TabsTrigger>
+              <TabsTrigger value="details">Details</TabsTrigger>
+              <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
             
             <TabsContent value="details">
@@ -291,7 +274,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                           <SelectValue placeholder="Select label" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="">None</SelectItem>
+                          <SelectItem value="none">None</SelectItem>
                           {labels.map(label => (
                             <SelectItem key={label} value={label}>
                               {label}
@@ -401,10 +384,10 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
               )}
             </TabsContent>
             
-            <TabsContent value="chart">
+            <TabsContent value="history">
               <div className="space-y-4">
                 <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Data Visualization</h3>
+                  <h3 className="text-lg font-medium">Pin Value History</h3>
                   <Select 
                     value={historyTimeRange} 
                     onValueChange={(value) => setHistoryTimeRange(value as 'hour' | 'day' | 'week' | 'month')}
@@ -422,62 +405,33 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 </div>
                 
                 <div className="mb-6">
-                  <div className="border rounded-lg overflow-hidden p-4">
-                    {isLoading ? (
-                      <div className="flex justify-center items-center h-40">
-                        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-hydro-blue"></div>
-                      </div>
-                    ) : pinHistory.length === 0 ? (
+                  <h4 className="text-sm font-medium mb-2 flex items-center">
+                    <LineChart className="h-4 w-4 mr-1" />
+                    Data Visualization
+                  </h4>
+                  <div className="border rounded-lg overflow-hidden p-2">
+                    {pinHistory.length === 0 ? (
                       <div className="text-center py-8 bg-gray-50 rounded-lg">
                         <LineChart className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                         <p className="text-gray-500">No chart data available</p>
                       </div>
                     ) : (
-                      <div className="h-60">
-                        <PinHistoryChart 
-                          historyData={chartData} 
-                          dataKey={pin.name} 
-                          isDigital={isDigital}
-                          color={colorClass.replace('bg-', '').includes('purple') ? '#9333ea' : 
-                                colorClass.replace('bg-', '').includes('orange') ? '#f97316' :
-                                colorClass.replace('bg-', '').includes('blue') ? '#3b82f6' :
-                                colorClass.replace('bg-', '').includes('cyan') ? '#06b6d4' :
-                                colorClass.replace('bg-', '').includes('green') ? '#10b981' :
-                                colorClass.replace('bg-', '').includes('yellow') ? '#facc15' : '#3b82f6'}
-                        />
-                      </div>
+                      <PinHistoryChart 
+                        historyData={chartData} 
+                        dataKey={pin.name} 
+                        isDigital={isDigital}
+                        color={getSignalColor(pin.signalType).replace('bg-', 'text-')}
+                      />
                     )}
                   </div>
                 </div>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="history">
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-medium">Data Records</h3>
-                  <Select 
-                    value={historyTimeRange} 
-                    onValueChange={(value) => setHistoryTimeRange(value as 'hour' | 'day' | 'week' | 'month')}
-                  >
-                    <SelectTrigger className="w-36">
-                      <SelectValue placeholder="Select time range" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="hour">Last Hour</SelectItem>
-                      <SelectItem value="day">Last Day</SelectItem>
-                      <SelectItem value="week">Last Week</SelectItem>
-                      <SelectItem value="month">Last Month</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
                 
                 <div>
-                  {isLoading ? (
-                    <div className="flex justify-center items-center h-40">
-                      <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-hydro-blue"></div>
-                    </div>
-                  ) : pinHistory.length === 0 ? (
+                  <h4 className="text-sm font-medium mb-2 flex items-center">
+                    <History className="h-4 w-4 mr-1" />
+                    Data Records
+                  </h4>
+                  {pinHistory.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-lg">
                       <History className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                       <p className="text-gray-500">No history data available</p>
@@ -491,7 +445,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                         <div className="col-span-2">Timestamp</div>
                         <div>Value</div>
                       </div>
-                      <div className="max-h-[300px] overflow-y-auto">
+                      <div className="max-h-[200px] overflow-y-auto">
                         {pinHistory.map((entry) => (
                           <div 
                             key={entry.id} 

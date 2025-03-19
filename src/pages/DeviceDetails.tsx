@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power } from 'lucide-react';
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,8 +21,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger
 } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import PinDetailsDialog from '@/components/PinDetailsDialog';
+import { toast } from "@/components/ui/use-toast";
 
 const DeviceDetails = () => {
   const { deviceId } = useParams<{ deviceId: string }>();
@@ -46,10 +44,8 @@ const DeviceDetails = () => {
   const [editName, setEditName] = useState(device?.name || '');
   const [editDescription, setEditDescription] = useState('');
   const [editProjectId, setEditProjectId] = useState(device?.projectId || '');
-  const [selectedPin, setSelectedPin] = useState(null);
-  const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
   
-  useEffect(() => {
+  React.useEffect(() => {
     if (device) {
       setEditName(device.name);
       // Remove WiFi config from description if it exists
@@ -66,11 +62,6 @@ const DeviceDetails = () => {
       setEditProjectId(device.projectId);
     }
   }, [device]);
-
-  const handleOpenPinDetails = (pin) => {
-    setSelectedPin(pin);
-    setIsPinDetailsOpen(true);
-  };
   
   if (!device) {
     return (
@@ -104,7 +95,11 @@ const DeviceDetails = () => {
   
   const handleSaveEdit = () => {
     if (editName.trim() === '') {
-      toast.error("Device name cannot be empty");
+      toast({
+        title: "Error",
+        description: "Device name cannot be empty",
+        variant: "destructive"
+      });
       return;
     }
     
@@ -115,26 +110,43 @@ const DeviceDetails = () => {
     });
     
     setIsEditing(false);
+    toast({
+      title: "Device updated",
+      description: "The device has been updated successfully",
+    });
   };
   
   const handleDeleteDevice = () => {
     deleteDevice(device.id);
-    toast.success("Device deleted");
+    toast({
+      title: "Device deleted",
+      description: "The device and all associated pins have been deleted",
+    });
     navigate('/devices');
   };
   
   const handleDeletePin = (pinId: string, pinName: string) => {
     deletePin(pinId);
-    toast.success(`Pin "${pinName}" deleted`);
+    toast({
+      title: "Pin deleted",
+      description: `The pin "${pinName}" has been deleted`,
+    });
   };
   
   const handleTogglePin = async (pinId: string, pinName: string, currentValue: string) => {
     try {
       await togglePinValue(pinId);
-      toast.success(`${pinName} ${currentValue === "1" ? "turned off" : "turned on"}`);
+      toast({
+        title: `${currentValue === "1" ? "Turned off" : "Turned on"}`,
+        description: `${pinName} has been ${currentValue === "1" ? "turned off" : "turned on"}`,
+      });
     } catch (error) {
       console.error('Error toggling pin:', error);
-      toast.error("Failed to toggle pin. Please try again.");
+      toast({
+        title: "Error",
+        description: "Failed to toggle pin. Please try again.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -144,14 +156,21 @@ const DeviceDetails = () => {
       await updatePin(pin.id, {
         name: newName,
         signalType: newSignalType as any,
-        dataType: newDataType as "string" | "boolean" | "digital" | "float" | "integer",
+        dataType: newDataType,
         label: newLabel
       });
       
-      toast.success(`Pin "${newName}" updated`);
+      toast({
+        title: "Pin updated",
+        description: `The pin "${newName}" has been updated successfully`,
+      });
     } catch (error) {
       console.error('Error updating pin:', error);
-      toast.error("Update failed");
+      toast({
+        title: "Update failed",
+        description: "There was a problem updating the pin",
+        variant: "destructive"
+      });
     }
   };
   
@@ -346,11 +365,7 @@ const DeviceDetails = () => {
                         const value = pin.value || mockValue;
                         
                         return (
-                          <div 
-                            key={pin.id} 
-                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                            onClick={() => handleOpenPinDetails(pin)}
-                          >
+                          <div key={pin.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                             <div className="flex items-center">
                               <div className={`w-3 h-3 rounded-full ${getSignalColor(pin.signalType)}`}></div>
                               <div className="ml-3">
@@ -364,12 +379,7 @@ const DeviceDetails = () => {
                               </div>
                               <AlertDialog>
                                 <AlertDialogTrigger asChild>
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    className="text-red-600 hover:bg-red-50"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
+                                  <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
                                 </AlertDialogTrigger>
@@ -383,10 +393,7 @@ const DeviceDetails = () => {
                                   <AlertDialogFooter>
                                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                                     <AlertDialogAction 
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleDeletePin(pin.id, pin.name);
-                                      }} 
+                                      onClick={() => handleDeletePin(pin.id, pin.name)} 
                                       className="bg-red-600 hover:bg-red-700"
                                     >
                                       Delete
@@ -414,11 +421,7 @@ const DeviceDetails = () => {
                   ) : (
                     <div className="space-y-4">
                       {outputPins.map(pin => (
-                        <div 
-                          key={pin.id} 
-                          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer"
-                          onClick={() => handleOpenPinDetails(pin)}
-                        >
+                        <div key={pin.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                           <div className="flex items-center">
                             <div className={`w-3 h-3 rounded-full ${getSignalColor(pin.signalType)}`}></div>
                             <div className="ml-3">
@@ -434,21 +437,13 @@ const DeviceDetails = () => {
                               size="sm" 
                               variant={pin.value === "1" ? "default" : "outline"} 
                               className={pin.value === "1" ? "bg-green-600 hover:bg-green-700 mr-2" : "text-gray-600 hover:bg-gray-100 mr-2"}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTogglePin(pin.id, pin.name, pin.value || "0");
-                              }}
+                              onClick={() => handleTogglePin(pin.id, pin.name, pin.value || "0")}
                             >
                               <Power className="h-4 w-4" />
                             </Button>
                             <AlertDialog>
                               <AlertDialogTrigger asChild>
-                                <Button 
-                                  size="sm" 
-                                  variant="ghost" 
-                                  className="text-red-600 hover:bg-red-50"
-                                  onClick={(e) => e.stopPropagation()}
-                                >
+                                <Button size="sm" variant="ghost" className="text-red-600 hover:bg-red-50">
                                   <Trash2 className="h-4 w-4" />
                                 </Button>
                               </AlertDialogTrigger>
@@ -462,10 +457,7 @@ const DeviceDetails = () => {
                                 <AlertDialogFooter>
                                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                                   <AlertDialogAction 
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      handleDeletePin(pin.id, pin.name);
-                                    }} 
+                                    onClick={() => handleDeletePin(pin.id, pin.name)} 
                                     className="bg-red-600 hover:bg-red-700"
                                   >
                                     Delete
@@ -563,15 +555,9 @@ const DeviceDetails = () => {
           </Card>
         </div>
       </div>
-
-      {/* Pin Details Dialog */}
-      <PinDetailsDialog 
-        open={isPinDetailsOpen}
-        onOpenChange={setIsPinDetailsOpen}
-        pin={selectedPin}
-      />
     </div>
   );
 };
 
 export default DeviceDetails;
+
