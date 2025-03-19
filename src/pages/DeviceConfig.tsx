@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
@@ -90,15 +91,15 @@ const DeviceConfig = () => {
     setIsSubmitting(true);
     
     try {
-      await configurePin(
+      await configurePin({
         deviceId,
-        values.pinId,
-        values.dataType,
-        values.signalType as any,
-        values.mode,
-        values.name,
-        values.label === 'none' ? '' : values.label
-      );
+        pinId: values.pinId,
+        dataType: values.dataType,
+        signalType: values.signalType as any,
+        mode: values.mode,
+        name: values.name,
+        label: values.label === 'none' ? '' : values.label
+      });
       
       form.reset({
         pinId: '',

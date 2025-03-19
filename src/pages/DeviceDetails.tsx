@@ -144,7 +144,7 @@ const DeviceDetails = () => {
       await updatePin(pin.id, {
         name: newName,
         signalType: newSignalType as any,
-        dataType: newDataType,
+        dataType: newDataType as "string" | "boolean" | "digital" | "float" | "integer",
         label: newLabel
       });
       
