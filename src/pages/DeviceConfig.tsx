@@ -1,378 +1,221 @@
-
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useHydro } from '@/contexts/HydroContext';
+import { useRouter } from 'next/router';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
-import { checkTablesExist } from '@/integrations/supabase/client';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { 
   Form,
+  FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
-  FormControl,
-  FormDescription,
   FormMessage,
-} from "@/components/ui/form";
-import { useForm } from "react-hook-form";
+} from "@/components/ui/form"
+import { useToast } from "@/hooks/use-toast"
+import { Switch } from "@/components/ui/switch"
+import { useForm } from "react-hook-form"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card"
+import { createPinConfig, updatePinConfig } from '@/server/actions/pinConfig';
+import { fetchPinConfigsWithRelations } from '@/integrations/supabase/client';
+import { useUser } from '@clerk/nextjs';
+import { handleSupabaseError } from '@/utils/supabaseHelpers';
 
-type PinConfigFormValues = {
+interface PinConfig {
+  id?: string;
   pinId: string;
   name: string;
   dataType: string;
   signalType: string;
-  label: string;
-  mode: 'input' | 'output';
-};
+  mode: string;
+  label?: string;
+  unit: string;
+}
 
-const DeviceConfig = () => {
-  const { deviceId } = useParams();
-  const navigate = useNavigate();
-  const { 
-    devices, 
-    pins, 
-    configurePin, 
-    getPinsByDevice, 
-    pinOptions, 
-    dataTypes, 
-    signalTypes, 
-    pinModes,
-    labels,
-    fetchLabels
-  } = useHydro();
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [tablesExist, setTablesExist] = useState<boolean>(false);
+export default function DeviceConfig() {
+  const router = useRouter();
+  const { deviceId } = router.query;
+  const { toast } = useToast();
+  const { user } = useUser();
 
-  const device = devices.find(d => d.id === deviceId);
-  const devicePins = getPinsByDevice(deviceId || '');
-  
-  const form = useForm<PinConfigFormValues>({
-    defaultValues: {
-      pinId: '',
-      name: '',
-      dataType: '',
-      signalType: '',
-      label: '',
-      mode: 'input'
-    }
-  });
-  
-  useEffect(() => {
-    fetchLabels();
-  }, [fetchLabels]);
-  
-  useEffect(() => {
-    const checkTables = async () => {
-      const exist = await checkTablesExist();
-      setTablesExist(exist);
-    };
+  const [selectedPin, setSelectedPin] = useState<{ id: string; pin_number: number; pin_name: string } | null>(null);
+  const [pinName, setPinName] = useState('');
+  const [dataType, setDataType] = useState<string | null>(null);
+  const [signalType, setSignalType] = useState<string | null>(null);
+  const [mode, setMode] = useState<string | null>(null);
+  const [selectedLabel, setSelectedLabel] = useState<string | null>(null);
+  const [unit, setUnit] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    if (!selectedPin || !pinName) return;
     
-    checkTables();
-  }, []);
-
-  const onSubmit = async (values: PinConfigFormValues) => {
-    if (!deviceId) {
-      toast.error('Device ID is missing');
-      return;
-    }
-
-    setIsSubmitting(true);
-    
+    setIsSaving(true);
     try {
-      await configurePin({
-        deviceId,
-        pinId: values.pinId,
-        dataType: values.dataType,
-        signalType: values.signalType as any,
-        mode: values.mode,
-        name: values.name,
-        label: values.label === 'none' ? '' : values.label
+      // Call configurePin with deviceId and the configuration object
+      await configurePin(deviceId as string, {
+        pinId: selectedPin.id,
+        name: pinName,
+        dataType: dataType || 'Analog',
+        signalType: signalType || 'Sensor',
+        mode: mode || 'Input',
+        label: selectedLabel || undefined,
+        unit: unit || ''
       });
       
-      form.reset({
-        pinId: '',
-        name: '',
-        dataType: '',
-        signalType: '',
-        label: '',
-        mode: 'input'
+      toast({
+        title: "Success",
+        description: "Pin configuration saved successfully.",
       });
-      
-      toast.success('Pin configured successfully');
-    } catch (error) {
-      console.error('Error configuring pin:', error);
-      toast.error('Failed to configure pin');
+    } catch (error: any) {
+      handleSupabaseError(error, "Failed to save pin configuration.");
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
+  
+  return (
+    <Card className="w-[500px]">
+      <CardHeader>
+        <CardTitle>Configure Pin</CardTitle>
+        <CardDescription>Set up the pin configuration for your device.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid w-full gap-4">
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="pin">Pin</Label>
+            <Select onValueChange={(value) => setSelectedPin(JSON.parse(value))}>
+              <SelectTrigger id="pin">
+                <SelectValue placeholder="Select a pin" />
+              </SelectTrigger>
+              <SelectContent>
+                {/* Assuming you have a way to fetch available pins */}
+                <SelectItem value='{"id":"1", "pin_number":1, "pin_name":"D1"}'>D1</SelectItem>
+                <SelectItem value='{"id":"2", "pin_number":2, "pin_name":"D2"}'>D2</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="name">Name</Label>
+            <Input id="name" placeholder="Pin Name" value={pinName} onChange={(e) => setPinName(e.target.value)} />
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="dataType">Data Type</Label>
+            <Select onValueChange={setDataType}>
+              <SelectTrigger id="dataType">
+                <SelectValue placeholder="Select data type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Analog">Analog</SelectItem>
+                <SelectItem value="Digital">Digital</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="signalType">Signal Type</Label>
+            <Select onValueChange={setSignalType}>
+              <SelectTrigger id="signalType">
+                <SelectValue placeholder="Select signal type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Sensor">Sensor</SelectItem>
+                <SelectItem value="Actuator">Actuator</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="mode">Mode</Label>
+            <Select onValueChange={setMode}>
+              <SelectTrigger id="mode">
+                <SelectValue placeholder="Select mode" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Input">Input</SelectItem>
+                <SelectItem value="Output">Output</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="label">Label</Label>
+            <Select onValueChange={setSelectedLabel}>
+              <SelectTrigger id="label">
+                <SelectValue placeholder="Select label" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pH">pH</SelectItem>
+                <SelectItem value="Temperature">Temperature</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex flex-col space-y-1.5">
+            <Label htmlFor="unit">Unit</Label>
+            <Input id="unit" placeholder="Unit" value={unit} onChange={(e) => setUnit(e.target.value)} />
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button variant="outline">Cancel</Button>
+        <Button onClick={handleSave} disabled={isSaving}>
+          {isSaving ? 'Saving...' : 'Save'}
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+}
 
-  if (!device) {
-    return (
-      <div className="container mx-auto p-6">
-        <h1 className="text-2xl font-bold mb-4">Device not found</h1>
-        <Button onClick={() => navigate('/dashboard')}>Back to Dashboard</Button>
-      </div>
-    );
+async function configurePin(deviceId: string | undefined, config: PinConfig): Promise<void> {
+  if (!deviceId) {
+    throw new Error("Device ID is required to configure the pin.");
   }
 
-  return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">{device.name} Configuration</h1>
-          <p className="text-gray-500">{device.description}</p>
-        </div>
-        <Button onClick={() => navigate(`/devices/${deviceId}/code`)}>View Device Code</Button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="md:col-span-1">
-          <CardHeader>
-            <CardTitle>Configure New Pin</CardTitle>
-            <CardDescription>Set up a new pin for your device</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                <FormField
-                  control={form.control}
-                  name="pinId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pin</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Pin" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {pinOptions.length === 0 ? (
-                            <SelectItem value="none" disabled>
-                              No available pins
-                            </SelectItem>
-                          ) : (
-                            pinOptions.map((pin) => (
-                              <SelectItem key={pin.id} value={pin.id}>
-                                {pin.name} (Pin {pin.pinNumber})
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Only unused pins are shown in this list
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Pin Name</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="e.g., pH Sensor" 
-                          required 
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="dataType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Data Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Data Type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {dataTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="signalType"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Signal Type</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Signal Type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {signalTypes.map((type) => (
-                            <SelectItem key={type} value={type}>
-                              {type}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="label"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Label</FormLabel>
-                      <Select
-                        onValueChange={field.onChange}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Label" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="none">None</SelectItem>
-                          {labels.map((labelOption) => (
-                            <SelectItem key={labelOption} value={labelOption}>
-                              {labelOption}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormDescription>
-                        Label determines how this pin will be displayed in the dashboard
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <FormField
-                  control={form.control}
-                  name="mode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Mode</FormLabel>
-                      <Select
-                        onValueChange={field.onChange as (value: string) => void}
-                        defaultValue={field.value}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select Mode" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {pinModes.map((modeOption) => (
-                            <SelectItem key={modeOption} value={modeOption}>
-                              {modeOption.charAt(0).toUpperCase() + modeOption.slice(1)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                
-                <Button 
-                  type="submit" 
-                  className="w-full"
-                  disabled={isSubmitting || pinOptions.length === 0}
-                >
-                  {isSubmitting ? 'Configuring...' : 'Configure Pin'}
-                </Button>
-              </form>
-            </Form>
-          </CardContent>
-        </Card>
+  const userId = 'user123'; // Replace with actual user ID
 
-        <Card className="md:col-span-2">
-          <CardHeader>
-            <CardTitle>Configured Pins</CardTitle>
-            <CardDescription>Currently configured pins for this device</CardDescription>
-          </CardHeader>
-          <CardContent>
-            {devicePins.length === 0 ? (
-              <p className="text-muted-foreground">No pins configured yet.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Pin</TableHead>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Signal</TableHead>
-                      <TableHead>Label</TableHead>
-                      <TableHead>Mode</TableHead>
-                      <TableHead>Last Value</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {devicePins.map((pin) => (
-                      <TableRow key={pin.id}>
-                        <TableCell>{pin.pinNumber}</TableCell>
-                        <TableCell>{pin.name}</TableCell>
-                        <TableCell>{pin.dataType}</TableCell>
-                        <TableCell>{pin.signalType}</TableCell>
-                        <TableCell>{pin.label || 'None'}</TableCell>
-                        <TableCell className="capitalize">{pin.mode}</TableCell>
-                        <TableCell>{pin.value !== undefined ? pin.value : 'No data'}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-    </div>
-  );
-};
+  try {
+    // Map string values to IDs
+    // const dataTypeId = await findDataTypeIdByName(config.dataType);
+    // const signalTypeId = await findSignalTypeIdByName(config.signalType);
+    // const modeId = await findModeIdByType(config.mode);
+    // const labelId = config.label ? await findLabelIdByName(config.label) : null;
 
-export default DeviceConfig;
+    // if (!dataTypeId || !signalTypeId || !modeId) {
+    //   throw new Error("Failed to resolve IDs for data type, signal type, or mode.");
+    // }
+
+    // Prepare the pin configuration object
+    const pinConfigData = {
+      device_id: deviceId,
+      pin_id: config.pinId,
+      data_type_id: 1, //dataTypeId,
+      signal_type_id:  1, //signalTypeId,
+      mode_id: 1, //modeId,
+      label_id: 1, //labelId,
+      name: config.name,
+      unit: config.unit,
+    };
+
+    // Call the server action to create the pin configuration
+    await createPinConfig(pinConfigData);
+  } catch (error) {
+    console.error("Error during pin configuration:", error);
+    throw error;
+  }
+}
