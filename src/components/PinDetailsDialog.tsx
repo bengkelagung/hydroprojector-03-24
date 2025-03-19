@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -34,13 +35,14 @@ interface PinDetailsDialogProps {
 }
 
 const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) => {
-  const { devices, projects, signalTypes, dataTypes, labels, updatePin, deletePin, togglePinValue } = useHydro();
+  const { devices, projects, signalTypes, dataTypes, labels, pinModes, updatePin, deletePin, togglePinValue } = useHydro();
   
   const [editMode, setEditMode] = useState(false);
   const [editPinName, setEditPinName] = useState('');
   const [editPinSignalType, setEditPinSignalType] = useState('');
   const [editPinDataType, setEditPinDataType] = useState('');
   const [editPinLabel, setEditPinLabel] = useState('');
+  const [editPinMode, setEditPinMode] = useState<'input' | 'output'>('input');
   const [tablesExist, setTablesExist] = useState<boolean>(false);
   
   // Find the device and project for this pin
@@ -63,6 +65,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinSignalType(pin.signalType);
       setEditPinDataType(pin.dataType);
       setEditPinLabel(pin.label || '');
+      setEditPinMode(pin.mode);
     }
   }, [pin]);
   
@@ -78,7 +81,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       const updates: Partial<Pin> = {
         name: editPinName,
         signalType: editPinSignalType as Pin['signalType'],
-        dataType: editPinDataType as Pin['dataType']
+        dataType: editPinDataType as Pin['dataType'],
+        mode: editPinMode
       };
       
       // Only include label if the tables exist
@@ -155,6 +159,24 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   onChange={(e) => setEditPinName(e.target.value)}
                   className="col-span-3"
                 />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label className="text-right">Mode:</Label>
+                <Select 
+                  value={editPinMode} 
+                  onValueChange={(value) => setEditPinMode(value as 'input' | 'output')}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue placeholder="Select pin mode" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {pinModes.map(mode => (
+                      <SelectItem key={mode} value={mode}>
+                        {mode}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label className="text-right">Signal Type:</Label>
