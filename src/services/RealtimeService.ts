@@ -20,6 +20,7 @@ const maxReconnectDelayMs = 30000; // Max 30 seconds
 
 // WebSocket connection state
 let isWebSocketConnected = false;
+let cleanupInProgress = false; // Flag to prevent recursive removeChannel calls
 
 // Initialize WebSocket connection state monitor
 const initWebSocketMonitor = () => {
@@ -100,6 +101,29 @@ const isRealtimeAvailable = (): boolean => {
   }
 };
 
+// Safe channel removal function
+const safeRemoveChannel = async (channel: any, channelName: string) => {
+  if (!channel) return;
+  
+  try {
+    // First try to unsubscribe, which is safer than removing directly
+    await channel.unsubscribe();
+    console.log(`Unsubscribed from ${channelName} channel`);
+    
+    // After unsubscribing, remove the channel with a short delay to avoid race conditions
+    setTimeout(() => {
+      try {
+        supabase.removeChannel(channel);
+        console.log(`Removed ${channelName} channel`);
+      } catch (e) {
+        console.error(`Error during final channel removal for ${channelName}:`, e);
+      }
+    }, 100);
+  } catch (e) {
+    console.error(`Error unsubscribing from ${channelName} channel:`, e);
+  }
+};
+
 // Subscribe to device changes
 export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
   // Ensure realtime is available
@@ -113,13 +137,9 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
   if (deviceSubscription) {
     console.log('Already subscribed to devices channel');
     return () => {
-      if (deviceSubscription) {
+      if (deviceSubscription && !cleanupInProgress) {
         console.log('Removing existing devices subscription');
-        try {
-          supabase.removeChannel(deviceSubscription);
-        } catch (e) {
-          console.error('Error removing device channel:', e);
-        }
+        safeRemoveChannel(deviceSubscription, 'devices');
         deviceSubscription = null;
       }
     };
@@ -156,12 +176,8 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
           isWebSocketConnected = false;
           
           // Clean up existing subscription
-          if (deviceSubscription) {
-            try {
-              supabase.removeChannel(deviceSubscription);
-            } catch (e) {
-              console.error('Error removing device channel:', e);
-            }
+          if (deviceSubscription && !cleanupInProgress) {
+            safeRemoveChannel(deviceSubscription, 'devices');
             deviceSubscription = null;
           }
           
@@ -173,13 +189,9 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
       });
 
     return () => {
-      if (deviceSubscription) {
+      if (deviceSubscription && !cleanupInProgress) {
         console.log('Unsubscribing from devices channel');
-        try {
-          supabase.removeChannel(deviceSubscription);
-        } catch (e) {
-          console.error('Error removing device channel during cleanup:', e);
-        }
+        safeRemoveChannel(deviceSubscription, 'devices');
         deviceSubscription = null;
       }
     };
@@ -210,13 +222,9 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
   if (pinConfigSubscription) {
     console.log('Already subscribed to pin configs channel');
     return () => {
-      if (pinConfigSubscription) {
+      if (pinConfigSubscription && !cleanupInProgress) {
         console.log('Removing existing pin configs subscription');
-        try {
-          supabase.removeChannel(pinConfigSubscription);
-        } catch (e) {
-          console.error('Error removing pin config channel:', e);
-        }
+        safeRemoveChannel(pinConfigSubscription, 'pin-configs');
         pinConfigSubscription = null;
       }
     };
@@ -253,12 +261,8 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
           isWebSocketConnected = false;
           
           // Clean up existing subscription
-          if (pinConfigSubscription) {
-            try {
-              supabase.removeChannel(pinConfigSubscription);
-            } catch (e) {
-              console.error('Error removing pin config channel:', e);
-            }
+          if (pinConfigSubscription && !cleanupInProgress) {
+            safeRemoveChannel(pinConfigSubscription, 'pin-configs');
             pinConfigSubscription = null;
           }
           
@@ -270,13 +274,9 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
       });
 
     return () => {
-      if (pinConfigSubscription) {
+      if (pinConfigSubscription && !cleanupInProgress) {
         console.log('Unsubscribing from pin configs channel');
-        try {
-          supabase.removeChannel(pinConfigSubscription);
-        } catch (e) {
-          console.error('Error removing pin config channel during cleanup:', e);
-        }
+        safeRemoveChannel(pinConfigSubscription, 'pin-configs');
         pinConfigSubscription = null;
       }
     };
@@ -307,13 +307,9 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
   if (pinDataSubscription) {
     console.log('Already subscribed to pin data channel');
     return () => {
-      if (pinDataSubscription) {
+      if (pinDataSubscription && !cleanupInProgress) {
         console.log('Removing existing pin data subscription');
-        try {
-          supabase.removeChannel(pinDataSubscription);
-        } catch (e) {
-          console.error('Error removing pin data channel:', e);
-        }
+        safeRemoveChannel(pinDataSubscription, 'pin-data');
         pinDataSubscription = null;
       }
     };
@@ -345,12 +341,8 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
           isWebSocketConnected = false;
           
           // Clean up existing subscription
-          if (pinDataSubscription) {
-            try {
-              supabase.removeChannel(pinDataSubscription);
-            } catch (e) {
-              console.error('Error removing pin data channel:', e);
-            }
+          if (pinDataSubscription && !cleanupInProgress) {
+            safeRemoveChannel(pinDataSubscription, 'pin-data');
             pinDataSubscription = null;
           }
           
@@ -362,13 +354,9 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
       });
 
     return () => {
-      if (pinDataSubscription) {
+      if (pinDataSubscription && !cleanupInProgress) {
         console.log('Unsubscribing from pin data channel');
-        try {
-          supabase.removeChannel(pinDataSubscription);
-        } catch (e) {
-          console.error('Error removing pin data channel during cleanup:', e);
-        }
+        safeRemoveChannel(pinDataSubscription, 'pin-data');
         pinDataSubscription = null;
       }
     };
@@ -411,40 +399,36 @@ export const isWebSocketActive = (): boolean => {
 
 // Helper function to unsubscribe from all channels
 export const unsubscribeAll = () => {
+  // Set flag to prevent recursive removeChannel calls
+  cleanupInProgress = true;
+  
   try {
     if (deviceSubscription) {
       console.log('Unsubscribing from devices channel');
-      try {
-        supabase.removeChannel(deviceSubscription);
-      } catch (e) {
-        console.error('Error removing device channel during unsubscribeAll:', e);
-      }
+      safeRemoveChannel(deviceSubscription, 'devices');
       deviceSubscription = null;
     }
     
     if (pinConfigSubscription) {
       console.log('Unsubscribing from pin configs channel');
-      try {
-        supabase.removeChannel(pinConfigSubscription);
-      } catch (e) {
-        console.error('Error removing pin config channel during unsubscribeAll:', e);
-      }
+      safeRemoveChannel(pinConfigSubscription, 'pin-configs');
       pinConfigSubscription = null;
     }
     
     if (pinDataSubscription) {
       console.log('Unsubscribing from pin data channel');
-      try {
-        supabase.removeChannel(pinDataSubscription);
-      } catch (e) {
-        console.error('Error removing pin data channel during unsubscribeAll:', e);
-      }
+      safeRemoveChannel(pinDataSubscription, 'pin-data');
       pinDataSubscription = null;
     }
     
     console.log('Successfully unsubscribed from all channels');
   } catch (error) {
     console.error('Error unsubscribing from channels:', error);
+  } finally {
+    // Reset the cleanup flag after a short delay to ensure any pending operations complete
+    setTimeout(() => {
+      cleanupInProgress = false;
+    }, 500);
   }
 };
 

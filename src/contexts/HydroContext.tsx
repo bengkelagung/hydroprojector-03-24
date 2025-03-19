@@ -578,7 +578,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   };
 
   const updatePin = async (pinId: string, updates: Partial<Pin>): Promise<void> => {
-    // Create a proper Promise to handle async updates in a synchronous context
     return new Promise((resolve, reject) => {
       // Convert pin model to database model
       const supabaseUpdates: any = {};
@@ -594,7 +593,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         .update(supabaseUpdates)
         .eq('id', pinId)
         .then(({ error }) => {
-          if (error) throw error;
+          if (error) {
+            console.error('Error updating pin:', error);
+            toast.error('Failed to update pin');
+            reject(error);
+            return;
+          }
           
           setPins(prev => prev.map(pin => 
             pin.id === pinId ? { ...pin, ...updates } : pin
