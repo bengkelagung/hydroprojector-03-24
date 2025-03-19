@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import { ChevronLeft, Cpu, Settings, Code, Activity, Pencil, Trash2, Power } from 'lucide-react';

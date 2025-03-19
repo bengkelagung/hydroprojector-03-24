@@ -45,6 +45,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [editPinLabel, setEditPinLabel] = useState('');
   const [editPinMode, setEditPinMode] = useState<'input' | 'output'>('input');
   const [tablesExist, setTablesExist] = useState<boolean>(false);
+  const [pinValue, setPinValue] = useState<string>('0');
   
   // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
@@ -67,6 +68,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinDataType(pin.dataType);
       setEditPinLabel(pin.label || '');
       setEditPinMode(pin.mode);
+      setPinValue(pin.value || '0');
     }
   }, [pin]);
   
@@ -119,7 +121,20 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   
   const handleToggleOutput = () => {
     if (!pin) return;
-    togglePinValue(pin.id);
+    
+    try {
+      // Update local state immediately for better UX
+      const newValue = pinValue === '1' ? '0' : '1';
+      setPinValue(newValue);
+      
+      // Then call the actual toggle function
+      togglePinValue(pin.id);
+    } catch (error) {
+      console.error('Error toggling pin value:', error);
+      // Revert back if there was an error
+      setPinValue(pinValue);
+      toast.error('Failed to toggle pin');
+    }
   };
   
   const getSignalColor = (signalType: string) => {
@@ -136,8 +151,8 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   
   if (!pin) return null;
   
-  const value = pin.value || '0';
-  const isOn = value === '1' || value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
+  // Use local state for value to make UI more responsive
+  const isOn = pinValue === '1' || pinValue.toLowerCase() === 'on' || pinValue.toLowerCase() === 'true';
   const colorClass = getSignalColor(pin.signalType);
   
   return (

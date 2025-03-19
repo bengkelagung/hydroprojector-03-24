@@ -6,6 +6,7 @@ import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
 import PinDetailsDialog from '@/components/PinDetailsDialog';
 import { checkLabelColumnExists } from '@/integrations/supabase/client';
+import { toast } from "sonner";
 
 const Readings = () => {
   const { pins, devices, projects, togglePinValue } = useHydro();
@@ -13,6 +14,7 @@ const Readings = () => {
   const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'input' | 'output'>('input');
+  const [localPinValues, setLocalPinValues] = useState<Record<string, string>>({});
   
   useEffect(() => {
     // Check if label column exists
@@ -24,6 +26,15 @@ const Readings = () => {
     checkColumn();
   }, []);
 
+  // Initialize local pin values from actual pins
+  useEffect(() => {
+    const values: Record<string, string> = {};
+    pins.forEach(pin => {
+      values[pin.id] = pin.value || '0';
+    });
+    setLocalPinValues(values);
+  }, [pins]);
+
   // Get all pins
   const inputPins = pins.filter(p => p.mode === 'input');
   const outputPins = pins.filter(p => p.mode === 'output');
@@ -34,7 +45,26 @@ const Readings = () => {
   };
 
   const handleToggleOutput = (pin: Pin) => {
-    togglePinValue(pin.id);
+    try {
+      // Update local state immediately for better UX
+      const currentValue = localPinValues[pin.id] || '0';
+      const newValue = currentValue === '1' ? '0' : '1';
+      
+      // Update local state
+      setLocalPinValues(prev => ({
+        ...prev,
+        [pin.id]: newValue
+      }));
+      
+      // Then call the actual toggle function
+      togglePinValue(pin.id);
+      
+      // Show toast notification
+      toast.success(`${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`);
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      toast.error('Failed to toggle pin');
+    }
   };
 
   // Helper function to get an icon based on label or signal type
@@ -362,7 +392,8 @@ const Readings = () => {
                   const device = devices.find(d => d.id === pin.deviceId);
                   const project = device ? projects.find(p => p.id === device.projectId) : null;
                   
-                  const value = pin.value || '0';
+                  // Use local state for the pin value for immediate UI feedback
+                  const value = localPinValues[pin.id] || pin.value || '0';
                   const isOn = value === '1' || value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
                   
                   const colorClass = getPinColor(pin);
