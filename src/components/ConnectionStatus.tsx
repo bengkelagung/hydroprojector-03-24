@@ -27,6 +27,49 @@ export default function ConnectionStatus() {
     );
   }, []);
 
+  // Function to check Supabase connection
+  const checkSupabaseConnection = async () => {
+    if (!isOnlineState) {
+      setIsDbConnected(false);
+      return;
+    }
+
+    try {
+      setCheckingConnection(true);
+      const available = await isSupabaseAvailable();
+      setIsDbConnected(available);
+      
+      if (!available) {
+        // First check what type of error we're dealing with
+        const resourceError = await fetch('https://vtqxdgejqgyhhvnaxnfq.supabase.co/rest/v1/health')
+          .then(res => res.status === 429)
+          .catch(() => false);
+          
+        setErrorType(resourceError ? 'resources' : 'connection');
+        setIsVisible(true);
+      } else if (isVisible && (errorType === 'connection' || errorType === 'resources')) {
+        // If we're showing a connection error and the connection is now available
+        setIsVisible(false);
+        setErrorType(null);
+        // Trigger data refresh
+        window.dispatchEvent(new CustomEvent('refresh-data'));
+      }
+    } catch (error: any) {
+      console.error('Error checking database connection:', error);
+      setIsDbConnected(false);
+      
+      if (error?.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+        setErrorType('resources');
+      } else {
+        setErrorType('connection');
+      }
+      
+      setIsVisible(true);
+    } finally {
+      setCheckingConnection(false);
+    }
+  };
+
   // Check online status
   useEffect(() => {
     const handleOnline = () => {
@@ -69,48 +112,6 @@ export default function ConnectionStatus() {
   useEffect(() => {
     let checkInterval: NodeJS.Timeout;
     
-    const checkSupabaseConnection = async () => {
-      if (!isOnlineState) {
-        setIsDbConnected(false);
-        return;
-      }
-
-      try {
-        setCheckingConnection(true);
-        const available = await isSupabaseAvailable();
-        setIsDbConnected(available);
-        
-        if (!available) {
-          // First check what type of error we're dealing with
-          const resourceError = await fetch('https://vtqxdgejqgyhhvnaxnfq.supabase.co/rest/v1/health')
-            .then(res => res.status === 429)
-            .catch(() => false);
-            
-          setErrorType(resourceError ? 'resources' : 'connection');
-          setIsVisible(true);
-        } else if (isVisible && (errorType === 'connection' || errorType === 'resources')) {
-          // If we're showing a connection error and the connection is now available
-          setIsVisible(false);
-          setErrorType(null);
-          // Trigger data refresh
-          window.dispatchEvent(new CustomEvent('refresh-data'));
-        }
-      } catch (error: any) {
-        console.error('Error checking database connection:', error);
-        setIsDbConnected(false);
-        
-        if (error?.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
-          setErrorType('resources');
-        } else {
-          setErrorType('connection');
-        }
-        
-        setIsVisible(true);
-      } finally {
-        setCheckingConnection(false);
-      }
-    };
-
     // Check immediately on mount or when online status changes
     checkSupabaseConnection();
 
