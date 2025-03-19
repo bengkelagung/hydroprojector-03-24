@@ -11,15 +11,15 @@ interface LayoutProps {
 
 const Layout: React.FC<LayoutProps> = () => {
   return (
-    <ErrorBoundary>
-      <div className="min-h-screen bg-background">
-        <main className="p-4 md:p-6">
+    <div className="min-h-screen bg-background">
+      <main className="p-4 md:p-6">
+        <ErrorBoundary>
           <ConnectionStatus />
           <Outlet />
-        </main>
-        <Toaster />
-      </div>
-    </ErrorBoundary>
+        </ErrorBoundary>
+      </main>
+      <Toaster />
+    </div>
   );
 };
 

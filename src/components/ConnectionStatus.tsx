@@ -2,21 +2,41 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Wifi, WifiOff, X, ServerCrash, AlertTriangle } from 'lucide-react';
-import { isSupabaseAvailable } from '@/utils/supabaseHelpers';
+import { Wifi, WifiOff, X, ServerCrash, AlertTriangle, RefreshCw } from 'lucide-react';
+import { isSupabaseAvailable, isOnline } from '@/utils/supabaseHelpers';
+import { getCachedDevices, getCachedPins, getCachedProjects } from '@/utils/offlineStorage';
 
 export default function ConnectionStatus() {
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isOnlineState, setIsOnlineState] = useState(navigator.onLine);
   const [isDbConnected, setIsDbConnected] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
   const [errorType, setErrorType] = useState<'offline' | 'resources' | 'connection' | null>(null);
+  const [hasCachedData, setHasCachedData] = useState(false);
+
+  // Check for cached data availability
+  useEffect(() => {
+    const devices = getCachedDevices();
+    const pins = getCachedPins();
+    const projects = getCachedProjects();
+    
+    setHasCachedData(
+      Array.isArray(devices) && devices.length > 0 || 
+      Array.isArray(pins) && pins.length > 0 || 
+      Array.isArray(projects) && projects.length > 0
+    );
+  }, []);
 
   // Check online status
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
+    const handleOnline = () => {
+      setIsOnlineState(true);
+      // Check database connection when back online
+      checkConnection();
+    };
+    
     const handleOffline = () => {
-      setIsOnline(false);
+      setIsOnlineState(false);
       setErrorType('offline');
       setIsVisible(true);
     };
@@ -50,7 +70,7 @@ export default function ConnectionStatus() {
     let checkInterval: NodeJS.Timeout;
     
     const checkConnection = async () => {
-      if (!isOnline) {
+      if (!isOnlineState) {
         setIsDbConnected(false);
         return;
       }
@@ -61,11 +81,19 @@ export default function ConnectionStatus() {
         setIsDbConnected(available);
         
         if (!available) {
-          setErrorType('connection');
+          // First check what type of error we're dealing with
+          const resourceError = await fetch('https://vtqxdgejqgyhhvnaxnfq.supabase.co/rest/v1/health')
+            .then(res => res.status === 429)
+            .catch(() => false);
+            
+          setErrorType(resourceError ? 'resources' : 'connection');
           setIsVisible(true);
-        } else if (isVisible && errorType === 'connection') {
+        } else if (isVisible && (errorType === 'connection' || errorType === 'resources')) {
           // If we're showing a connection error and the connection is now available
           setIsVisible(false);
+          setErrorType(null);
+          // Trigger data refresh
+          window.dispatchEvent(new CustomEvent('refresh-data'));
         }
       } catch (error: any) {
         console.error('Error checking database connection:', error);
@@ -92,7 +120,7 @@ export default function ConnectionStatus() {
     return () => {
       clearInterval(checkInterval);
     };
-  }, [isOnline, isVisible, errorType]);
+  }, [isOnlineState, isVisible, errorType]);
 
   const handleRetry = async () => {
     setCheckingConnection(true);
@@ -131,10 +159,10 @@ export default function ConnectionStatus() {
           </AlertTitle>
           <AlertDescription>
             {errorType === 'offline' 
-              ? "You are currently offline. Some features may not work properly."
+              ? "You are currently offline. " + (hasCachedData ? "Using cached data." : "Some features may not work.")
               : errorType === 'resources'
-              ? "The server is experiencing high load. Please try again later or use offline features."
-              : "Unable to connect to the database. Please try again later."}
+              ? "The server is experiencing high load. " + (hasCachedData ? "Using cached data." : "Please try again later.")
+              : "Unable to connect to the database. " + (hasCachedData ? "Using cached data." : "Please try again later.")}
           </AlertDescription>
         </div>
       </div>
@@ -145,7 +173,8 @@ export default function ConnectionStatus() {
           onClick={handleRetry} 
           disabled={checkingConnection || errorType === 'offline'}
         >
-          {checkingConnection ? 'Checking...' : 'Retry'}
+          {checkingConnection ? 'Checking...' : <RefreshCw className="h-4 w-4 mr-1" />}
+          {!checkingConnection && 'Retry'}
         </Button>
         <Button 
           variant="ghost" 
