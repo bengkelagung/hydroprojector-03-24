@@ -9,6 +9,17 @@ import {
   unsubscribeAll
 } from '@/services/RealtimeService';
 import { executeWithRetry, handleSupabaseError } from '@/utils/supabaseHelpers';
+import { 
+  storeDevices, 
+  storePins, 
+  storeProjects, 
+  getCachedDevices,
+  getCachedPins,
+  getCachedProjects,
+  queueChange,
+  storeRecentPinData,
+  getRecentPinData
+} from '@/utils/offlineStorage';
 
 export interface Project {
   id: string;
@@ -154,6 +165,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
+      // Handle cached devices update
+      if (deviceId === 'cached-devices' && Array.isArray(updates)) {
+        console.log('Setting cached devices:', updates.length);
+        setDevices(updates);
+        return;
+      }
+      
       setDevices(prev => prev.map(device => 
         device.id === deviceId 
           ? { 
@@ -175,6 +193,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
+      // Handle cached pins update
+      if (pinId === 'cached-pins' && Array.isArray(updates)) {
+        console.log('Setting cached pins:', updates.length);
+        setPins(updates);
+        return;
+      }
+      
       setPins(prev => prev.map(pin => 
         pin.id === pinId 
           ? { ...pin, value: updates.value, lastUpdated: updates.last_updated }
@@ -192,11 +217,34 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ));
     });
 
+    // Listen for offline mode events
+    const handleOfflineMode = () => {
+      console.log('Switching to offline mode');
+      const cachedDevices = getCachedDevices();
+      const cachedPins = getCachedPins();
+      const cachedProjects = getCachedProjects();
+      
+      if (cachedDevices.length > 0) setDevices(cachedDevices);
+      if (cachedPins.length > 0) setPins(cachedPins);
+      if (cachedProjects.length > 0) setProjects(cachedProjects);
+      
+      toast({
+        title: "Offline Mode",
+        description: "Using cached data. Changes will be synchronized when online."
+      });
+    };
+    
+    window.addEventListener('supabase-connection-closed', handleOfflineMode);
+    window.addEventListener('supabase-connection-failed', handleOfflineMode);
+
     return () => {
       if (deviceUnsubscribe) deviceUnsubscribe();
       if (pinConfigUnsubscribe) pinConfigUnsubscribe();
       if (pinDataUnsubscribe) pinDataUnsubscribe();
       unsubscribeAll();
+      
+      window.removeEventListener('supabase-connection-closed', handleOfflineMode);
+      window.removeEventListener('supabase-connection-failed', handleOfflineMode);
     };
   }, [user]);
 
@@ -218,7 +266,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const data = await executeWithRetry(
+      const { data, error } = await executeWithRetry(
         () => supabase
           .from('projects')
           .select('*')
@@ -226,9 +274,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load projects'
       );
       
-      if (!data) return;
+      if (error) throw error;
       
-      const formattedProjects: Project[] = data.map(project => ({
+      const formattedProjects: Project[] = (data || []).map(project => ({
         id: project.id,
         name: project.project_name,
         description: project.description || '',
@@ -236,9 +284,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
       
       setProjects(formattedProjects);
+      storeProjects(formattedProjects);
     } catch (error) {
       console.error('Error fetching projects:', error);
       handleSupabaseError(error, 'Failed to load projects');
+      
+      // Use cached projects if available
+      const cachedProjects = getCachedProjects();
+      if (cachedProjects.length > 0) {
+        setProjects(cachedProjects);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -248,7 +303,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const data = await executeWithRetry(
+      const { data, error } = await executeWithRetry(
         () => supabase
           .from('devices')
           .select('*')
@@ -256,9 +311,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load devices'
       );
       
-      if (!data) return;
+      if (error) throw error;
       
-      const formattedDevices: Device[] = data.map(device => ({
+      const formattedDevices: Device[] = (data || []).map(device => ({
         id: device.id,
         name: device.device_name,
         description: device.description || '',
@@ -269,9 +324,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
       
       setDevices(formattedDevices);
+      storeDevices(formattedDevices);
     } catch (error) {
       console.error('Error fetching devices:', error);
       handleSupabaseError(error, 'Failed to load devices');
+      
+      // Use cached devices if available
+      const cachedDevices = getCachedDevices();
+      if (cachedDevices.length > 0) {
+        setDevices(cachedDevices);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -281,7 +343,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const data = await executeWithRetry(
+      const { data, error } = await executeWithRetry(
         () => supabase
           .from('pin_configs')
           .select(`
@@ -296,9 +358,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load pins'
       );
       
-      if (!data) return;
+      if (error) throw error;
       
-      const formattedPins: Pin[] = data.map(pin => ({
+      const formattedPins: Pin[] = (data || []).map(pin => ({
         id: pin.id,
         name: pin.name,
         pinNumber: pin.pins.pin_number,
@@ -314,9 +376,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
       
       setPins(formattedPins);
+      storePins(formattedPins);
     } catch (error) {
       console.error('Error fetching pins:', error);
       handleSupabaseError(error, 'Failed to load pins');
+      
+      // Use cached pins if available
+      const cachedPins = getCachedPins();
+      if (cachedPins.length > 0) {
+        setPins(cachedPins);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -762,62 +831,64 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await updateDevice(deviceId, { isConnected });
   };
 
-  const configurePin = async (config: {
-    deviceId: string;
-    pinId: string;
-    dataType: string;
-    signalType: string;
-    mode: 'input' | 'output';
-    name: string;
-    label?: string;
-  }): Promise<void> => {
+  // Fix configurePin function to match expected signature
+  const configurePin = async (deviceId: string, config: any): Promise<void> => {
     try {
-      const { deviceId, pinId, dataType, signalType, mode, name, label } = config;
+      const { pinId, dataType, signalType, mode, name, label } = config;
       
-      const dataTypeData = await executeWithRetry(
-        () => supabase.from('data_types').select('id').eq('name', dataType).single(),
-        'Failed to get data type'
-      );
-      if (!dataTypeData) throw new Error('Data type not found');
+      const { data: dataTypeData, error: dataTypeError } = await supabase
+        .from('data_types')
+        .select('id')
+        .eq('name', dataType)
+        .single();
+      
+      if (dataTypeError) throw dataTypeError;
       const dataTypeId = dataTypeData.id;
       
-      const signalTypeData = await executeWithRetry(
-        () => supabase.from('signal_types').select('id').eq('name', signalType).single(),
-        'Failed to get signal type'
-      );
-      if (!signalTypeData) throw new Error('Signal type not found');
+      const { data: signalTypeData, error: signalTypeError } = await supabase
+        .from('signal_types')
+        .select('id')
+        .eq('name', signalType)
+        .single();
+      
+      if (signalTypeError) throw signalTypeError;
       const signalTypeId = signalTypeData.id;
       
-      const modeData = await executeWithRetry(
-        () => supabase.from('modes').select('id').eq('type', mode).single(),
-        'Failed to get mode'
-      );
-      if (!modeData) throw new Error('Mode not found');
+      const { data: modeData, error: modeError } = await supabase
+        .from('modes')
+        .select('id')
+        .eq('type', mode)
+        .single();
+      
+      if (modeError) throw modeError;
       const modeId = modeData.id;
       
       let labelId = null;
       if (label && label.trim() !== '') {
-        const labelData = await executeWithRetry(
-          () => supabase.from('label').select('id').eq('name', label).single(),
-          'Failed to get label'
-        );
+        const { data: labelData, error: labelError } = await supabase
+          .from('label')
+          .select('id')
+          .eq('name', label)
+          .single();
         
-        if (labelData) {
+        if (!labelError) {
           labelId = labelData.id;
         } else {
-          const newLabelData = await executeWithRetry(
-            () => supabase.from('label').insert({ name: label }).select('id').single(),
-            'Failed to create label'
-          );
+          const { data: newLabelData, error: newLabelError } = await supabase
+            .from('label')
+            .insert({ name: label })
+            .select('id')
+            .single();
           
-          if (newLabelData) {
+          if (!newLabelError && newLabelData) {
             labelId = newLabelData.id;
           }
         }
       }
       
-      const pinConfigData = await executeWithRetry(
-        () => supabase.from('pin_configs').insert({
+      const { data: pinConfigData, error: configError } = await supabase
+        .from('pin_configs')
+        .insert({
           name,
           device_id: deviceId,
           pin_id: pinId,
@@ -825,47 +896,57 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           signal_type_id: signalTypeId,
           mode_id: modeId,
           label_id: labelId,
-        }).select(`
+        })
+        .select(`
           *,
           pins!inner(pin_number, pin_name),
           data_types!inner(name),
           signal_types!inner(name),
           modes!inner(type),
           label(name)
-        `).single(),
-        'Failed to configure pin'
-      );
+        `)
+        .single();
       
-      if (!pinConfigData) throw new Error('Failed to configure pin');
+      if (configError) throw configError;
       
-      const newPin: Pin = {
-        id: pinConfigData.id,
-        name: pinConfigData.name,
-        pinNumber: pinConfigData.pins.pin_number,
-        mode: pinConfigData.modes.type as 'input' | 'output',
-        signalType: pinConfigData.signal_types.name as Pin['signalType'],
-        dataType: pinConfigData.data_types.name as Pin['dataType'],
-        unit: pinConfigData.unit || '',
-        deviceId: pinConfigData.device_id,
-        createdAt: pinConfigData.created_at,
-        value: pinConfigData.value || '',
-        label: pinConfigData.label?.name || '',
-        lastUpdated: pinConfigData.last_updated || ''
-      };
-      
-      setPins(prev => [...prev, newPin]);
-      
-      toast({
-        title: "Success",
-        description: "Pin configured successfully"
-      });
+      if (pinConfigData) {
+        const newPin: Pin = {
+          id: pinConfigData.id,
+          name: pinConfigData.name,
+          pinNumber: pinConfigData.pins.pin_number,
+          mode: pinConfigData.modes.type as 'input' | 'output',
+          signalType: pinConfigData.signal_types.name as Pin['signalType'],
+          dataType: pinConfigData.data_types.name as Pin['dataType'],
+          unit: pinConfigData.unit || '',
+          deviceId: pinConfigData.device_id,
+          createdAt: pinConfigData.created_at,
+          value: pinConfigData.value || '',
+          label: pinConfigData.label?.name || '',
+          lastUpdated: pinConfigData.last_updated || ''
+        };
+        
+        setPins(prev => [...prev, newPin]);
+        
+        // Update offline storage
+        const allPins = [...pins, newPin];
+        storePins(allPins);
+        
+        toast({
+          title: "Success",
+          description: "Pin configured successfully"
+        });
+      }
     } catch (error) {
       console.error('Error configuring pin:', error);
       handleSupabaseError(error, 'Failed to configure pin');
+      
+      // Queue the change for later synchronization
+      queueChange('create', 'pin', { ...config, deviceId });
+      
       throw error;
     }
   };
-
+  
   const getPinOptions = () => {
     try {
       const configuredPins = pins.map(pin => pin.pinNumber);
@@ -890,14 +971,14 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const fetchLabels = async (): Promise<string[]> => {
     try {
-      const data = await executeWithRetry(
+      const { data, error } = await executeWithRetry(
         () => supabase.from('label').select('name').order('name'),
         'Failed to fetch labels'
       );
       
-      if (!data) return labels;
+      if (error) throw error;
       
-      return data.map(label => label.name);
+      return (data || []).map(label => label.name);
     } catch (error) {
       console.error('Error fetching labels:', error);
       return labels;

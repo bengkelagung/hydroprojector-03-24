@@ -116,7 +116,7 @@ export default function ConnectionStatus() {
 
   return (
     <Alert 
-      variant={errorType === 'resources' ? "destructive" : "warning"} 
+      variant={errorType === 'resources' ? "destructive" : "default"} 
       className="mb-4 flex items-center justify-between"
     >
       <div className="flex items-center space-x-2">

@@ -1,6 +1,7 @@
 
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { getCachedDevices, getCachedPins, getCachedProjects } from '@/utils/offlineStorage';
 
 // Types for subscription callbacks
 type DeviceUpdateCallback = (deviceId: string, updates: any) => void;
@@ -39,6 +40,11 @@ const initWebSocketMonitor = () => {
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.log('Connection monitoring detected closed connection');
           isWebSocketConnected = false;
+          
+          // Trigger offline mode if connection is lost
+          if (status === 'CLOSED') {
+            window.dispatchEvent(new Event('supabase-connection-closed'));
+          }
         }
       });
       
@@ -93,6 +99,9 @@ const handleReconnection = (channelName: string, callback: () => void) => {
       variant: "destructive"
     });
     isConnecting = false;
+    
+    // Dispatch event to trigger offline mode
+    window.dispatchEvent(new Event('supabase-connection-failed'));
   }
 };
 
@@ -159,6 +168,14 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
       description: "Realtime service unavailable",
       variant: "destructive"
     });
+    
+    // Return cached devices if available
+    const cachedDevices = getCachedDevices();
+    if (cachedDevices && cachedDevices.length > 0) {
+      console.log('Using cached devices:', cachedDevices.length);
+      callback('cached-devices', cachedDevices);
+    }
+    
     return () => {};
   }
 
@@ -176,8 +193,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
 
   try {
     console.log('Setting up devices subscription');
+    
+    // Create a new channel with a unique name to avoid conflicts
+    const channelName = `devices-changes-${Date.now()}`;
     deviceSubscription = supabase
-      .channel('devices-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'devices' },
@@ -198,18 +218,26 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
         }
       )
       .subscribe((status) => {
-        console.log('Devices subscription status:', status);
+        console.log(`Devices subscription status (${channelName}):`, status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to devices changes');
           isWebSocketConnected = true;
+          reconnectAttempts = 0;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to devices:', status);
+          console.error(`Failed to subscribe to devices (${status})`);
           toast({
             title: "Connection Error",
-            description: "Device connection lost. Reconnecting...",
+            description: "Device connection lost. Using offline data.",
             variant: "destructive"
           });
           isWebSocketConnected = false;
+          
+          // Return cached devices if available
+          const cachedDevices = getCachedDevices();
+          if (cachedDevices && cachedDevices.length > 0) {
+            console.log('Using cached devices (after connection closed):', cachedDevices.length);
+            callback('cached-devices', cachedDevices);
+          }
           
           // Clean up existing subscription
           if (deviceSubscription && !cleanupInProgress) {
@@ -240,6 +268,13 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
     });
     deviceSubscription = null;
     
+    // Return cached devices if available
+    const cachedDevices = getCachedDevices();
+    if (cachedDevices && cachedDevices.length > 0) {
+      console.log('Using cached devices (after subscription error):', cachedDevices.length);
+      callback('cached-devices', cachedDevices);
+    }
+    
     // Try to reconnect after error
     handleReconnection('devices-after-error', () => {
       subscribeToDevices(callback);
@@ -259,6 +294,14 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
       description: "Realtime service unavailable",
       variant: "destructive"
     });
+    
+    // Return cached pins if available
+    const cachedPins = getCachedPins();
+    if (cachedPins && cachedPins.length > 0) {
+      console.log('Using cached pins:', cachedPins.length);
+      callback('cached-pins', cachedPins);
+    }
+    
     return () => {};
   }
   
@@ -276,8 +319,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
 
   try {
     console.log('Setting up pin configs subscription');
+    
+    // Create a new channel with a unique name to avoid conflicts
+    const channelName = `pin-configs-changes-${Date.now()}`;
     pinConfigSubscription = supabase
-      .channel('pin-configs-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'pin_configs' },
@@ -298,18 +344,26 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
         }
       )
       .subscribe((status) => {
-        console.log('Pin configs subscription status:', status);
+        console.log(`Pin configs subscription status (${channelName}):`, status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to pin config changes');
           isWebSocketConnected = true;
+          reconnectAttempts = 0;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to pin configs:', status);
+          console.error(`Failed to subscribe to pin configs (${status})`);
           toast({
             title: "Connection Error",
-            description: "Pin configuration connection lost. Reconnecting...",
+            description: "Pin connection lost. Using offline data.",
             variant: "destructive"
           });
           isWebSocketConnected = false;
+          
+          // Return cached pins if available
+          const cachedPins = getCachedPins();
+          if (cachedPins && cachedPins.length > 0) {
+            console.log('Using cached pins (after connection closed):', cachedPins.length);
+            callback('cached-pins', cachedPins);
+          }
           
           // Clean up existing subscription
           if (pinConfigSubscription && !cleanupInProgress) {
@@ -339,6 +393,13 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
       variant: "destructive"
     });
     pinConfigSubscription = null;
+    
+    // Return cached pins if available
+    const cachedPins = getCachedPins();
+    if (cachedPins && cachedPins.length > 0) {
+      console.log('Using cached pins (after subscription error):', cachedPins.length);
+      callback('cached-pins', cachedPins);
+    }
     
     // Try to reconnect after error
     handleReconnection('pin-configs-after-error', () => {
@@ -376,8 +437,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
 
   try {
     console.log('Setting up pin data subscription');
+    
+    // Create a new channel with a unique name to avoid conflicts
+    const channelName = `pin-data-changes-${Date.now()}`;
     pinDataSubscription = supabase
-      .channel('pin-data-changes')
+      .channel(channelName)
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'pin_data' },
@@ -390,15 +454,16 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
         }
       )
       .subscribe((status) => {
-        console.log('Pin data subscription status:', status);
+        console.log(`Pin data subscription status (${channelName}):`, status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to pin data changes');
           isWebSocketConnected = true;
+          reconnectAttempts = 0;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-          console.error('Failed to subscribe to pin data:', status);
+          console.error(`Failed to subscribe to pin data (${status})`);
           toast({
             title: "Connection Error",
-            description: "Pin data connection lost. Reconnecting...",
+            description: "Pin data connection lost. Trying to reconnect...",
             variant: "destructive"
           });
           isWebSocketConnected = false;
