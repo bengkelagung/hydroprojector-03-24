@@ -24,8 +24,6 @@ let isWebSocketConnected = false;
 // Initialize WebSocket connection state monitor
 const initWebSocketMonitor = () => {
   try {
-    // For Supabase-js v2, we can't directly access the WebSocket
-    // Instead, let's use subscription status as a proxy for connection health
     console.log('Initializing connection monitoring');
     
     // Set up a test subscription to monitor connection status
@@ -53,7 +51,7 @@ const initWebSocketMonitor = () => {
     }, 30000); // Check every 30 seconds
     
   } catch (error) {
-    console.error('Error initializing connection monitor:', error);
+    console.error('Error initializing WebSocket monitor:', error);
   }
 };
 
