@@ -14,6 +14,7 @@ interface SensorReadingCardProps {
   onViewDetails?: (pin: Pin) => void;
   colorClass: string;
   icon: React.ReactNode;
+  compact?: boolean;
 }
 
 const SensorReadingCard: React.FC<SensorReadingCardProps> = ({
@@ -23,7 +24,8 @@ const SensorReadingCard: React.FC<SensorReadingCardProps> = ({
   onToggle,
   onViewDetails,
   colorClass,
-  icon
+  icon,
+  compact = false
 }) => {
   // Get the appropriate unit based on pin type
   const getUnit = () => {
@@ -128,9 +130,9 @@ const SensorReadingCard: React.FC<SensorReadingCardProps> = ({
     if (label === 'lampu' || label === 'pompa' || signalType === 'light' || signalType === 'digital' || pin.mode === 'output') {
       const isOn = value === '1' || value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
       return (
-        <div className="w-16 h-8 relative rounded-full bg-gray-200">
+        <div className={`${compact ? 'w-12 h-6' : 'w-16 h-8'} relative rounded-full bg-gray-200`}>
           <div className={`absolute inset-0 rounded-full transition-colors ${isOn ? 'bg-green-500' : 'bg-gray-400'}`}>
-            <div className={`absolute w-6 h-6 bg-white rounded-full shadow transition-transform ${isOn ? 'translate-x-8' : 'translate-x-1'} top-1`} />
+            <div className={`absolute ${compact ? 'w-5 h-5' : 'w-6 h-6'} bg-white rounded-full shadow transition-transform ${isOn ? (compact ? 'translate-x-6' : 'translate-x-8') : 'translate-x-1'} ${compact ? 'top-0.5' : 'top-1'}`} />
           </div>
         </div>
       );
@@ -153,38 +155,38 @@ const SensorReadingCard: React.FC<SensorReadingCardProps> = ({
   
   return (
     <Card 
-      className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer"
+      className={`overflow-hidden hover:shadow-md transition-shadow cursor-pointer ${compact ? 'max-w-xs' : ''}`}
       onClick={() => onViewDetails && onViewDetails(pin)}
     >
-      <div className={`p-4 ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
+      <div className={`p-${compact ? '3' : '4'} ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
         <div className="flex items-center">
           {icon}
-          <h3 className="font-medium capitalize text-gray-800">{pin.name}</h3>
+          <h3 className={`font-medium capitalize text-gray-800 ${compact ? 'text-sm' : ''}`}>{pin.name}</h3>
         </div>
       </div>
-      <CardContent className="p-4">
+      <CardContent className={`p-${compact ? '3' : '4'}`}>
         <div className="space-y-3">
           <div className="flex justify-between items-start">
             <div>
-              <h4 className="text-sm font-medium text-gray-700">
+              <h4 className={`${compact ? 'text-xs' : 'text-sm'} font-medium text-gray-700`}>
                 {pin.label || pin.signalType.charAt(0).toUpperCase() + pin.signalType.slice(1)}
               </h4>
               {deviceName && (
-                <p className="text-xs text-gray-500">
+                <p className={`${compact ? 'text-xs' : 'text-sm'} text-gray-500`}>
                   {deviceName}{projectName && ` • ${projectName}`}
                 </p>
               )}
             </div>
             <div className="flex items-center">
               {!isOutput && alert && (
-                <AlertTriangle className="h-4 w-4 text-amber-500 mr-1.5" />
+                <AlertTriangle className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} text-amber-500 mr-1.5`} />
               )}
               {isOutput ? (
                 <Badge variant={isOn ? "default" : "outline"} className={isOn ? "bg-green-600" : ""}>
                   {isOn ? "ON" : "OFF"}
                 </Badge>
               ) : (
-                <span className={`text-lg font-semibold ${alert ? 'text-amber-500' : 'text-gray-800'}`}>
+                <span className={`${compact ? 'text-base' : 'text-lg'} font-semibold ${alert ? 'text-amber-500' : 'text-gray-800'}`}>
                   {getDisplayValue()}
                 </span>
               )}
@@ -197,15 +199,15 @@ const SensorReadingCard: React.FC<SensorReadingCardProps> = ({
             {isOutput && onToggle && (
               <Button
                 variant={isOn ? "destructive" : "default"}
-                size="sm"
+                size={compact ? "sm" : "default"}
                 className="ml-3"
                 onClick={(e) => {
                   e.stopPropagation();
                   onToggle(pin.id);
                 }}
               >
-                <Power className="h-4 w-4 mr-1" />
-                {isOn ? 'Turn Off' : 'Turn On'}
+                <Power className={`${compact ? 'h-3 w-3' : 'h-4 w-4'} mr-1`} />
+                {isOn ? 'Off' : 'On'}
               </Button>
             )}
           </div>
