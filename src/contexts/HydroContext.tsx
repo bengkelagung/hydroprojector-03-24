@@ -44,7 +44,7 @@ export interface Device {
   };
 }
 
-export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'analog' | 'digital' | 'custom';
+export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'analog' | 'digital' | 'custom' | 'pump' | 'water-pump';
 
 export interface Pin {
   id: string;
@@ -818,6 +818,55 @@ void read${pin.name.replace(/\s+/g, '')}() {
 `;
   };
 
+  const togglePinValue = async (pinId: string) => {
+    try {
+      // Find the pin
+      const pin = pins.find(p => p.id === pinId);
+      if (!pin) {
+        console.error(`Pin with ID ${pinId} not found`);
+        return;
+      }
+
+      // Toggle the value
+      const currentValue = pin.value || '0';
+      const newValue = currentValue === '1' ? '0' : '1';
+
+      // Update the pin value in the database
+      const { error } = await supabase
+        .from('pin_configs')
+        .update({ value: newValue })
+        .eq('id', pinId);
+
+      if (error) {
+        console.error('Error updating pin value:', error);
+        throw error;
+      }
+
+      // Also record this change in the pin_data table for history
+      const { error: historyError } = await supabase
+        .from('pin_data')
+        .insert({
+          pin_config_id: pinId,
+          value: newValue
+        });
+
+      if (historyError) {
+        console.error('Error recording pin history:', historyError);
+        // Don't throw here to allow the pin update to succeed even if history fails
+      }
+
+      // Update local state
+      setPins(pins.map(p => 
+        p.id === pinId ? { ...p, value: newValue } : p
+      ));
+
+      return newValue;
+    } catch (error) {
+      console.error('Error in togglePinValue:', error);
+      throw error; // Re-throw to allow component to handle the error
+    }
+  };
+
   const updateProject = async (projectId: string, updates: Partial<Project>) => {
     try {
       const supabaseUpdates: any = {};
@@ -984,50 +1033,6 @@ void read${pin.name.replace(/\s+/g, '')}() {
     } catch (error) {
       console.error('Error in deleteProject:', error);
       toast.error('Failed to delete project');
-    }
-  };
-
-  const togglePinValue = async (pinId: string) => {
-    try {
-      // Find the pin to toggle
-      const pin = pins.find(p => p.id === pinId);
-      if (!pin) {
-        console.error(`Pin with id ${pinId} not found`);
-        return;
-      }
-
-      // Determine the new value
-      const currentValue = pin.value || '0';
-      const newValue = currentValue === '1' ? '0' : '1';
-
-      // Update pin in state first for immediate UI feedback
-      const updatedPins = pins.map(p => {
-        if (p.id === pinId) {
-          return { ...p, value: newValue };
-        }
-        return p;
-      });
-      setPins(updatedPins);
-
-      // Save to pins database
-      await supabase
-        .from('pins')
-        .update({ value: newValue, updated_at: new Date().toISOString() })
-        .eq('id', pinId);
-
-      // Save to pin_data history table
-      await supabase
-        .from('pin_data')
-        .insert({
-          pin_id: pinId,
-          value: newValue,
-          created_at: new Date().toISOString()
-        });
-
-      return newValue;
-    } catch (error) {
-      console.error('Error toggling pin value:', error);
-      throw error;
     }
   };
 

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -52,12 +51,10 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [historyTimeRange, setHistoryTimeRange] = useState<'hour' | 'day' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState('details');
   
-  // Find the device and project for this pin
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
   
   useEffect(() => {
-    // Check if tables exist
     const checkTables = async () => {
       const exist = await checkTablesExist();
       setTablesExist(exist);
@@ -75,7 +72,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinMode(pin.mode);
       setPinValue(pin.value || '0');
       
-      // Load pin history if a pin is selected
       loadPinHistory();
     }
   }, [pin, historyTimeRange]);
@@ -107,17 +103,14 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
         mode: editPinMode
       };
       
-      // Only include label if the tables exist
       if (tablesExist) {
         updates.label = editPinLabel || '';
       }
       
       await updatePin(pin.id, updates);
       
-      // Show success message
       toast.success(`Pin "${editPinName}" updated successfully`);
       
-      // Exit edit mode
       setEditMode(false);
     } catch (error) {
       console.error(error);
@@ -138,18 +131,15 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
     }
   };
   
-  const handleToggleOutput = () => {
+  const handleToggleOutput = async () => {
     if (!pin) return;
     
     try {
-      // Update local state immediately for better UX
       const newValue = pinValue === '1' ? '0' : '1';
       setPinValue(newValue);
       
-      // Then call the actual toggle function
-      togglePinValue(pin.id);
+      await togglePinValue(pin.id);
       
-      // Refresh history data
       setTimeout(() => {
         loadPinHistory();
       }, 500);
@@ -157,7 +147,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       toast.success(`${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`);
     } catch (error) {
       console.error('Error toggling pin value:', error);
-      // Revert back if there was an error
       setPinValue(pinValue);
       toast.error('Failed to toggle pin');
     }
@@ -182,7 +171,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   
   if (!pin) return null;
   
-  // Use local state for value to make UI more responsive
   const isOn = pinValue === '1' || pinValue.toLowerCase() === 'on' || pinValue.toLowerCase() === 'true';
   const colorClass = getSignalColor(pin.signalType);
   
@@ -295,7 +283,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 </div>
               ) : (
                 <div className="space-y-6">
-                  {/* Basic Information Card */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Basic Information</CardTitle>
@@ -342,7 +329,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                     </CardContent>
                   </Card>
                   
-                  {/* Current Value Card */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Current Value</CardTitle>
@@ -371,7 +357,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                     </CardContent>
                   </Card>
                   
-                  {/* Related Information Card */}
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-base">Related Information</CardTitle>

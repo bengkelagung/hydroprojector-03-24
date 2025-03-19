@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface PinHistoryEntry {
   id: string;
-  pin_id: string;
+  pin_config_id: string;  // Changed from pin_id to match database structure
   value: string;
   created_at: string;
 }
@@ -49,7 +49,7 @@ export const fetchPinHistory = async (
     const { data, error } = await supabase
       .from('pin_data')
       .select('*')
-      .eq('pin_id', pinId)
+      .eq('pin_config_id', pinId)  // Changed from pin_id to pin_config_id
       .gte('created_at', startDateString)
       .order('created_at', { ascending: true });
       
@@ -58,7 +58,7 @@ export const fetchPinHistory = async (
       throw error;
     }
     
-    return data || [];
+    return data as PinHistoryEntry[] || [];
   } catch (error) {
     console.error('Error in fetchPinHistory:', error);
     return [];

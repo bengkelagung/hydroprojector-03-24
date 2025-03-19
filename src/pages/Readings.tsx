@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power, FileInput, FileOutput } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,7 +43,7 @@ const Readings = () => {
     setIsPinDetailsOpen(true);
   };
 
-  const handleToggleOutput = (pin: Pin) => {
+  const handleToggleOutput = async (pin: Pin) => {
     try {
       // Update local state immediately for better UX
       const currentValue = localPinValues[pin.id] || '0';
@@ -56,13 +55,18 @@ const Readings = () => {
         [pin.id]: newValue
       }));
       
-      // Then call the actual toggle function
-      togglePinValue(pin.id);
+      // Then call the actual toggle function - using await to catch any errors
+      await togglePinValue(pin.id);
       
       // Show toast notification
       toast.success(`${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`);
     } catch (error) {
       console.error('Error toggling pin:', error);
+      // Revert the local state if there was an error
+      setLocalPinValues(prev => ({
+        ...prev,
+        [pin.id]: localPinValues[pin.id] || '0'
+      }));
       toast.error('Failed to toggle pin');
     }
   };

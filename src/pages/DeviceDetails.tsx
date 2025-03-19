@@ -133,12 +133,21 @@ const DeviceDetails = () => {
     });
   };
   
-  const handleTogglePin = (pinId: string, pinName: string, currentValue: string) => {
-    togglePinValue(pinId);
-    toast({
-      title: `${currentValue === "1" ? "Turned off" : "Turned on"}`,
-      description: `${pinName} has been ${currentValue === "1" ? "turned off" : "turned on"}`,
-    });
+  const handleTogglePin = async (pinId: string, pinName: string, currentValue: string) => {
+    try {
+      await togglePinValue(pinId);
+      toast({
+        title: `${currentValue === "1" ? "Turned off" : "Turned on"}`,
+        description: `${pinName} has been ${currentValue === "1" ? "turned off" : "turned on"}`,
+      });
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle pin. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
   
   // Function to handle pin edit within the DeviceDetails page
@@ -551,3 +560,4 @@ const DeviceDetails = () => {
 };
 
 export default DeviceDetails;
+
