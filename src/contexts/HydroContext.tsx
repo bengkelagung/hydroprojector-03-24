@@ -8,7 +8,7 @@ import {
   subscribeToPinData,
   unsubscribeAll
 } from '@/services/RealtimeService';
-import { executeWithRetry, handleSupabaseError } from '@/utils/supabaseHelpers';
+import { executeWithRetry, handleSupabaseError, isOnline } from '@/utils/supabaseHelpers';
 import { 
   storeDevices, 
   storePins, 
@@ -266,7 +266,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const { data, error } = await executeWithRetry(
+      const data = await executeWithRetry<any[]>(
         () => supabase
           .from('projects')
           .select('*')
@@ -274,7 +274,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load projects'
       );
       
-      if (error) throw error;
+      if (!data) {
+        throw new Error('Failed to fetch projects data');
+      }
       
       const formattedProjects: Project[] = (data || []).map(project => ({
         id: project.id,
@@ -303,7 +305,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const { data, error } = await executeWithRetry(
+      const data = await executeWithRetry<any[]>(
         () => supabase
           .from('devices')
           .select('*')
@@ -311,7 +313,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load devices'
       );
       
-      if (error) throw error;
+      if (!data) {
+        throw new Error('Failed to fetch devices data');
+      }
       
       const formattedDevices: Device[] = (data || []).map(device => ({
         id: device.id,
@@ -343,7 +347,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     try {
       setIsLoading(true);
       
-      const { data, error } = await executeWithRetry(
+      const data = await executeWithRetry<any[]>(
         () => supabase
           .from('pin_configs')
           .select(`
@@ -358,7 +362,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         'Failed to load pins'
       );
       
-      if (error) throw error;
+      if (!data) {
+        throw new Error('Failed to fetch pins data');
+      }
       
       const formattedPins: Pin[] = (data || []).map(pin => ({
         id: pin.id,
@@ -831,6 +837,24 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     await updateDevice(deviceId, { isConnected });
   };
 
+  const fetchLabels = async (): Promise<string[]> => {
+    try {
+      const data = await executeWithRetry<any[]>(
+        () => supabase.from('label').select('name').order('name'),
+        'Failed to fetch labels'
+      );
+      
+      if (!data) {
+        return labels;
+      }
+      
+      return (data || []).map(label => label.name);
+    } catch (error) {
+      console.error('Error fetching labels:', error);
+      return labels;
+    }
+  };
+
   // Fix configurePin function to match expected signature
   const configurePin = async (deviceId: string, config: any): Promise<void> => {
     try {
@@ -966,22 +990,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (error) {
       console.error('Error getting pin options:', error);
       return [];
-    }
-  };
-
-  const fetchLabels = async (): Promise<string[]> => {
-    try {
-      const { data, error } = await executeWithRetry(
-        () => supabase.from('label').select('name').order('name'),
-        'Failed to fetch labels'
-      );
-      
-      if (error) throw error;
-      
-      return (data || []).map(label => label.name);
-    } catch (error) {
-      console.error('Error fetching labels:', error);
-      return labels;
     }
   };
 

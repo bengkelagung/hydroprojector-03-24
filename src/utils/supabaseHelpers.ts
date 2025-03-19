@@ -28,7 +28,21 @@ export async function executeWithRetry<T>(
         if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
           // Dispatch custom event for resource error
           window.dispatchEvent(new CustomEvent('supabase-resource-error'));
-          throw error;
+          attempts++;
+          
+          // If we've tried multiple times, show resource error
+          if (attempts >= maxRetries) {
+            toast({
+              title: "Server Overloaded",
+              description: "The database is currently experiencing high load. Using cached data if available.",
+              variant: "destructive"
+            });
+            return null;
+          }
+          
+          // Wait before retrying with exponential backoff
+          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+          continue;
         }
         
         // Check if it's a connection error
@@ -50,15 +64,29 @@ export async function executeWithRetry<T>(
     } catch (error: any) {
       console.error('executeWithRetry error:', error);
       
-      // If it's a resource error, throw immediately without retrying
+      // If it's a resource error, handle specially
       if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
         window.dispatchEvent(new CustomEvent('supabase-resource-error'));
-        toast({
-          title: "Server Overloaded",
-          description: "The database is currently experiencing high load. Please try again later.",
-          variant: "destructive"
-        });
-        return null;
+        
+        // Only show the toast on the last attempt
+        if (attempts >= maxRetries - 1) {
+          toast({
+            title: "Server Overloaded",
+            description: "The database is currently experiencing high load. Using cached data if available.",
+            variant: "destructive"
+          });
+        }
+        
+        attempts++;
+        
+        // If it's the last attempt, return null
+        if (attempts >= maxRetries) {
+          return null;
+        }
+        
+        // Wait before retrying with exponential backoff
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+        continue;
       }
       
       // Show a toast notification for the last attempt
