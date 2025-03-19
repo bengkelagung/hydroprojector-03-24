@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
-import { Wifi, WifiOff, X } from 'lucide-react';
+import { Wifi, WifiOff, X, ServerCrash, AlertTriangle } from 'lucide-react';
 import { isSupabaseAvailable } from '@/utils/supabaseHelpers';
 
 export default function ConnectionStatus() {
@@ -10,11 +10,16 @@ export default function ConnectionStatus() {
   const [isDbConnected, setIsDbConnected] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
   const [checkingConnection, setCheckingConnection] = useState(false);
+  const [errorType, setErrorType] = useState<'offline' | 'resources' | 'connection' | null>(null);
 
   // Check online status
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
+    const handleOffline = () => {
+      setIsOnline(false);
+      setErrorType('offline');
+      setIsVisible(true);
+    };
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
@@ -22,6 +27,21 @@ export default function ConnectionStatus() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Listen for custom resource error events
+  useEffect(() => {
+    const handleResourceError = () => {
+      setErrorType('resources');
+      setIsDbConnected(false);
+      setIsVisible(true);
+    };
+
+    window.addEventListener('supabase-resource-error', handleResourceError);
+
+    return () => {
+      window.removeEventListener('supabase-resource-error', handleResourceError);
     };
   }, []);
 
@@ -39,10 +59,24 @@ export default function ConnectionStatus() {
         setCheckingConnection(true);
         const available = await isSupabaseAvailable();
         setIsDbConnected(available);
-        setIsVisible(!available);
-      } catch (error) {
+        
+        if (!available) {
+          setErrorType('connection');
+          setIsVisible(true);
+        } else if (isVisible && errorType === 'connection') {
+          // If we're showing a connection error and the connection is now available
+          setIsVisible(false);
+        }
+      } catch (error: any) {
         console.error('Error checking database connection:', error);
         setIsDbConnected(false);
+        
+        if (error?.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          setErrorType('resources');
+        } else {
+          setErrorType('connection');
+        }
+        
         setIsVisible(true);
       } finally {
         setCheckingConnection(false);
@@ -58,7 +92,7 @@ export default function ConnectionStatus() {
     return () => {
       clearInterval(checkInterval);
     };
-  }, [isOnline]);
+  }, [isOnline, isVisible, errorType]);
 
   const handleRetry = async () => {
     setCheckingConnection(true);
@@ -67,6 +101,9 @@ export default function ConnectionStatus() {
       setIsDbConnected(available);
       if (available) {
         setIsVisible(false);
+        setErrorType(null);
+        // Dispatch a custom event to trigger data refresh
+        window.dispatchEvent(new CustomEvent('refresh-data'));
       }
     } catch (error) {
       console.error('Error checking database connection on retry:', error);
@@ -78,14 +115,25 @@ export default function ConnectionStatus() {
   if (!isVisible) return null;
 
   return (
-    <Alert variant="destructive" className="mb-4 flex items-center justify-between">
+    <Alert 
+      variant={errorType === 'resources' ? "destructive" : "warning"} 
+      className="mb-4 flex items-center justify-between"
+    >
       <div className="flex items-center space-x-2">
-        {isOnline ? <Wifi className="h-4 w-4" /> : <WifiOff className="h-4 w-4" />}
+        {errorType === 'offline' && <WifiOff className="h-4 w-4" />}
+        {errorType === 'resources' && <ServerCrash className="h-4 w-4" />}
+        {errorType === 'connection' && <AlertTriangle className="h-4 w-4" />}
         <div>
-          <AlertTitle>Connection Issue</AlertTitle>
+          <AlertTitle>
+            {errorType === 'offline' && "You're Offline"}
+            {errorType === 'resources' && "Server Overloaded"}
+            {errorType === 'connection' && "Connection Issue"}
+          </AlertTitle>
           <AlertDescription>
-            {!isOnline 
+            {errorType === 'offline' 
               ? "You are currently offline. Some features may not work properly."
+              : errorType === 'resources'
+              ? "The server is experiencing high load. Please try again later or use offline features."
               : "Unable to connect to the database. Please try again later."}
           </AlertDescription>
         </div>
@@ -95,7 +143,7 @@ export default function ConnectionStatus() {
           variant="outline" 
           size="sm" 
           onClick={handleRetry} 
-          disabled={checkingConnection}
+          disabled={checkingConnection || errorType === 'offline'}
         >
           {checkingConnection ? 'Checking...' : 'Retry'}
         </Button>

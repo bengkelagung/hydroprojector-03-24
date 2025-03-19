@@ -23,11 +23,17 @@ export async function executeWithRetry<T>(
       if (error) {
         console.error(`Query error (attempt ${attempts + 1}/${maxRetries}):`, error);
         
+        // Check if it's a resource error
+        if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+          // Dispatch custom event for resource error
+          window.dispatchEvent(new CustomEvent('supabase-resource-error'));
+          throw error;
+        }
+        
         // Check if it's a connection error
         if (
           error.message?.includes('Failed to fetch') || 
-          error.code === 'ECONNREFUSED' ||
-          error.code === 'ERR_INSUFFICIENT_RESOURCES'
+          error.code === 'ECONNREFUSED'
         ) {
           // Wait before retrying with exponential backoff
           await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
@@ -42,6 +48,17 @@ export async function executeWithRetry<T>(
       return data;
     } catch (error: any) {
       console.error('executeWithRetry error:', error);
+      
+      // If it's a resource error, throw immediately without retrying
+      if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+        window.dispatchEvent(new CustomEvent('supabase-resource-error'));
+        toast({
+          title: "Server Overloaded",
+          description: "The database is currently experiencing high load. Please try again later.",
+          variant: "destructive"
+        });
+        return null;
+      }
       
       // Show a toast notification for the last attempt
       if (attempts === maxRetries - 1) {
@@ -81,8 +98,14 @@ export async function isSupabaseAvailable(): Promise<boolean> {
     console.log(`Supabase response time: ${endTime - startTime}ms`);
     
     return !error;
-  } catch (error) {
+  } catch (error: any) {
     console.error('Supabase connection check failed:', error);
+    
+    // Check specifically for resource errors
+    if (error?.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+      window.dispatchEvent(new CustomEvent('supabase-resource-error'));
+    }
+    
     return false;
   }
 }
@@ -96,12 +119,15 @@ export function handleSupabaseError(error: any, customMessage?: string) {
   console.error('Supabase error:', error);
   
   let message = customMessage || 'An error occurred with the database operation';
+  let variant: 'default' | 'destructive' | 'warning' = 'destructive';
   
   // Handle specific error types
   if (error?.message?.includes('Failed to fetch')) {
     message = 'Unable to connect to the server. Please check your internet connection.';
-  } else if (error?.code === 'ERR_INSUFFICIENT_RESOURCES') {
+  } else if (error?.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
     message = 'The server is currently experiencing high load. Please try again later.';
+    // Dispatch custom event for resource error
+    window.dispatchEvent(new CustomEvent('supabase-resource-error'));
   } else if (error?.code === '23505') {
     message = 'A record with this information already exists.';
   } else if (error?.code === '42P01') {
@@ -111,6 +137,14 @@ export function handleSupabaseError(error: any, customMessage?: string) {
   toast({
     title: "Error",
     description: message,
-    variant: "destructive"
+    variant: variant
   });
+}
+
+/**
+ * Check if device is online
+ * @returns Boolean indicating if the device is online
+ */
+export function isOnline(): boolean {
+  return navigator.onLine;
 }
