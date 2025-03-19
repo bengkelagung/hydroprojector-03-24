@@ -44,7 +44,7 @@ export interface Device {
   };
 }
 
-export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'analog' | 'digital' | 'custom' | 'pump' | 'water-pump';
+export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'analog' | 'digital' | 'custom' | 'pump' | 'water-pump';
 
 export interface Pin {
   id: string;
@@ -527,6 +527,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     label?: string
   ): Promise<Pin> => {
     try {
+      console.log("Configuring pin with values:", { deviceId, pinId, dataType, signalType, mode, name, label });
+      
       const tablesExist = await checkTablesExist();
       if (!tablesExist) {
         toast.error('Pin configs table does not exist yet. Please run the setup script.');
@@ -535,6 +537,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const selectedPin = pinOptions.find(p => p.id === pinId);
       if (!selectedPin) {
+        console.error('Selected pin not found:', pinId);
         throw new Error('Selected pin not found');
       }
       
@@ -542,12 +545,27 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
       
+      console.log("Looking up data type ID for:", dataType);
       const dataTypeId = await findDataTypeIdByName(dataType);
+      console.log("Data type ID result:", dataTypeId);
+      
+      console.log("Looking up signal type ID for:", signalType);
       const signalTypeId = await findSignalTypeIdByName(signalType);
+      console.log("Signal type ID result:", signalTypeId);
+      
+      console.log("Looking up mode ID for:", mode);
       const modeId = await findModeIdByType(mode);
-      const labelId = label ? await findLabelIdByName(label) : null;
+      console.log("Mode ID result:", modeId);
+      
+      let labelId = null;
+      if (label) {
+        console.log("Looking up label ID for:", label);
+        labelId = await findLabelIdByName(label);
+        console.log("Label ID result:", labelId);
+      }
       
       if (!dataTypeId || !signalTypeId || !modeId) {
+        console.error("Missing reference IDs:", { dataTypeId, signalTypeId, modeId });
         throw new Error('Failed to get required reference IDs');
       }
       
@@ -564,6 +582,8 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         unit: ""
       };
       
+      console.log("Pin config data being saved:", pinConfigData);
+      
       if (existingPin) {
         const { data, error } = await supabase
           .from('pin_configs')
@@ -572,7 +592,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error updating pin:', error);
+          throw error;
+        }
         
         pinData = data;
         toast.success('Pin updated successfully!');
@@ -583,7 +606,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           .select()
           .single();
         
-        if (error) throw error;
+        if (error) {
+          console.error('Error inserting pin:', error);
+          throw error;
+        }
         
         pinData = data;
         toast.success('Pin configured successfully!');

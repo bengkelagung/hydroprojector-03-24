@@ -49,7 +49,7 @@ export const fetchPinHistory = async (
     const { data, error } = await supabase
       .from('pin_data')
       .select('*')
-      .eq('pin_config_id', pinId)  // Changed from pin_id to pin_config_id
+      .eq('pin_config_id', pinId)  // Using pin_config_id to match database structure
       .gte('created_at', startDateString)
       .order('created_at', { ascending: true });
       
@@ -104,6 +104,11 @@ export const savePinStateToHistory = async (
   value: string
 ): Promise<boolean> => {
   try {
+    if (!pinId) {
+      console.error('Pin ID is required to save state');
+      return false;
+    }
+
     const { error } = await supabase
       .from('pin_data')
       .insert({

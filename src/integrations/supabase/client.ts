@@ -370,10 +370,15 @@ export const fetchModes = async (): Promise<string[]> => {
  */
 export const findDataTypeIdByName = async (name: string): Promise<number | null> => {
   try {
+    if (!name || name.trim() === '') {
+      console.error('Invalid data type name provided');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('data_types')
       .select('id')
-      .eq('name', name)
+      .eq('name', name.trim())
       .single();
     
     if (error) {
@@ -395,14 +400,36 @@ export const findDataTypeIdByName = async (name: string): Promise<number | null>
  */
 export const findSignalTypeIdByName = async (name: string): Promise<number | null> => {
   try {
+    if (!name || name.trim() === '') {
+      console.error('Invalid signal type name provided');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('signal_types')
       .select('id')
-      .eq('name', name)
+      .eq('name', name.trim())
       .single();
     
     if (error) {
       console.error('Error finding signal type ID:', error);
+      
+      // If the signal type doesn't exist, try to create it
+      if (error.code === 'PGRST116') {
+        const { data: insertData, error: insertError } = await supabase
+          .from('signal_types')
+          .insert({ name: name.trim() })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          console.error('Error creating signal type:', insertError);
+          return null;
+        }
+        
+        return insertData.id;
+      }
+      
       return null;
     }
     
@@ -420,10 +447,15 @@ export const findSignalTypeIdByName = async (name: string): Promise<number | nul
  */
 export const findModeIdByType = async (type: string): Promise<number | null> => {
   try {
+    if (!type || type.trim() === '') {
+      console.error('Invalid mode type provided');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('modes')
       .select('id')
-      .eq('type', type)
+      .eq('type', type.trim())
       .single();
     
     if (error) {
@@ -445,14 +477,36 @@ export const findModeIdByType = async (type: string): Promise<number | null> => 
  */
 export const findLabelIdByName = async (name: string): Promise<number | null> => {
   try {
+    if (!name || name.trim() === '') {
+      console.error('Invalid label name provided');
+      return null;
+    }
+
     const { data, error } = await supabase
       .from('label')
       .select('id')
-      .eq('name', name)
+      .eq('name', name.trim())
       .single();
     
     if (error) {
       console.error('Error finding label ID:', error);
+      
+      // If the label doesn't exist, try to create it
+      if (error.code === 'PGRST116') {
+        const { data: insertData, error: insertError } = await supabase
+          .from('label')
+          .insert({ name: name.trim() })
+          .select('id')
+          .single();
+        
+        if (insertError) {
+          console.error('Error creating label:', insertError);
+          return null;
+        }
+        
+        return insertData.id;
+      }
+      
       return null;
     }
     
