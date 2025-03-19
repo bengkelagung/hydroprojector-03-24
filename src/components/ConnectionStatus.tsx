@@ -32,7 +32,7 @@ export default function ConnectionStatus() {
     const handleOnline = () => {
       setIsOnlineState(true);
       // Check database connection when back online
-      checkConnection();
+      checkSupabaseConnection();
     };
     
     const handleOffline = () => {
@@ -65,11 +65,11 @@ export default function ConnectionStatus() {
     };
   }, []);
 
-  // Check database connection periodically
+  // Check database connection periodically and on mount
   useEffect(() => {
     let checkInterval: NodeJS.Timeout;
     
-    const checkConnection = async () => {
+    const checkSupabaseConnection = async () => {
       if (!isOnlineState) {
         setIsDbConnected(false);
         return;
@@ -112,10 +112,10 @@ export default function ConnectionStatus() {
     };
 
     // Check immediately on mount or when online status changes
-    checkConnection();
+    checkSupabaseConnection();
 
     // Set up interval to check every 30 seconds
-    checkInterval = setInterval(checkConnection, 30000);
+    checkInterval = setInterval(checkSupabaseConnection, 30000);
 
     return () => {
       clearInterval(checkInterval);
