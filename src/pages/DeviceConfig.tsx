@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 
-// Define the form values type
 type PinConfigFormValues = {
   pinId: string;
   name: string;
@@ -58,7 +57,6 @@ const DeviceConfig = () => {
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
   
-  // Initialize the form with react-hook-form
   const form = useForm<PinConfigFormValues>({
     defaultValues: {
       pinId: '',
@@ -71,12 +69,10 @@ const DeviceConfig = () => {
   });
   
   useEffect(() => {
-    // Refresh labels when component mounts
     fetchLabels();
   }, [fetchLabels]);
   
   useEffect(() => {
-    // Check if tables exist
     const checkTables = async () => {
       const exist = await checkTablesExist();
       setTablesExist(exist);
@@ -104,7 +100,6 @@ const DeviceConfig = () => {
         values.label === 'none' ? '' : values.label
       );
       
-      // Reset form after successful submission
       form.reset({
         pinId: '',
         name: '',

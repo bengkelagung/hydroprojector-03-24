@@ -178,24 +178,24 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   }, [user, tablesChecked]);
 
-  // Update available pin options whenever pins or devices change
   useEffect(() => {
     updateAvailablePinOptions();
   }, [pins, devices, selectedDevice, pinOptions]);
 
   const updateAvailablePinOptions = () => {
     if (!selectedDevice) {
-      setAvailablePinOptions(pinOptions);
+      const usedPinNumbers = pins.map(pin => pin.pinNumber);
+      const filteredOptions = pinOptions.filter(option => 
+        !usedPinNumbers.includes(option.pinNumber)
+      );
+      setAvailablePinOptions(filteredOptions);
       return;
     }
     
-    // Get all pins already configured for the selected device
-    const devicePins = pins.filter(pin => pin.deviceId === selectedDevice.id);
-    
-    // Filter out pins that are already in use for this device
-    const availablePins = pinOptions.filter(option => {
-      return !devicePins.some(pin => pin.pinNumber === option.pinNumber);
-    });
+    const usedPinNumbers = pins.map(pin => pin.pinNumber);
+    const availablePins = pinOptions.filter(option => 
+      !usedPinNumbers.includes(option.pinNumber)
+    );
     
     setAvailablePinOptions(availablePins);
   };
@@ -255,20 +255,16 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) throw error;
       
       setDevices(data.map(device => {
-        let wifiConfig;
-        let description = device.description || '';
-        
-        // Don't parse the description as JSON
         return {
           id: device.id,
           name: device.device_name,
-          description: description,
+          description: device.description || '',
           projectId: device.project_id,
           type: device.device_type,
           isConnected: device.is_connected,
           lastSeen: device.last_seen,
           createdAt: device.created_at,
-          wifiConfig: wifiConfig
+          wifiConfig: undefined
         };
       }));
     } catch (error) {
@@ -632,7 +628,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         toast.success('Pin configured successfully!');
       }
       
-      // Create new pin object with the data from the database
       const newPin: Pin = {
         id: pinData.id,
         deviceId: pinData.device_id,
@@ -647,14 +642,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         lastUpdated: ''
       };
       
-      // Update pins state immediately without fetching from API
-      if (existingPin) {
-        setPins(prev => prev.map(p => p.id === newPin.id ? newPin : p));
-      } else {
-        setPins(prev => [...prev, newPin]);
-      }
-      
-      // Update available pin options
+      setPins(prev => prev.map(p => p.id === newPin.id ? newPin : p));
       updateAvailablePinOptions();
       
       return newPin;
@@ -872,18 +860,15 @@ void read${pin.name.replace(/\s+/g, '')}() {
 
   const togglePinValue = async (pinId: string) => {
     try {
-      // Find the pin
       const pin = pins.find(p => p.id === pinId);
       if (!pin) {
         console.error(`Pin with ID ${pinId} not found`);
         return;
       }
 
-      // Toggle the value
       const currentValue = pin.value || '0';
       const newValue = currentValue === '1' ? '0' : '1';
 
-      // Update the pin value in the database
       const { error } = await supabase
         .from('pin_configs')
         .update({ value: newValue })
@@ -894,7 +879,6 @@ void read${pin.name.replace(/\s+/g, '')}() {
         throw error;
       }
 
-      // Also record this change in the pin_data table for history
       const { error: historyError } = await supabase
         .from('pin_data')
         .insert({
@@ -904,10 +888,8 @@ void read${pin.name.replace(/\s+/g, '')}() {
 
       if (historyError) {
         console.error('Error recording pin history:', historyError);
-        // Don't throw here to allow the pin update to succeed even if history fails
       }
 
-      // Update local state
       setPins(pins.map(p => 
         p.id === pinId ? { ...p, value: newValue } : p
       ));
@@ -915,7 +897,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
       return newValue;
     } catch (error) {
       console.error('Error in togglePinValue:', error);
-      throw error; // Re-throw to allow component to handle the error
+      throw error;
     }
   };
 
@@ -953,7 +935,6 @@ void read${pin.name.replace(/\s+/g, '')}() {
       
       if (updates.name) supabaseUpdates.device_name = updates.name;
       
-      // Don't store WiFi config in description anymore
       if (updates.description !== undefined) {
         supabaseUpdates.description = updates.description;
       }
@@ -975,4 +956,125 @@ void read${pin.name.replace(/\s+/g, '')}() {
       
       toast.success('Device updated successfully');
     } catch (error) {
-      console.error
+      console.error('Error updating device:', error);
+      toast.error('Failed to update device');
+      throw error;
+    }
+  };
+
+  const deleteProject = (projectId: string) => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+      
+      if (error) throw error;
+      
+      setProjects(prev => prev.filter(project => project.id !== projectId));
+      toast.success('Project deleted successfully');
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error('Failed to delete project');
+    }
+  };
+
+  const deleteDevice = (deviceId: string) => {
+    try {
+      const { error } = await supabase
+        .from('devices')
+        .delete()
+        .eq('id', deviceId);
+      
+      if (error) throw error;
+      
+      setDevices(prev => prev.filter(device => device.id !== deviceId));
+      toast.success('Device deleted successfully');
+    } catch (error) {
+      console.error('Error deleting device:', error);
+      toast.error('Failed to delete device');
+    }
+  };
+
+  const deletePin = (pinId: string) => {
+    try {
+      const { error } = await supabase
+        .from('pin_configs')
+        .delete()
+        .eq('id', pinId);
+      
+      if (error) throw error;
+      
+      setPins(prev => prev.filter(pin => pin.id !== pinId));
+      toast.success('Pin deleted successfully');
+    } catch (error) {
+      console.error('Error deleting pin:', error);
+      toast.error('Failed to delete pin');
+    }
+  };
+
+  const updatePin = (pinId: string, updates: Partial<Pin>): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      try {
+        const { error } = await supabase
+          .from('pin_configs')
+          .update(updates)
+          .eq('id', pinId);
+        
+        if (error) throw error;
+        
+        setPins(prev => prev.map(pin => 
+          pin.id === pinId ? { ...pin, ...updates } : pin
+        ));
+        
+        toast.success('Pin updated successfully');
+        resolve();
+      } catch (error) {
+        console.error('Error updating pin:', error);
+        toast.error('Failed to update pin');
+        reject(error);
+      }
+    });
+  };
+
+  return (
+    <HydroContext.Provider
+      value={{
+        projects,
+        devices,
+        pins,
+        pinOptions: availablePinOptions,
+        selectedProject,
+        selectedDevice,
+        createProject,
+        createDevice,
+        configurePin,
+        selectProject,
+        selectDevice,
+        getDevicesByProject,
+        getPinsByDevice,
+        updateDeviceConnection,
+        updatePinValue,
+        generateDeviceCode,
+        dataTypes,
+        signalTypes,
+        pinModes,
+        labels,
+        fetchLabels,
+        fetchDataTypes,
+        fetchSignalTypes,
+        fetchPinModes,
+        fetchPinOptions,
+        updateProject,
+        updateDevice,
+        deleteProject,
+        deleteDevice,
+        deletePin,
+        togglePinValue,
+        updatePin,
+      }}
+    >
+      {children}
+    </HydroContext.Provider>
+  );
+};

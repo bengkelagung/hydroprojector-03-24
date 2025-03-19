@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
@@ -30,7 +29,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { checkTablesExist } from '@/integrations/supabase/client';
 import { fetchPinHistory, PinHistoryEntry, formatPinHistoryForRecharts } from '@/utils/pin-history';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PinHistoryChart, { createPinHistoryChart } from '@/components/PinHistoryChart';
+import PinHistoryChart from '@/components/PinHistoryChart';
 
 interface PinDetailsDialogProps {
   open: boolean;
@@ -176,7 +175,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const isOn = pinValue === '1' || pinValue.toLowerCase() === 'on' || pinValue.toLowerCase() === 'true';
   const colorClass = getSignalColor(pin.signalType);
   
-  // Prepare chart data
   const isDigital = pin.dataType === 'digital' || pin.dataType === 'boolean';
   const chartData = formatPinHistoryForRecharts(pinHistory, isDigital, pin.name);
   
@@ -406,7 +404,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   </Select>
                 </div>
                 
-                {/* Chart Section */}
                 <div className="mb-6">
                   <h4 className="text-sm font-medium mb-2 flex items-center">
                     <LineChart className="h-4 w-4 mr-1" />
@@ -429,7 +426,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   </div>
                 </div>
                 
-                {/* History Table */}
                 <div>
                   <h4 className="text-sm font-medium mb-2 flex items-center">
                     <History className="h-4 w-4 mr-1" />
