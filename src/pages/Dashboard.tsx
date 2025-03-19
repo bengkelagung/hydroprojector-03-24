@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, FileInput, FileOutput } from 'lucide-react';
@@ -75,6 +74,16 @@ const Dashboard = () => {
         Offline
       </Badge>
     );
+  };
+
+  const getPinIcon = (pin: Pin) => {
+    if (pin.signalType === 'light' || pin.signalType === 'pump' || pin.signalType === 'water-pump') {
+      return <Droplet className="h-5 w-5 mr-2 text-blue-500" />;
+    } else if (pin.signalType === 'custom' || pin.signalType === 'digital') {
+      return <Activity className="h-5 w-5 mr-2 text-gray-500" />;
+    } else {
+      return null;
+    }
   };
 
   if (projects.length === 0) {
@@ -468,7 +477,7 @@ const Dashboard = () => {
                     <CardHeader className={`bg-opacity-10 ${getSignalColor(pin.signalType).replace('bg-', 'bg-opacity-10 bg-')}`}>
                       <div className="flex items-center">
                         {pin.signalType === 'light' && <LightbulbIcon className="h-5 w-5 mr-2 text-yellow-500" />}
-                        {pin.signalType === 'pump' && <Droplet className="h-5 w-5 mr-2 text-blue-500" />}
+                        {(pin.signalType === 'pump' || pin.signalType === 'water-pump') && <Droplet className="h-5 w-5 mr-2 text-blue-500" />}
                         {(pin.signalType === 'custom' || pin.signalType === 'digital') && (
                           <Activity className="h-5 w-5 mr-2 text-gray-500" />
                         )}

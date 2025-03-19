@@ -987,13 +987,48 @@ void read${pin.name.replace(/\s+/g, '')}() {
     }
   };
 
-  const togglePinValue = (pinId: string) => {
-    const pin = pins.find(p => p.id === pinId);
-    if (!pin) return;
-    
-    const newValue = pin.value === "1" ? "0" : "1";
-    
-    updatePinValue(pinId, newValue);
+  const togglePinValue = async (pinId: string) => {
+    try {
+      // Find the pin to toggle
+      const pin = pins.find(p => p.id === pinId);
+      if (!pin) {
+        console.error(`Pin with id ${pinId} not found`);
+        return;
+      }
+
+      // Determine the new value
+      const currentValue = pin.value || '0';
+      const newValue = currentValue === '1' ? '0' : '1';
+
+      // Update pin in state first for immediate UI feedback
+      const updatedPins = pins.map(p => {
+        if (p.id === pinId) {
+          return { ...p, value: newValue };
+        }
+        return p;
+      });
+      setPins(updatedPins);
+
+      // Save to pins database
+      await supabase
+        .from('pins')
+        .update({ value: newValue, updated_at: new Date().toISOString() })
+        .eq('id', pinId);
+
+      // Save to pin_data history table
+      await supabase
+        .from('pin_data')
+        .insert({
+          pin_id: pinId,
+          value: newValue,
+          created_at: new Date().toISOString()
+        });
+
+      return newValue;
+    } catch (error) {
+      console.error('Error toggling pin value:', error);
+      throw error;
+    }
   };
 
   const updatePin = async (pinId: string, updates: Partial<Pin>) => {
