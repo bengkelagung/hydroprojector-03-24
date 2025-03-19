@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -25,28 +24,36 @@ let isWebSocketConnected = false;
 // Initialize WebSocket connection state monitor
 const initWebSocketMonitor = () => {
   try {
-    // Monitor the WebSocket connection status
-    const webSocket = supabase.realtime.getClient();
+    // For Supabase-js v2, we can't directly access the WebSocket
+    // Instead, let's use subscription status as a proxy for connection health
+    console.log('Initializing connection monitoring');
     
-    if (webSocket) {
-      webSocket.onopen = () => {
-        console.log('WebSocket connection established');
-        isWebSocketConnected = true;
-        reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-      };
+    // Set up a test subscription to monitor connection status
+    const monitorChannel = supabase.channel('connection-monitor');
+    monitorChannel
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('Connection monitoring active');
+          isWebSocketConnected = true;
+          reconnectAttempts = 0;
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          console.log('Connection monitoring detected closed connection');
+          isWebSocketConnected = false;
+        }
+      });
       
-      webSocket.onclose = () => {
-        console.log('WebSocket connection closed');
-        isWebSocketConnected = false;
-      };
-      
-      webSocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
-        isWebSocketConnected = false;
-      };
-    }
+    // Set up a periodic connection check
+    setInterval(() => {
+      checkSupabaseConnection().then(isConnected => {
+        if (isConnected !== isWebSocketConnected) {
+          console.log(`Connection status changed to: ${isConnected ? 'connected' : 'disconnected'}`);
+          isWebSocketConnected = isConnected;
+        }
+      });
+    }, 30000); // Check every 30 seconds
+    
   } catch (error) {
-    console.error('Error initializing WebSocket monitor:', error);
+    console.error('Error initializing connection monitor:', error);
   }
 };
 
@@ -110,7 +117,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
     return () => {
       if (deviceSubscription) {
         console.log('Removing existing devices subscription');
-        supabase.removeChannel(deviceSubscription);
+        try {
+          supabase.removeChannel(deviceSubscription);
+        } catch (e) {
+          console.error('Error removing device channel:', e);
+        }
         deviceSubscription = null;
       }
     };
@@ -140,9 +151,11 @@ export const subscribeToDevices = (callback: DeviceUpdateCallback) => {
         console.log('Devices subscription status:', status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to devices changes');
+          isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to devices:', status);
           toast.error('Device connection lost. Reconnecting...');
+          isWebSocketConnected = false;
           
           // Clean up existing subscription
           if (deviceSubscription) {
@@ -201,7 +214,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
     return () => {
       if (pinConfigSubscription) {
         console.log('Removing existing pin configs subscription');
-        supabase.removeChannel(pinConfigSubscription);
+        try {
+          supabase.removeChannel(pinConfigSubscription);
+        } catch (e) {
+          console.error('Error removing pin config channel:', e);
+        }
         pinConfigSubscription = null;
       }
     };
@@ -231,9 +248,11 @@ export const subscribeToPinConfigs = (callback: PinUpdateCallback) => {
         console.log('Pin configs subscription status:', status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to pin config changes');
+          isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to pin configs:', status);
           toast.error('Pin configuration connection lost. Reconnecting...');
+          isWebSocketConnected = false;
           
           // Clean up existing subscription
           if (pinConfigSubscription) {
@@ -292,7 +311,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
     return () => {
       if (pinDataSubscription) {
         console.log('Removing existing pin data subscription');
-        supabase.removeChannel(pinDataSubscription);
+        try {
+          supabase.removeChannel(pinDataSubscription);
+        } catch (e) {
+          console.error('Error removing pin data channel:', e);
+        }
         pinDataSubscription = null;
       }
     };
@@ -317,9 +340,11 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
         console.log('Pin data subscription status:', status);
         if (status === 'SUBSCRIBED') {
           console.log('Subscribed to pin data changes');
+          isWebSocketConnected = true;
         } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
           console.error('Failed to subscribe to pin data:', status);
           toast.error('Pin data connection lost. Reconnecting...');
+          isWebSocketConnected = false;
           
           // Clean up existing subscription
           if (pinDataSubscription) {
@@ -367,7 +392,7 @@ export const subscribeToPinData = (callback: PinDataCallback) => {
 export const checkSupabaseConnection = async (): Promise<boolean> => {
   try {
     // Try a simple query to check if the connection works
-    const { data, error } = await supabase.from('pin_configs').select('id').limit(1);
+    const { data, error } = await supabase.from('pins').select('id').limit(1);
     
     if (error) {
       console.error('Supabase connection check failed:', error);
