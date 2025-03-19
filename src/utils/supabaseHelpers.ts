@@ -10,7 +10,7 @@ import { toast } from '@/hooks/use-toast';
  * @returns Result of the query or null if failed
  */
 export async function executeWithRetry<T>(
-  queryFn: () => Promise<{ data: T; error: any }>, 
+  queryFn: () => Promise<any>, 
   errorMessage: string = 'Database operation failed',
   maxRetries: number = 3
 ): Promise<T | null> {
@@ -18,7 +18,8 @@ export async function executeWithRetry<T>(
   
   while (attempts < maxRetries) {
     try {
-      const { data, error } = await queryFn();
+      const result = await queryFn();
+      const { data, error } = result;
       
       if (error) {
         console.error(`Query error (attempt ${attempts + 1}/${maxRetries}):`, error);

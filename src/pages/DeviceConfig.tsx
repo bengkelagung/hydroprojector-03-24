@@ -36,7 +36,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { useUser } from '@/contexts/AuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { handleSupabaseError } from '@/utils/supabaseHelpers';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -55,7 +55,7 @@ export default function DeviceConfig() {
   const { deviceId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useUser();
+  const { user } = useAuth();
 
   const [selectedPin, setSelectedPin] = useState<{ id: string; pin_number: number; pin_name: string } | null>(null);
   const [pinName, setPinName] = useState('');
