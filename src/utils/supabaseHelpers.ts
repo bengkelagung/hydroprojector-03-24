@@ -10,7 +10,8 @@ import { toast } from '@/hooks/use-toast';
  * @returns Result of the query or null if failed
  */
 export async function executeWithRetry<T>(
-  queryFn: () => Promise<any>, 
+  // Accept any function that returns a Promise-like object or the Supabase builder
+  queryFn: () => any, 
   errorMessage: string = 'Database operation failed',
   maxRetries: number = 3
 ): Promise<T | null> {
@@ -18,49 +19,56 @@ export async function executeWithRetry<T>(
   
   while (attempts < maxRetries) {
     try {
-      const result = await queryFn();
-      const { data, error } = result;
+      const result = await Promise.resolve(queryFn());
       
-      if (error) {
-        console.error(`Query error (attempt ${attempts + 1}/${maxRetries}):`, error);
+      // Handle Supabase response which has data and error properties
+      if (result && typeof result === 'object') {
+        const { data, error } = result;
         
-        // Check if it's a resource error
-        if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
-          // Dispatch custom event for resource error
-          window.dispatchEvent(new CustomEvent('supabase-resource-error'));
-          attempts++;
+        if (error) {
+          console.error(`Query error (attempt ${attempts + 1}/${maxRetries}):`, error);
           
-          // If we've tried multiple times, show resource error
-          if (attempts >= maxRetries) {
-            toast({
-              title: "Server Overloaded",
-              description: "The database is currently experiencing high load. Using cached data if available.",
-              variant: "destructive"
-            });
-            return null;
+          // Check if it's a resource error
+          if (error.message?.includes('ERR_INSUFFICIENT_RESOURCES')) {
+            // Dispatch custom event for resource error
+            window.dispatchEvent(new CustomEvent('supabase-resource-error'));
+            attempts++;
+            
+            // If we've tried multiple times, show resource error
+            if (attempts >= maxRetries) {
+              toast({
+                title: "Server Overloaded",
+                description: "The database is currently experiencing high load. Using cached data if available.",
+                variant: "destructive"
+              });
+              return null;
+            }
+            
+            // Wait before retrying with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+            continue;
           }
           
-          // Wait before retrying with exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
-          continue;
+          // Check if it's a connection error
+          if (
+            error.message?.includes('Failed to fetch') || 
+            error.code === 'ECONNREFUSED'
+          ) {
+            // Wait before retrying with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
+            attempts++;
+            continue;
+          }
+          
+          // For other errors, throw immediately
+          throw error;
         }
         
-        // Check if it's a connection error
-        if (
-          error.message?.includes('Failed to fetch') || 
-          error.code === 'ECONNREFUSED'
-        ) {
-          // Wait before retrying with exponential backoff
-          await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, attempts)));
-          attempts++;
-          continue;
-        }
-        
-        // For other errors, throw immediately
-        throw error;
+        return data as T;
       }
       
-      return data;
+      // If it's not a Supabase response with data/error structure, return the result directly
+      return result as T;
     } catch (error: any) {
       console.error('executeWithRetry error:', error);
       
