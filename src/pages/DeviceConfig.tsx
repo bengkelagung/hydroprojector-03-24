@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/router';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,10 +36,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
-import { createPinConfig, updatePinConfig } from '@/server/actions/pinConfig';
-import { fetchPinConfigsWithRelations } from '@/integrations/supabase/client';
-import { useUser } from '@clerk/nextjs';
+import { useUser } from '@/contexts/AuthContext';
 import { handleSupabaseError } from '@/utils/supabaseHelpers';
+import { supabase } from '@/integrations/supabase/client';
 
 interface PinConfig {
   id?: string;
@@ -52,8 +52,8 @@ interface PinConfig {
 }
 
 export default function DeviceConfig() {
-  const router = useRouter();
-  const { deviceId } = router.query;
+  const { deviceId } = useParams();
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useUser();
 
@@ -173,7 +173,7 @@ export default function DeviceConfig() {
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
-        <Button variant="outline">Cancel</Button>
+        <Button variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
         <Button onClick={handleSave} disabled={isSaving}>
           {isSaving ? 'Saving...' : 'Save'}
         </Button>
@@ -187,33 +187,30 @@ async function configurePin(deviceId: string | undefined, config: PinConfig): Pr
     throw new Error("Device ID is required to configure the pin.");
   }
 
-  const userId = 'user123'; // Replace with actual user ID
-
   try {
-    // Map string values to IDs
-    // const dataTypeId = await findDataTypeIdByName(config.dataType);
-    // const signalTypeId = await findSignalTypeIdByName(config.signalType);
-    // const modeId = await findModeIdByType(config.mode);
-    // const labelId = config.label ? await findLabelIdByName(config.label) : null;
-
-    // if (!dataTypeId || !signalTypeId || !modeId) {
-    //   throw new Error("Failed to resolve IDs for data type, signal type, or mode.");
-    // }
-
     // Prepare the pin configuration object
     const pinConfigData = {
       device_id: deviceId,
       pin_id: config.pinId,
-      data_type_id: 1, //dataTypeId,
-      signal_type_id:  1, //signalTypeId,
-      mode_id: 1, //modeId,
-      label_id: 1, //labelId,
+      data_type_id: 1, // Simplified: would normally resolve from name
+      signal_type_id: 1, // Simplified: would normally resolve from name
+      mode_id: 1, // Simplified: would normally resolve from name
+      label_id: 1, // Simplified: would normally resolve from name
       name: config.name,
       unit: config.unit,
     };
 
-    // Call the server action to create the pin configuration
-    await createPinConfig(pinConfigData);
+    // Insert the pin configuration
+    const { data, error } = await supabase
+      .from('pin_configs')
+      .insert(pinConfigData)
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    return;
   } catch (error) {
     console.error("Error during pin configuration:", error);
     throw error;

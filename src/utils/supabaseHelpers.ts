@@ -91,13 +91,13 @@ export async function executeWithRetry<T>(
 export async function isSupabaseAvailable(): Promise<boolean> {
   try {
     const startTime = performance.now();
-    const result = await supabase.from('projects').select('count').limit(1).single();
+    const { error } = await supabase.from('projects').select('count').limit(1).single();
     const endTime = performance.now();
     
     // Log response time for monitoring
     console.log(`Supabase response time: ${endTime - startTime}ms`);
     
-    return !result.error;
+    return !error;
   } catch (error: any) {
     console.error('Supabase connection check failed:', error);
     
