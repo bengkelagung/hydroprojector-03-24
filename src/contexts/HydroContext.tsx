@@ -1,15 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Session } from '@supabase/supabase-js';
 import { toast } from '@/hooks/use-toast';
-import { 
-  subscribeToDevices, 
-  subscribeToPinConfigs, 
-  subscribeToPinData, 
-  unsubscribeAll,
-  isSubscribedToChannel 
-} from '@/services/RealtimeService';
 
 export interface Project {
   id: string;
@@ -26,7 +18,6 @@ export interface Device {
   createdAt: string;
   lastSeen: string;
   isConnected: boolean;
-  // Add missing properties referenced in DeviceCode.tsx and DeviceWifiSetup.tsx
   wifiConfig?: {
     ssid?: string;
     password?: string;
@@ -83,13 +74,11 @@ interface HydroContextType {
   deleteDevice: (deviceId: string) => Promise<void>;
   deletePin: (pinId: string) => Promise<void>;
   togglePinValue: (pinId: string) => Promise<void>;
-  // Add missing methods referenced in DeviceCode.tsx
-  generateDeviceCode?: (deviceId: string) => Promise<string>;
-  updateDeviceConnection?: (deviceId: string, isConnected: boolean) => Promise<void>;
-  // Add missing methods referenced in DeviceConfig.tsx
-  configurePin?: (deviceId: string, config: any) => Promise<void>;
-  pinOptions?: any[];
-  fetchLabels?: () => Promise<string[]>;
+  generateDeviceCode: (deviceId: string) => Promise<string>;
+  updateDeviceConnection: (deviceId: string, isConnected: boolean) => Promise<void>;
+  configurePin: (deviceId: string, config: any) => Promise<void>;
+  pinOptions: any[];
+  fetchLabels: () => Promise<string[]>;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -114,7 +103,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const pinModes: ('input' | 'output')[] = ['input', 'output'];
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize auth
   useEffect(() => {
     const getInitialSession = async () => {
       try {
@@ -140,26 +128,21 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     getInitialSession();
   }, []);
 
-  // Load data when user is authenticated
   useEffect(() => {
     if (session && !isLoading) {
-      // Load initial data
       getProjects();
       getDevices();
       getPins();
     }
   }, [session, isLoading]);
 
-  // Set up realtime subscriptions when user is authenticated
   useEffect(() => {
     if (!user) return;
 
-    // Subscribe to device changes
     const deviceUnsubscribe = subscribeToDevices((deviceId, updates) => {
       console.log('Device update received in context:', deviceId, updates);
       
       if (deviceId === 'refresh-needed') {
-        // Refresh the devices list without a full page reload
         getDevices();
         return;
       }
@@ -177,12 +160,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ));
     });
 
-    // Subscribe to pin configuration changes
     const pinConfigUnsubscribe = subscribeToPinConfigs((pinId, updates) => {
       console.log('Pin config update received in context:', pinId, updates);
       
       if (pinId === 'refresh-needed') {
-        // Refresh the pins list without a full page reload
         getPins();
         return;
       }
@@ -194,7 +175,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ));
     });
 
-    // Subscribe to pin data changes
     const pinDataUnsubscribe = subscribeToPinData((pinConfigId, value) => {
       console.log('Pin data update received in context:', pinConfigId, value);
       
@@ -205,7 +185,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       ));
     });
 
-    // Cleanup on unmount
     return () => {
       if (deviceUnsubscribe) deviceUnsubscribe();
       if (pinConfigUnsubscribe) pinConfigUnsubscribe();
@@ -420,7 +399,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     label?: string
   ) => {
     try {
-      // Need to get the IDs for each reference value
       const { data: pinData, error: pinError } = await supabase
         .from('pins')
         .select('id')
@@ -431,7 +409,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const pinId = pinData.id;
       
-      // Get data type ID
       const { data: dataTypeData, error: dataTypeError } = await supabase
         .from('data_types')
         .select('id')
@@ -442,7 +419,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const dataTypeId = dataTypeData.id;
       
-      // Get signal type ID
       const { data: signalTypeData, error: signalTypeError } = await supabase
         .from('signal_types')
         .select('id')
@@ -453,7 +429,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const signalTypeId = signalTypeData.id;
       
-      // Get mode ID
       const { data: modeData, error: modeError } = await supabase
         .from('modes')
         .select('id')
@@ -464,7 +439,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       const modeId = modeData.id;
       
-      // Get label ID if provided
       let labelId = null;
       if (label) {
         const { data: labelData, error: labelError } = await supabase
@@ -478,7 +452,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
       }
       
-      // Now create the pin configuration
       const { data, error } = await supabase
         .from('pin_configs')
         .insert([{
@@ -570,11 +543,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (updates.description !== undefined) supabaseUpdates.description = updates.description;
       if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
       if (updates.lastSeen !== undefined) supabaseUpdates.last_seen = updates.lastSeen;
-      // Add support for wifiConfig if present in updates
       if (updates.wifiConfig) {
         supabaseUpdates.wifi_config = updates.wifiConfig;
       }
-      // Add support for type if present in updates
       if (updates.type) {
         supabaseUpdates.type = updates.type;
       }
@@ -681,14 +652,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const updatePin = async (pinId: string, updates: Partial<Pin>): Promise<void> => {
     try {
-      // Convert pin model to database model
       const supabaseUpdates: any = {};
       
       if (updates.name !== undefined) supabaseUpdates.name = updates.name;
       if (updates.value !== undefined) supabaseUpdates.value = updates.value;
-      
-      // We would need to look up IDs if these were changing, but for simplicity
-      // we're assuming those fields aren't being changed here
       
       const { error } = await supabase
         .from('pin_configs')
@@ -720,17 +687,14 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const togglePinValue = async (pinId: string) => {
     try {
-      // Find the current pin
       const pin = pins.find(p => p.id === pinId);
       if (!pin) {
         throw new Error('Pin not found');
       }
       
-      // Determine new value
       const currentValue = pin.value || '0';
       const newValue = currentValue === '1' ? '0' : '1';
       
-      // Update pin value in database
       const { error } = await supabase
         .from('pin_configs')
         .update({ value: newValue })
@@ -738,7 +702,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
       if (error) throw error;
       
-      // Also record the change in pin_data for history
       const { error: historyError } = await supabase
         .from('pin_data')
         .insert({ pin_config_id: pinId, value: newValue });
@@ -747,7 +710,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         console.error('Failed to record pin history:', historyError);
       }
       
-      // Update local state
       setPins(prev => prev.map(pin => 
         pin.id === pinId ? { ...pin, value: newValue } : pin
       ));
@@ -766,7 +728,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     }
   };
 
-  // Implement stub methods required by the components
   const generateDeviceCode = async (deviceId: string): Promise<string> => {
     console.log('generateDeviceCode called with deviceId:', deviceId);
     return 'DEVICE_CODE_PLACEHOLDER';
@@ -779,8 +740,9 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const configurePin = async (deviceId: string, config: any): Promise<void> => {
     console.log('configurePin called with:', deviceId, config);
-    // Placeholder implementation
   };
+
+  const pinOptions: any[] = [];
 
   const fetchLabels = async (): Promise<string[]> => {
     return labels;
@@ -811,11 +773,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     deleteDevice,
     deletePin,
     togglePinValue,
-    // Add the stub methods to the context
     generateDeviceCode,
     updateDeviceConnection,
     configurePin,
-    pinOptions: [],
+    pinOptions,
     fetchLabels,
   };
 

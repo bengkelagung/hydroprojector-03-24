@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro } from '@/contexts/HydroContext';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function ProjectCreate() {
   const navigate = useNavigate();
@@ -21,13 +22,27 @@ export default function ProjectCreate() {
     
     try {
       setLoading(true);
-      const projectId = await createProject(name, description);
+      const projectId = await createProject(name, description)
+        .catch(error => {
+          console.error('Error in createProject:', error);
+          toast({
+            title: "Network Error",
+            description: "Unable to connect to the server. Please try again later.",
+            variant: "destructive"
+          });
+          return null;
+        });
       
       if (projectId) {
         navigate(`/projects/${projectId}`);
       }
     } catch (error) {
       console.error('Error creating project:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }

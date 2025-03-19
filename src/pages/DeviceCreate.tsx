@@ -8,6 +8,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro } from '@/contexts/HydroContext';
 import { ArrowLeft } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 export default function DeviceCreate() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -32,19 +33,37 @@ export default function DeviceCreate() {
     
     if (!projectId) {
       console.error('No project ID provided');
+      toast({
+        title: "Error",
+        description: "No project ID provided",
+        variant: "destructive"
+      });
       return;
     }
     
     try {
       setLoading(true);
-      // Fixed createDevice call to use 3 parameters instead of 4
-      const deviceId = await createDevice(name, description, projectId);
+      const deviceId = await createDevice(name, description, projectId)
+        .catch(error => {
+          console.error('Error in createDevice:', error);
+          toast({
+            title: "Network Error",
+            description: "Unable to connect to the server. Please try again later.",
+            variant: "destructive"
+          });
+          return null;
+        });
       
       if (deviceId) {
         navigate(`/projects/${projectId}/devices/${deviceId}`);
       }
     } catch (error) {
       console.error('Error creating device:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create device",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
