@@ -1,7 +1,4 @@
-
 import { supabase } from '@/integrations/supabase/client';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 
 export interface PinHistoryEntry {
   id: string;
@@ -191,64 +188,4 @@ export const savePinStateToHistory = async (
     console.error('Error in savePinStateToHistory:', error);
     return false;
   }
-};
-
-/**
- * Create a history chart component for a pin
- * @param historyData Formatted history data for Recharts
- * @param dataKey The key to use for the data series
- * @param isDigital Whether the pin is digital (on/off)
- * @param color Chart line color (optional)
- * @returns JSX Element with the chart
- */
-export const createPinHistoryChart = (
-  historyData: ChartDataPoint[],
-  dataKey: string = 'value',
-  isDigital: boolean = false,
-  color: string = '#3b82f6'
-) => {
-  if (!historyData || historyData.length === 0) {
-    return (
-      <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-gray-500">No history data available</p>
-      </div>
-    );
-  }
-
-  const chartConfig = {
-    [dataKey]: {
-      label: dataKey,
-      color: color
-    }
-  };
-
-  return (
-    <ChartContainer config={chartConfig} className="h-40 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={historyData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="time" 
-            fontSize={12}
-            tickMargin={5}
-          />
-          <YAxis 
-            fontSize={12}
-            domain={isDigital ? [0, 1] : ['auto', 'auto']}
-            tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-          />
-          <Tooltip content={<ChartTooltip />} />
-          <Legend />
-          <Line 
-            type="monotone" 
-            dataKey={dataKey} 
-            stroke={color} 
-            activeDot={{ r: 8 }} 
-            dot={{ r: 3 }}
-            isAnimationActive={true}
-          />
-        </LineChart>
-      </ResponsiveContainer>
-    </ChartContainer>
-  );
 };
