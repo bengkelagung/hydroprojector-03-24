@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Cpu, Copy, Check, Sliders, AlertTriangle, Wifi } from 'lucide-react';
@@ -22,8 +21,15 @@ const DeviceCode = () => {
     
     if (foundDevice) {
       try {
-        const generatedCode = generateDeviceCode(foundDevice.id);
-        setCode(generatedCode);
+        const fetchCode = async () => {
+          const generatedCode = await generateDeviceCode(foundDevice.id);
+          setCode(generatedCode);
+        };
+        
+        fetchCode().catch(error => {
+          console.error('Error generating code:', error);
+          toast.error('Error generating device code');
+        });
       } catch (error) {
         console.error('Error generating code:', error);
         toast.error('Error generating device code');
@@ -67,7 +73,7 @@ const DeviceCode = () => {
     toast.success('Device connected successfully!');
   };
 
-  const hasWifiConfig = device.wifiConfig && device.wifiConfig.wifiSSID;
+  const hasWifiConfig = device.wifiConfig && device.wifiConfig.ssid;
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -144,11 +150,11 @@ const DeviceCode = () => {
                   <Wifi className="h-5 w-5 text-green-600" />
                   <AlertDescription className="text-gray-700">
                     Wi-Fi credentials are pre-configured in the code:&nbsp;
-                    <code className="px-1 py-0.5 bg-blue-100 rounded ml-1">{device.wifiConfig.wifiSSID}</code>
-                    {device.wifiConfig.wifiPassword && (
+                    <code className="px-1 py-0.5 bg-blue-100 rounded ml-1">{device.wifiConfig.ssid}</code>
+                    {device.wifiConfig.password && (
                       <>
                         &nbsp;with password:&nbsp;
-                        <code className="px-1 py-0.5 bg-blue-100 rounded">{device.wifiConfig.wifiPassword}</code>
+                        <code className="px-1 py-0.5 bg-blue-100 rounded">{device.wifiConfig.password}</code>
                       </>
                     )}
                   </AlertDescription>

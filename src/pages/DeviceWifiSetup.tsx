@@ -28,9 +28,6 @@ const DeviceWifiSetup = () => {
     setDeviceConnected(true);
   }, []);
 
-  useEffect(() => {
-  }, [device]);
-
   const handleWifiConnect = (ssid: string, password: string) => {
     setWifiSSID(ssid);
     setWifiPassword(password);
@@ -151,8 +148,8 @@ const DeviceWifiSetup = () => {
       
       await updateDevice(deviceId, {
         wifiConfig: {
-          wifiSSID,
-          wifiPassword
+          ssid: wifiSSID,
+          password: wifiPassword
         }
       });
       
