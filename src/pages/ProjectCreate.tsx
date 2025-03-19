@@ -1,123 +1,93 @@
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Leaf } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { toast } from 'sonner';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro } from '@/contexts/HydroContext';
+import { ArrowLeft } from 'lucide-react';
 
-const ProjectCreate = () => {
+export default function ProjectCreate() {
+  const navigate = useNavigate();
+  const { createProject } = useHydro();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const { createProject } = useHydro();
-  const navigate = useNavigate();
-
+  const [loading, setLoading] = useState(false);
+  
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!name) {
-      toast.error('Please provide a project name');
-      return;
-    }
-    
     try {
-      setIsSubmitting(true);
-      const project = await createProject(name, description);
-      toast.success('Project created successfully!');
-      navigate('/devices/create', { state: { projectId: project.id } });
+      setLoading(true);
+      const projectId = await createProject(name, description);
+      
+      if (projectId) {
+        navigate(`/projects/${projectId}`);
+      }
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project. Please try again.');
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
     }
   };
-
+  
   return (
-    <div className="max-w-2xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-800">Create a New Project</h1>
-        <p className="text-gray-600 mt-2">
-          Set up your hydroponics project to start monitoring and controlling your system.
-        </p>
-      </div>
+    <div className="container mx-auto py-6">
+      <Button 
+        variant="ghost" 
+        onClick={() => navigate('/projects')}
+        className="mb-4"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back to Projects
+      </Button>
       
-      <Card>
+      <Card className="max-w-lg mx-auto">
+        <CardHeader>
+          <CardTitle className="text-2xl">Create New Project</CardTitle>
+          <CardDescription>
+            Create a new hydroponic project to organize your devices and data
+          </CardDescription>
+        </CardHeader>
         <form onSubmit={handleSubmit}>
-          <CardHeader>
-            <CardTitle>Project Details</CardTitle>
-            <CardDescription>
-              Provide the basic information about your hydroponics setup
-            </CardDescription>
-          </CardHeader>
-          
-          <CardContent className="space-y-6">
+          <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="project-name">Project Name</Label>
-              <Input
-                id="project-name"
-                placeholder="e.g., Balcony Hydroponics, Kitchen Herbs, etc."
+              <Label htmlFor="name">Project Name</Label>
+              <Input 
+                id="name" 
+                placeholder="My Hydroponic Project" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
               />
             </div>
-            
             <div className="space-y-2">
-              <Label htmlFor="project-description">Description (Optional)</Label>
-              <Textarea
-                id="project-description"
-                placeholder="Describe your project, goals, or any special notes..."
-                rows={4}
+              <Label htmlFor="description">Project Description</Label>
+              <Textarea 
+                id="description" 
+                placeholder="This project is for my indoor herb garden..."
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
+                rows={4}
               />
             </div>
-            
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-100 flex items-start">
-              <Leaf className="h-5 w-5 text-hydro-blue mt-0.5 mr-3 flex-shrink-0" />
-              <div>
-                <h4 className="font-medium text-hydro-blue">Next Steps</h4>
-                <p className="text-sm text-gray-600 mt-1">
-                  After creating your project, you'll be able to add devices like ESP32 controllers
-                  and configure sensors for monitoring your hydroponics system.
-                </p>
-              </div>
-            </div>
           </CardContent>
-          
-          <CardFooter className="flex justify-between">
+          <CardFooter className="flex justify-end space-x-2">
             <Button 
-              type="button" 
-              variant="outline"
-              onClick={() => navigate('/dashboard')}
+              variant="outline" 
+              onClick={() => navigate('/projects')}
+              type="button"
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              className="bg-hydro-green hover:bg-green-700"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Creating...
-                </>
-              ) : (
-                'Create Project'
-              )}
+            <Button type="submit" disabled={loading}>
+              {loading ? 'Creating...' : 'Create Project'}
             </Button>
           </CardFooter>
         </form>
       </Card>
     </div>
   );
-};
-
-export default ProjectCreate;
+}

@@ -26,6 +26,12 @@ export interface Device {
   createdAt: string;
   lastSeen: string;
   isConnected: boolean;
+  // Add missing properties referenced in DeviceCode.tsx and DeviceWifiSetup.tsx
+  wifiConfig?: {
+    ssid?: string;
+    password?: string;
+  };
+  type?: string;
 }
 
 export interface Pin {
@@ -77,6 +83,13 @@ interface HydroContextType {
   deleteDevice: (deviceId: string) => Promise<void>;
   deletePin: (pinId: string) => Promise<void>;
   togglePinValue: (pinId: string) => Promise<void>;
+  // Add missing methods referenced in DeviceCode.tsx
+  generateDeviceCode?: (deviceId: string) => Promise<string>;
+  updateDeviceConnection?: (deviceId: string, isConnected: boolean) => Promise<void>;
+  // Add missing methods referenced in DeviceConfig.tsx
+  configurePin?: (deviceId: string, config: any) => Promise<void>;
+  pinOptions?: any[];
+  fetchLabels?: () => Promise<string[]>;
 }
 
 const HydroContext = createContext<HydroContextType | undefined>(undefined);
@@ -534,7 +547,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setProjects(prev => prev.map(project => 
         project.id === projectId ? { ...project, ...updates } : project
       ));
-      toast.success('Project updated successfully');
+      
+      toast({
+        title: "Success",
+        description: "Project updated successfully"
+      });
     } catch (error) {
       console.error('Error updating project:', error);
       toast({
@@ -553,6 +570,14 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (updates.description !== undefined) supabaseUpdates.description = updates.description;
       if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
       if (updates.lastSeen !== undefined) supabaseUpdates.last_seen = updates.lastSeen;
+      // Add support for wifiConfig if present in updates
+      if (updates.wifiConfig) {
+        supabaseUpdates.wifi_config = updates.wifiConfig;
+      }
+      // Add support for type if present in updates
+      if (updates.type) {
+        supabaseUpdates.type = updates.type;
+      }
       
       const { error } = await supabase
         .from('devices')
@@ -564,7 +589,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setDevices(prev => prev.map(device => 
         device.id === deviceId ? { ...device, ...updates } : device
       ));
-      toast.success('Device updated successfully');
+      
+      toast({
+        title: "Success",
+        description: "Device updated successfully"
+      });
     } catch (error) {
       console.error('Error updating device:', error);
       toast({
@@ -585,7 +614,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) throw error;
       
       setProjects(prev => prev.filter(project => project.id !== projectId));
-      toast.success('Project deleted successfully');
+      
+      toast({
+        title: "Success",
+        description: "Project deleted successfully"
+      });
     } catch (error) {
       console.error('Error deleting project:', error);
       toast({
@@ -606,7 +639,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) throw error;
       
       setDevices(prev => prev.filter(device => device.id !== deviceId));
-      toast.success('Device deleted successfully');
+      
+      toast({
+        title: "Success",
+        description: "Device deleted successfully"
+      });
     } catch (error) {
       console.error('Error deleting device:', error);
       toast({
@@ -627,7 +664,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       if (error) throw error;
       
       setPins(prev => prev.filter(pin => pin.id !== pinId));
-      toast.success('Pin deleted successfully');
+      
+      toast({
+        title: "Success",
+        description: "Pin deleted successfully"
+      });
     } catch (error) {
       console.error('Error deleting pin:', error);
       toast({
@@ -711,7 +752,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         pin.id === pinId ? { ...pin, value: newValue } : pin
       ));
       
-      toast.success(`${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`);
+      toast({
+        title: "Success",
+        description: `${pin.name} turned ${newValue === '1' ? 'on' : 'off'}`
+      });
     } catch (error) {
       console.error('Error toggling pin value:', error);
       toast({
@@ -720,6 +764,26 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         variant: "destructive"
       });
     }
+  };
+
+  // Implement stub methods required by the components
+  const generateDeviceCode = async (deviceId: string): Promise<string> => {
+    console.log('generateDeviceCode called with deviceId:', deviceId);
+    return 'DEVICE_CODE_PLACEHOLDER';
+  };
+
+  const updateDeviceConnection = async (deviceId: string, isConnected: boolean): Promise<void> => {
+    console.log('updateDeviceConnection called with:', deviceId, isConnected);
+    await updateDevice(deviceId, { isConnected });
+  };
+
+  const configurePin = async (deviceId: string, config: any): Promise<void> => {
+    console.log('configurePin called with:', deviceId, config);
+    // Placeholder implementation
+  };
+
+  const fetchLabels = async (): Promise<string[]> => {
+    return labels;
   };
 
   const value: HydroContextType = {
@@ -747,6 +811,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     deleteDevice,
     deletePin,
     togglePinValue,
+    // Add the stub methods to the context
+    generateDeviceCode,
+    updateDeviceConnection,
+    configurePin,
+    pinOptions: [],
+    fetchLabels,
   };
 
   return (

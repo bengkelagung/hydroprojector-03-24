@@ -106,14 +106,30 @@ const isRealtimeAvailable = (): boolean => {
   }
 };
 
-// Safe channel removal function
+// Safe channel removal function - updated to prevent recursion
 const safeRemoveChannel = async (channel: any, channelName: string) => {
   if (!channel) return;
   
   try {
+    if (cleanupInProgress) {
+      console.log(`Skipping recursive removal for ${channelName} channel`);
+      return;
+    }
+    
+    // Mark cleanup as in progress to prevent recursive calls
+    cleanupInProgress = true;
+    
     // First try to unsubscribe, which is safer than removing directly
-    await channel.unsubscribe();
-    console.log(`Unsubscribed from ${channelName} channel`);
+    await new Promise<void>((resolve) => {
+      try {
+        channel.unsubscribe();
+        console.log(`Unsubscribed from ${channelName} channel`);
+        resolve();
+      } catch (e) {
+        console.error(`Error unsubscribing from ${channelName} channel:`, e);
+        resolve(); // Resolve anyway to continue with removal
+      }
+    });
     
     // After unsubscribing, remove the channel with a short delay to avoid race conditions
     setTimeout(() => {
@@ -122,10 +138,14 @@ const safeRemoveChannel = async (channel: any, channelName: string) => {
         console.log(`Removed ${channelName} channel`);
       } catch (e) {
         console.error(`Error during final channel removal for ${channelName}:`, e);
+      } finally {
+        // Reset the cleanup flag
+        cleanupInProgress = false;
       }
-    }, 100);
+    }, 500);
   } catch (e) {
-    console.error(`Error unsubscribing from ${channelName} channel:`, e);
+    console.error(`Error in safeRemoveChannel for ${channelName}:`, e);
+    cleanupInProgress = false;
   }
 };
 
