@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { PlusCircle, Leaf, Droplet, Activity, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, FileInput, FileOutput } from 'lucide-react';
@@ -12,10 +13,20 @@ import PinDetailsDialog from '@/components/PinDetailsDialog';
 
 const Dashboard = () => {
   const { user } = useAuth();
-  const { projects, devices, pins, getDevicesByProject, getPinsByDevice } = useHydro();
+  const { projects, devices, pins, getDevicesByProject, getPinsByDevice, togglePinValue } = useHydro();
   const [selectedPin, setSelectedPin] = useState<Pin | null>(null);
   const [isPinDetailsOpen, setIsPinDetailsOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'input' | 'output'>('input');
+  const [localPinValues, setLocalPinValues] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    // Initialize local pin values from pins
+    const initialValues: Record<string, string> = {};
+    pins.forEach(pin => {
+      initialValues[pin.id] = pin.value || '0';
+    });
+    setLocalPinValues(initialValues);
+  }, [pins]);
 
   useEffect(() => {
     const mockDataUpdate = () => {
@@ -57,6 +68,8 @@ const Dashboard = () => {
       case 'humidity': return 'bg-blue-500';
       case 'water-level': return 'bg-cyan-500';
       case 'nutrient': return 'bg-green-500';
+      case 'pump': return 'bg-blue-500';
+      case 'water-pump': return 'bg-blue-500';
       case 'light': return 'bg-yellow-500';
       default: return 'bg-gray-500';
     }
@@ -77,12 +90,36 @@ const Dashboard = () => {
   };
 
   const getPinIcon = (pin: Pin) => {
-    if (pin.signalType === 'light' || pin.signalType === 'pump' || pin.signalType === 'water-pump') {
+    if (pin.signalType === 'pump' || pin.signalType === 'water-pump') {
       return <Droplet className="h-5 w-5 mr-2 text-blue-500" />;
+    } else if (pin.signalType === 'light') {
+      return <LightbulbIcon className="h-5 w-5 mr-2 text-yellow-500" />;
     } else if (pin.signalType === 'custom' || pin.signalType === 'digital') {
       return <Activity className="h-5 w-5 mr-2 text-gray-500" />;
     } else {
       return null;
+    }
+  };
+
+  const handleTogglePin = async (pinId: string) => {
+    try {
+      // Update local state first for immediate feedback
+      setLocalPinValues(prev => {
+        const currentValue = prev[pinId] || '0';
+        const newValue = currentValue === '1' ? '0' : '1';
+        return { ...prev, [pinId]: newValue };
+      });
+      
+      // Then update the actual pin value
+      await togglePinValue(pinId);
+    } catch (error) {
+      console.error('Error toggling pin:', error);
+      // Revert local state if the toggle fails
+      setLocalPinValues(prev => {
+        const pins = useHydro().pins;
+        const pin = pins.find(p => p.id === pinId);
+        return { ...prev, [pinId]: pin?.value || '0' };
+      });
     }
   };
 
@@ -469,7 +506,8 @@ const Dashboard = () => {
                 const device = devices.find(d => d.id === pin.deviceId);
                 const project = device ? projects.find(p => p.id === device.projectId) : null;
                 
-                const value = pin.value || '0';
+                // Use local state value for immediate feedback
+                const value = localPinValues[pin.id] || pin.value || '0';
                 const isOn = value === '1' || value.toLowerCase() === 'on' || value.toLowerCase() === 'true';
                 
                 return (
@@ -511,10 +549,7 @@ const Dashboard = () => {
                             </Button>
                             
                             <Button
-                              onClick={() => {
-                                const { togglePinValue } = useHydro();
-                                togglePinValue(pin.id);
-                              }}
+                              onClick={() => handleTogglePin(pin.id)}
                               variant={isOn ? "destructive" : "default"}
                               size="sm"
                             >

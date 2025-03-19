@@ -92,3 +92,34 @@ export const formatPinHistoryForChart = (
   
   return { times, values };
 };
+
+/**
+ * Save pin state to history
+ * @param pinId The ID of the pin
+ * @param value The value to save
+ * @returns Success status
+ */
+export const savePinStateToHistory = async (
+  pinId: string,
+  value: string
+): Promise<boolean> => {
+  try {
+    const { error } = await supabase
+      .from('pin_data')
+      .insert({
+        pin_config_id: pinId,
+        value: value,
+        created_at: new Date().toISOString()
+      });
+      
+    if (error) {
+      console.error('Error saving pin state to history:', error);
+      return false;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Error in savePinStateToHistory:', error);
+    return false;
+  }
+};
