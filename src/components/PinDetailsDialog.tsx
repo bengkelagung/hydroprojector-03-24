@@ -11,7 +11,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter
+  DialogFooter,
+  DialogDescription
 } from '@/components/ui/dialog';
 import {
   AlertDialog,
@@ -147,6 +148,9 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
             <div className={`w-3 h-3 rounded-full ${colorClass} mr-2`}></div>
             Pin: {pin.name}
           </DialogTitle>
+          <DialogDescription>
+            View and manage pin configuration details
+          </DialogDescription>
         </DialogHeader>
         
         <div className="py-4">
@@ -225,7 +229,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                       <SelectValue placeholder="Select label" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem key="none" value="_none">None</SelectItem>
+                      <SelectItem key="none" value="">None</SelectItem>
                       {labels.map(label => (
                         <SelectItem key={label} value={label}>
                           {label}

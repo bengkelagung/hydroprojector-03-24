@@ -998,15 +998,30 @@ void read${pin.name.replace(/\s+/g, '')}() {
 
   const updatePin = async (pinId: string, updates: Partial<Pin>) => {
     try {
-      const updateData: any = {
-        name: updates.name,
-        signal_type: updates.signalType,
-        data_type: updates.dataType
-      };
+      // First get the references for the updated types
+      const dataTypeId = updates.dataType ? await findDataTypeIdByName(updates.dataType) : null;
+      const signalTypeId = updates.signalType ? await findSignalTypeIdByName(updates.signalType as string) : null;
+      const modeId = updates.mode ? await findModeIdByType(updates.mode) : null;
+      let labelId = null;
       
       if (hasLabelColumn && updates.label !== undefined) {
-        updateData.label = updates.label;
+        if (updates.label && updates.label !== '') {
+          labelId = await findLabelIdByName(updates.label);
+        } else {
+          labelId = null; // Explicitly set to null if empty label
+        }
       }
+      
+      // Build the update data object
+      const updateData: any = {
+        name: updates.name
+      };
+      
+      // Only include the fields if they have values
+      if (dataTypeId !== null) updateData.data_type_id = dataTypeId;
+      if (signalTypeId !== null) updateData.signal_type_id = signalTypeId;
+      if (modeId !== null) updateData.mode_id = modeId;
+      if (hasLabelColumn) updateData.label_id = labelId;
       
       const { error } = await supabase
         .from('pin_configs')
