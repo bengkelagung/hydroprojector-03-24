@@ -32,7 +32,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   // Process data with extreme optimization
   const processData = (): ChartDataPoint[] => {
     // Hard limit on data points - extreme reduction for performance
-    const maxPoints = 15; // Reduced from 20 for even better performance
+    const maxPoints = 10; // Further reduced from 15 for maximum performance
     
     if (historyData.length <= maxPoints) {
       return historyData;
@@ -41,7 +41,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     // For large datasets, use aggressive sampling
     const sampledData: ChartDataPoint[] = [];
     
-    // Always include first and last points
+    // Always include first point
     sampledData.push(historyData[0]);
     
     // For digital signals, focus on transitions
@@ -76,7 +76,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   const processedData = processData();
   
   // Show a warning for extreme data volume rather than attempting to render
-  if (historyData.length > 500) {
+  if (historyData.length > 300) { // Reduced threshold from 500 to 300
     return (
       <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-amber-600 font-medium">Too much data to display</p>
@@ -97,22 +97,22 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart 
           data={processedData} 
-          margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+          margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" opacity={0.15} vertical={false} />
           <XAxis 
             dataKey="time" 
-            fontSize={9}
-            tickMargin={5}
+            fontSize={8}
+            tickMargin={3}
             interval="preserveStartEnd"
             tickCount={2}
           />
           <YAxis 
-            fontSize={9}
+            fontSize={8}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-            width={25}
-            tickCount={3}
+            width={20}
+            tickCount={2}
           />
           <Tooltip content={<ChartTooltip />} />
           <Line 
@@ -121,7 +121,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
             stroke={color} 
             dot={false}
             isAnimationActive={false}
-            strokeWidth={1.5}
+            strokeWidth={1}
             connectNulls={true}
           />
         </LineChart>

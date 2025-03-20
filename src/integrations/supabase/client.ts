@@ -552,9 +552,8 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     const startDate = new Date();
     startDate.setHours(startDate.getHours() - hours);
     
-    // Limit the number of records based on time range to prevent browser freezing
-    // Much more aggressive limits to prevent browser from freezing
-    const maxRecords = hours <= 6 ? 100 : hours <= 24 ? 150 : 200;
+    // Even more aggressive limits to prevent browser from freezing
+    const maxRecords = hours <= 6 ? 50 : hours <= 24 ? 75 : 100;
     
     // Use the direct query approach for all time ranges
     return await getPinHistoryDataFallback(pinId, startDate, maxRecords);
@@ -584,8 +583,8 @@ const getPinHistoryDataFallback = async (pinId: string, timeAgo: Date, maxRecord
     }
     
     // If we have a very large dataset, sample it to reduce browser load
-    if (data && data.length > 100) {
-      const samplingInterval = Math.ceil(data.length / 100);
+    if (data && data.length > 30) {
+      const samplingInterval = Math.ceil(data.length / 30);
       const sampledData = [];
       
       // Always include first point

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,14 +17,13 @@ const Charts = () => {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('all');
   const [selectedPinMode, setSelectedPinMode] = useState<string>('all');
-  const [timeRange, setTimeRange] = useState<string>('24h');
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(false); // Default to false to prevent performance issues
+  const [timeRange, setTimeRange] = useState<string>('1h');
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [chartsData, setChartsData] = useState<Record<string, ChartDataPoint[]>>({});
   const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   
-  // Derive filteredPins from the filter states
   const filteredPins = useMemo(() => {
     return pins.filter(pin => {
       if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
@@ -35,7 +33,7 @@ const Charts = () => {
         if (!device || device.projectId !== selectedProjectId) return false;
       }
       return true;
-    });
+    }).slice(0, 9);
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = useMemo(() => [
@@ -55,7 +53,6 @@ const Charts = () => {
     setSelectedDeviceId('all');
   }, [selectedProjectId]);
 
-  // Auto refresh effect with better cleanup and error handling
   useEffect(() => {
     if (refreshTimeoutRef.current) {
       clearTimeout(refreshTimeoutRef.current);
@@ -66,7 +63,7 @@ const Charts = () => {
       refreshTimeoutRef.current = setTimeout(() => {
         console.log('Auto-refreshing charts data');
         fetchChartData();
-      }, 60000); // Refresh every minute
+      }, 120000);
     }
     
     return () => {
@@ -79,12 +76,10 @@ const Charts = () => {
     };
   }, [autoRefresh, filteredPins, timeRange]);
 
-  // Initial data load and timeRange change
   useEffect(() => {
-    if (filteredPins.length <= 10) { // Only auto-load if we have a reasonable number of pins
+    if (filteredPins.length <= 6) {
       fetchChartData();
     } else {
-      // For larger datasets, don't auto-load but inform the user
       setChartsData({});
       setIsLoading(false);
       toast.info(`${filteredPins.length} pins found. Click Refresh to load data.`);
@@ -104,15 +99,12 @@ const Charts = () => {
   }, [timeRange]);
 
   const fetchChartData = useCallback(async () => {
-    // If already loading, cancel previous request
     if (isLoading && abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     
-    // Create new abort controller
     abortControllerRef.current = new AbortController();
     
-    // Handle empty pin list efficiently
     if (filteredPins.length === 0) {
       setChartsData({});
       return;
@@ -124,11 +116,9 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
-      // Use smaller batch size for better UI responsiveness
-      const batchSize = Math.min(2, Math.ceil(filteredPins.length / 5)); // Even smaller batch size
+      const batchSize = 1;
       
       for (let i = 0; i < filteredPins.length; i += batchSize) {
-        // Check if operation has been aborted
         if (abortControllerRef.current?.signal.aborted) {
           console.log('Chart data fetching aborted');
           return;
@@ -138,7 +128,6 @@ const Charts = () => {
         
         await Promise.all(batch.map(async (pin) => {
           try {
-            // Check if operation has been aborted
             if (abortControllerRef.current?.signal.aborted) {
               return;
             }
@@ -160,15 +149,12 @@ const Charts = () => {
           }
         }));
         
-        // Update state after each batch to show progress
         if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
           setChartsData(prev => ({...prev, ...results}));
-          // Allow UI to update between batches
-          await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay for UI updates
+          await new Promise(resolve => setTimeout(resolve, 250));
         }
       }
       
-      // Only update final state if not aborted
       if (!abortControllerRef.current?.signal.aborted) {
         setChartsData(results);
       }
@@ -186,7 +172,6 @@ const Charts = () => {
     fetchChartData();
   }, [fetchChartData]);
 
-  // This will help with memory issues by preventing unnecessary renders
   const renderGridView = useCallback(() => {
     if (isLoading && Object.keys(chartsData).length === 0) {
       return (
@@ -251,7 +236,6 @@ const Charts = () => {
     );
   }, [filteredPins, chartsData, isLoading, devices, projects]);
 
-  // Similarly, optimize list view rendering
   const renderListView = useCallback(() => {
     if (isLoading && Object.keys(chartsData).length === 0) {
       return (
@@ -294,7 +278,7 @@ const Charts = () => {
                 </p>
               </CardHeader>
               <CardContent>
-                <div className="h-[300px] w-full">
+                <div className="h-[200px] w-full">
                   {pinData.length > 0 ? (
                     <PinHistoryChart 
                       historyData={pinData} 
