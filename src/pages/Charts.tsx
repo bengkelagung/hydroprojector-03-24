@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PinHistoryChart from '@/components/PinHistoryChart';
@@ -72,30 +72,46 @@ const Charts = () => {
     }
   };
 
-  const { data: chartsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ['pinCharts', filteredPins.map(p => p.id), timeRange],
-    queryFn: async () => {
-      const hours = getTimeRangeHours();
-      const results: Record<string, ChartDataPoint[]> = {};
+  const fetchChartData = useCallback(async () => {
+    const hours = getTimeRangeHours();
+    const results: Record<string, ChartDataPoint[]> = {};
+    
+    const batchSize = 5;
+    for (let i = 0; i < filteredPins.length; i += batchSize) {
+      const batch = filteredPins.slice(i, i + batchSize);
       
-      for (const pin of filteredPins) {
+      await Promise.all(batch.map(async (pin) => {
         try {
           const history = await getPinHistoryData(pin.id, hours);
-          results[pin.id] = history.map(item => ({
-            time: new Date(item.created_at).toLocaleTimeString(),
-            value: parseFloat(item.value || '0'),
-            timestamp: new Date(item.created_at).getTime()
-          }));
+          if (history && history.length > 0) {
+            results[pin.id] = history.map(item => ({
+              time: new Date(item.created_at).toLocaleTimeString(),
+              value: parseFloat(item.value || '0'),
+              timestamp: new Date(item.created_at).getTime()
+            }));
+          } else {
+            results[pin.id] = [];
+          }
         } catch (error) {
           console.error(`Error fetching history for pin ${pin.id}:`, error);
           results[pin.id] = [];
         }
-      }
+      }));
       
-      return results;
-    },
+      if (i + batchSize < filteredPins.length) {
+        await new Promise(resolve => setTimeout(resolve, 50));
+      }
+    }
+    
+    return results;
+  }, [filteredPins, getTimeRangeHours]);
+
+  const { data: chartsData, isLoading, isError, refetch } = useQuery({
+    queryKey: ['pinCharts', filteredPins.map(p => p.id), timeRange],
+    queryFn: fetchChartData,
     refetchOnWindowFocus: false,
-    staleTime: 60000 // 1 minute
+    staleTime: 60000, // 1 minute
+    retry: 1, // Reduce retries to prevent multiple heavy requests
   });
 
   const handleRefresh = () => {

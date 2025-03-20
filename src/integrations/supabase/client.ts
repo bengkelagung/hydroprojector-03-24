@@ -552,12 +552,16 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     const timeAgo = new Date();
     timeAgo.setHours(timeAgo.getHours() - hours);
     
+    // Add a limit to prevent retrieving too much data
+    const maxRecords = 500;
+    
     const { data, error } = await supabase
       .from('pin_data')
       .select('created_at, value')
       .eq('pin_config_id', pinId)
       .gte('created_at', timeAgo.toISOString())
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(maxRecords);
     
     if (error) {
       console.error('Error fetching pin history data:', error);
