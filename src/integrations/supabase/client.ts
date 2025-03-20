@@ -554,10 +554,10 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     
     const { data, error } = await supabase
       .from('pin_data')
-      .select('value, timestamp')
+      .select('created_at, value')
       .eq('pin_config_id', pinId)
-      .gte('timestamp', timeAgo.toISOString())
-      .order('timestamp', { ascending: true });
+      .gte('created_at', timeAgo.toISOString())
+      .order('created_at', { ascending: true });
     
     if (error) {
       console.error('Error fetching pin history data:', error);
