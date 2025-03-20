@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from './AuthContext';
+import { useSessionRefresh } from '@/hooks/use-session-refresh';
 import { 
   supabase, 
   checkTablesExist, 
@@ -121,6 +122,7 @@ export const useHydro = () => {
 
 export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, refreshSession } = useAuth();
+  const { withSessionRefresh } = useSessionRefresh();
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -135,34 +137,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   const [tablesChecked, setTablesChecked] = useState<boolean>(false);
   const { toast } = useToast();
-
-  const withSessionRefresh = async <T,>(operation: () => Promise<T>): Promise<T | null> => {
-    try {
-      return await operation();
-    } catch (error: any) {
-      if (error?.message === 'JWT expired' || error?.code === 'PGRST301') {
-        console.log('Token expired, attempting to refresh session...');
-        const refreshed = await refreshSession();
-        if (refreshed) {
-          try {
-            return await operation();
-          } catch (retryError) {
-            console.error('Operation failed after token refresh:', retryError);
-            return null;
-          }
-        } else {
-          console.error('Failed to refresh session');
-          toast({
-            title: "Session Expired",
-            description: "Your session has expired. Please log in again.",
-            variant: "destructive",
-          });
-          return null;
-        }
-      }
-      throw error;
-    }
-  };
 
   useEffect(() => {
     const checkTables = async () => {
@@ -191,7 +165,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
     
     checkTables();
-  }, [toast, refreshSession]);
+  }, [toast, withSessionRefresh]);
 
   const updateAvailablePinOptions = () => {
     if (!selectedDevice) {
@@ -1186,7 +1160,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
     };
     
     fetchInitialData();
-  }, [user]);
+  }, [user, withSessionRefresh]);
 
   useEffect(() => {
     updateAvailablePinOptions();
