@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { useToast } from "@/hooks/use-toast";
 import { useAuth } from './AuthContext';
 import { 
   supabase, 
@@ -120,7 +120,7 @@ export const useHydro = () => {
 };
 
 export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
@@ -134,53 +134,100 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [labels, setLabels] = useState<string[]>([]);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   const [tablesChecked, setTablesChecked] = useState<boolean>(false);
+  const { toast } = useToast();
+
+  const withSessionRefresh = async <T,>(operation: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await operation();
+    } catch (error: any) {
+      if (error?.message === 'JWT expired' || error?.code === 'PGRST301') {
+        console.log('Token expired, attempting to refresh session...');
+        const refreshed = await refreshSession();
+        if (refreshed) {
+          try {
+            return await operation();
+          } catch (retryError) {
+            console.error('Operation failed after token refresh:', retryError);
+            return null;
+          }
+        } else {
+          console.error('Failed to refresh session');
+          toast({
+            title: "Session Expired",
+            description: "Your session has expired. Please log in again.",
+            variant: "destructive",
+          });
+          return null;
+        }
+      }
+      throw error;
+    }
+  };
 
   useEffect(() => {
     const checkTables = async () => {
       try {
-        const tablesExist = await checkTablesExist();
+        const tablesExist = await withSessionRefresh(checkTablesExist);
         if (!tablesExist) {
-          toast.error('Database tables not set up. Please run the setup script.');
+          toast({
+            title: "Database Error",
+            description: "Database tables not set up. Please run the setup script.",
+            variant: "destructive",
+          });
         }
         
-        const labelColumnExists = await checkLabelColumnExists();
-        setHasLabelColumn(labelColumnExists);
+        const labelColumnExists = await withSessionRefresh(checkLabelColumnExists);
+        setHasLabelColumn(!!labelColumnExists);
         setTablesChecked(true);
       } catch (error) {
         console.error('Error checking tables:', error);
+        toast({
+          title: "Connection Error",
+          description: "Failed to connect to the database. Please check your internet connection.",
+          variant: "destructive",
+        });
         setTablesChecked(true);
       }
     };
     
     checkTables();
-  }, []);
+  }, [toast, refreshSession]);
 
   useEffect(() => {
     if (user && tablesChecked) {
-      ensureProfileExists(user.id).then(success => {
-        if (success) {
-          fetchProjects();
-          fetchDevices();
-          fetchPins();
-          fetchDataTypes();
-          fetchSignalTypes();
-          fetchPinModes();
-          fetchPinOptions();
-          fetchLabels();
-        } else {
-          toast.error('Failed to create or verify user profile');
-        }
-      });
+      withSessionRefresh(() => ensureProfileExists(user.id))
+        .then(success => {
+          if (success) {
+            fetchProjects();
+            fetchDevices();
+            fetchPins();
+            fetchDataTypes();
+            fetchSignalTypes();
+            fetchPinModes();
+            fetchPinOptions();
+            fetchLabels();
+          } else {
+            toast({
+              title: "Profile Error",
+              description: "Failed to create or verify user profile",
+              variant: "destructive",
+            });
+          }
+        })
+        .catch(error => {
+          console.error("Error ensuring profile exists:", error);
+          toast({
+            title: "Profile Error",
+            description: "Failed to verify user profile. Please try refreshing the page.",
+            variant: "destructive",
+          });
+        });
     } else if (!user) {
       setProjects([]);
       setDevices([]);
       setPins([]);
     }
-  }, [user, tablesChecked]);
-
-  useEffect(() => {
-    updateAvailablePinOptions();
-  }, [pins, devices, selectedDevice, pinOptions]);
+  }, [user, tablesChecked, toast, refreshSession]);
 
   const updateAvailablePinOptions = () => {
     if (!selectedDevice) {
@@ -204,20 +251,20 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tableExists = await checkIfTableExists('projects');
+      const tableExists = await withSessionRefresh(() => checkIfTableExists('projects'));
       if (!tableExists) {
         console.warn('Projects table does not exist yet');
         return;
       }
       
-      const { data, error } = await supabase
+      const { data, error } = await withSessionRefresh(() => supabase
         .from('projects')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
       
       if (error) throw error;
       
-      setProjects(data.map(project => ({
+      setProjects((data || []).map(project => ({
         id: project.id,
         name: project.project_name,
         description: project.description || '',
@@ -226,7 +273,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })));
     } catch (error) {
       console.error('Error fetching projects:', error);
-      toast.error('Failed to load projects');
+      toast({
+        title: "Data Error",
+        description: "Failed to load projects",
+        variant: "destructive",
+      });
     }
   };
 
@@ -234,27 +285,27 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tableExists = await checkIfTableExists('devices');
+      const tableExists = await withSessionRefresh(() => checkIfTableExists('devices'));
       if (!tableExists) {
         console.warn('Devices table does not exist yet');
         return;
       }
       
-      const projectsExist = await checkIfTableExists('projects');
+      const projectsExist = await withSessionRefresh(() => checkIfTableExists('projects'));
       if (!projectsExist) {
         console.warn('Projects table does not exist yet');
         return;
       }
       
-      const { data, error } = await supabase
+      const { data, error } = await withSessionRefresh(() => supabase
         .from('devices')
         .select('*, projects!inner(user_id)')
         .eq('projects.user_id', user.id)
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }));
       
       if (error) throw error;
       
-      setDevices(data.map(device => {
+      setDevices((data || []).map(device => {
         return {
           id: device.id,
           name: device.device_name,
@@ -269,7 +320,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }));
     } catch (error) {
       console.error('Error fetching devices:', error);
-      toast.error('Failed to load devices');
+      toast({
+        title: "Data Error",
+        description: "Failed to load devices",
+        variant: "destructive",
+      });
     }
   };
 
@@ -277,13 +332,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tablesExist = await checkTablesExist();
+      const tablesExist = await withSessionRefresh(checkTablesExist);
       if (!tablesExist) {
         console.warn('Required tables do not exist yet');
         return;
       }
       
-      const configs = await fetchPinConfigsWithRelations(user.id);
+      const configs = await withSessionRefresh(() => fetchPinConfigsWithRelations(user.id));
       
       if (!configs || configs.length === 0) {
         setPins([]);
@@ -306,7 +361,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       
     } catch (error) {
       console.error('Error fetching pins:', error);
-      toast.error('Failed to load pin configurations');
+      toast({
+        title: "Data Error",
+        description: "Failed to load pin configurations",
+        variant: "destructive",
+      });
     }
   };
 
@@ -332,7 +391,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       })));
     } catch (error) {
       console.error('Error fetching pin options:', error);
-      toast.error('Failed to load pin options');
+      toast({
+        title: "Data Error",
+        description: "Failed to load pin options",
+        variant: "destructive",
+      });
     }
   };
 
@@ -346,7 +409,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (error) {
       console.error('Error fetching data types:', error);
-      toast.error('Failed to load data types');
+      toast({
+        title: "Data Error",
+        description: "Failed to load data types",
+        variant: "destructive",
+      });
       setDataTypes(['integer', 'float', 'boolean', 'string', 'analog', 'digital']);
     }
   };
@@ -361,7 +428,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (error) {
       console.error('Error fetching signal types:', error);
-      toast.error('Failed to load signal types');
+      toast({
+        title: "Data Error",
+        description: "Failed to load signal types",
+        variant: "destructive",
+      });
       setSignalTypes(['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'analog', 'digital', 'custom']);
     }
   };
@@ -376,7 +447,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       }
     } catch (error) {
       console.error('Error fetching pin modes:', error);
-      toast.error('Failed to load pin modes');
+      toast({
+        title: "Data Error",
+        description: "Failed to load pin modes",
+        variant: "destructive",
+      });
       setPinModes(['input', 'output']);
     }
   };
@@ -387,7 +462,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       setLabels(labels);
     } catch (error) {
       console.error('Error in fetchLabels:', error);
-      toast.error('Failed to load labels');
+      toast({
+        title: "Data Error",
+        description: "Failed to load labels",
+        variant: "destructive",
+      });
       setLabels(getDefaultLabels());
     }
   };
