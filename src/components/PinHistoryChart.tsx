@@ -1,6 +1,5 @@
 
-import React, { memo } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import React from 'react';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/utils/pin-history';
 
@@ -12,8 +11,8 @@ interface PinHistoryChartProps {
 }
 
 /**
- * Extremely lightweight chart component to visualize pin history data
- * Optimized to prevent UI freezing
+ * Ultra-lightweight chart component that prevents UI freezing
+ * Only shows two points maximum to avoid any performance issues
  */
 const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   historyData,
@@ -30,11 +29,9 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     );
   }
 
-  // Extremely aggressive limit to prevent any possible freezing
-  // Only show two data points maximum (first and last)
-  const simplifiedData = historyData.length <= 2 
-    ? historyData 
-    : [historyData[0], historyData[historyData.length - 1]];
+  // Only use the first and last point to prevent freezing
+  const firstPoint = historyData[0];
+  const lastPoint = historyData.length > 1 ? historyData[historyData.length - 1] : null;
 
   const chartConfig = {
     [dataKey]: {
@@ -45,45 +42,38 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
 
   return (
     <ChartContainer config={chartConfig} className="h-40 w-full">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart 
-          data={simplifiedData} 
-          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
-        >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
-          <XAxis 
-            dataKey="time" 
-            fontSize={8}
-            tickMargin={3}
-            tickCount={2} // Only first and last tick
-          />
-          <YAxis 
-            fontSize={8}
-            domain={isDigital ? [0, 1] : ['auto', 'auto']}
-            tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-            width={20}
-            tickCount={2} // Only min and max ticks
-          />
-          <Tooltip content={<ChartTooltip />} />
-          <Line 
-            type="linear" 
-            dataKey={dataKey} 
-            stroke={color} 
-            dot={{ strokeWidth: 1, r: 2 }}
-            isAnimationActive={false} // No animations for performance
-            strokeWidth={1.5}
-            connectNulls={true}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="h-full w-full flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+        {/* Super simple visualization to prevent freezing */}
+        <div className="text-center">
+          <div className="text-xs text-gray-500">{firstPoint.time}</div>
+          <div className="text-sm font-medium mt-1" style={{ color }}>
+            {isDigital 
+              ? (firstPoint.value === 1 ? 'ON' : 'OFF') 
+              : firstPoint.value}
+          </div>
+        </div>
+
+        {lastPoint && (
+          <>
+            <div className="h-0.5 flex-1 mx-4" style={{ backgroundColor: `${color}40` }}></div>
+            <div className="text-center">
+              <div className="text-xs text-gray-500">{lastPoint.time}</div>
+              <div className="text-sm font-medium mt-1" style={{ color }}>
+                {isDigital 
+                  ? (lastPoint.value === 1 ? 'ON' : 'OFF') 
+                  : lastPoint.value}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
     </ChartContainer>
   );
 };
 
-// Use React.memo to prevent unnecessary re-renders
-export default memo(PinHistoryChart);
+export default React.memo(PinHistoryChart);
 
-// Simple factory function
+// Simple factory function that doesn't use Recharts
 export const createPinHistoryChart = (
   historyData: ChartDataPoint[],
   dataKey: string = 'value',
