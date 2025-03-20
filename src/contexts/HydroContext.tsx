@@ -193,42 +193,6 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     checkTables();
   }, [toast, refreshSession]);
 
-  useEffect(() => {
-    if (user && tablesChecked) {
-      withSessionRefresh(() => ensureProfileExists(user.id))
-        .then(success => {
-          if (success) {
-            fetchProjects();
-            fetchDevices();
-            fetchPins();
-            fetchDataTypes();
-            fetchSignalTypes();
-            fetchPinModes();
-            fetchPinOptions();
-            fetchLabels();
-          } else {
-            toast({
-              title: "Profile Error",
-              description: "Failed to create or verify user profile",
-              variant: "destructive",
-            });
-          }
-        })
-        .catch(error => {
-          console.error("Error ensuring profile exists:", error);
-          toast({
-            title: "Profile Error",
-            description: "Failed to verify user profile. Please try refreshing the page.",
-            variant: "destructive",
-          });
-        });
-    } else if (!user) {
-      setProjects([]);
-      setDevices([]);
-      setPins([]);
-    }
-  }, [user, tablesChecked, toast, refreshSession]);
-
   const updateAvailablePinOptions = () => {
     if (!selectedDevice) {
       const usedPinNumbers = pins.map(pin => pin.pinNumber);
@@ -257,10 +221,12 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
-      const { data, error } = await withSessionRefresh(() => supabase
+      const result = await withSessionRefresh(() => supabase
         .from('projects')
         .select('*')
         .order('created_at', { ascending: false }));
+      
+      const { data, error } = result || { data: null, error: null };
       
       if (error) throw error;
       
@@ -297,11 +263,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return;
       }
       
-      const { data, error } = await withSessionRefresh(() => supabase
+      const result = await withSessionRefresh(() => supabase
         .from('devices')
         .select('*, projects!inner(user_id)')
         .eq('projects.user_id', user.id)
         .order('created_at', { ascending: false }));
+      
+      const { data, error } = result || { data: null, error: null };
       
       if (error) throw error;
       
@@ -332,13 +300,13 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tablesExist = await withSessionRefresh(checkTablesExist);
+      const tablesExist = await checkTablesExist();
       if (!tablesExist) {
         console.warn('Required tables do not exist yet');
         return;
       }
       
-      const configs = await withSessionRefresh(() => fetchPinConfigsWithRelations(user.id));
+      const configs = await fetchPinConfigsWithRelations(user.id);
       
       if (!configs || configs.length === 0) {
         setPins([]);
@@ -532,7 +500,10 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         };
         
         setProjects(prev => [newProject, ...prev]);
-        toast.success('Project created successfully!');
+        toast({
+          title: "Success",
+          description: "Project created successfully!",
+        });
         return newProject;
       }
       
@@ -558,11 +529,18 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       
       setProjects(prev => [newProject, ...prev]);
-      toast.success('Project created successfully!');
+      toast({
+        title: "Success",
+        description: "Project created successfully!",
+      });
       return newProject;
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project');
+      toast({
+        title: "Error",
+        description: "Failed to create project",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -600,11 +578,18 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
       
       setDevices(prev => [newDevice, ...prev]);
-      toast.success('Device created successfully!');
+      toast({
+        title: "Success",
+        description: "Device created successfully!",
+      });
       return newDevice;
     } catch (error) {
       console.error('Error creating device:', error);
-      toast.error('Failed to create device');
+      toast({
+        title: "Error",
+        description: "Failed to create device",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -1000,10 +985,17 @@ void read${pin.name.replace(/\s+/g, '')}() {
         )
       );
       
-      toast.success('Project updated successfully');
+      toast({
+        title: "Success",
+        description: "Project updated successfully",
+      });
     } catch (error) {
       console.error('Error updating project:', error);
-      toast.error('Failed to update project');
+      toast({
+        title: "Error",
+        description: "Failed to update project",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -1033,10 +1025,17 @@ void read${pin.name.replace(/\s+/g, '')}() {
         )
       );
       
-      toast.success('Device updated successfully');
+      toast({
+        title: "Success",
+        description: "Device updated successfully",
+      });
     } catch (error) {
       console.error('Error updating device:', error);
-      toast.error('Failed to update device');
+      toast({
+        title: "Error",
+        description: "Failed to update device",
+        variant: "destructive",
+      });
       throw error;
     }
   };
@@ -1051,10 +1050,17 @@ void read${pin.name.replace(/\s+/g, '')}() {
       if (error) throw error;
       
       setProjects(prev => prev.filter(project => project.id !== projectId));
-      toast.success('Project deleted successfully');
+      toast({
+        title: "Success",
+        description: "Project deleted successfully",
+      });
     } catch (error) {
       console.error('Error deleting project:', error);
-      toast.error('Failed to delete project');
+      toast({
+        title: "Error",
+        description: "Failed to delete project",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1068,10 +1074,17 @@ void read${pin.name.replace(/\s+/g, '')}() {
       if (error) throw error;
       
       setDevices(prev => prev.filter(device => device.id !== deviceId));
-      toast.success('Device deleted successfully');
+      toast({
+        title: "Success",
+        description: "Device deleted successfully",
+      });
     } catch (error) {
       console.error('Error deleting device:', error);
-      toast.error('Failed to delete device');
+      toast({
+        title: "Error",
+        description: "Failed to delete device",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1085,10 +1098,17 @@ void read${pin.name.replace(/\s+/g, '')}() {
       if (error) throw error;
       
       setPins(prev => prev.filter(pin => pin.id !== pinId));
-      toast.success('Pin deleted successfully');
+      toast({
+        title: "Success",
+        description: "Pin deleted successfully",
+      });
     } catch (error) {
       console.error('Error deleting pin:', error);
-      toast.error('Failed to delete pin');
+      toast({
+        title: "Error",
+        description: "Failed to delete pin",
+        variant: "destructive",
+      });
     }
   };
 
@@ -1105,55 +1125,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
             pin.id === pinId ? { ...pin, ...updates } : pin
           ));
           
-          toast.success('Pin updated successfully');
-          resolve();
-        })
-        .catch(error => {
-          console.error('Error updating pin:', error);
-          toast.error('Failed to update pin');
-          reject(error);
-        });
-    });
-  };
+          toast({
+            title: "Success",
+           
 
-  return (
-    <HydroContext.Provider
-      value={{
-        projects,
-        devices,
-        pins,
-        pinOptions: availablePinOptions,
-        selectedProject,
-        selectedDevice,
-        createProject,
-        createDevice,
-        configurePin,
-        selectProject,
-        selectDevice,
-        getDevicesByProject,
-        getPinsByDevice,
-        updateDeviceConnection,
-        updatePinValue,
-        generateDeviceCode,
-        dataTypes,
-        signalTypes,
-        pinModes,
-        labels,
-        fetchLabels,
-        fetchDataTypes,
-        fetchSignalTypes,
-        fetchPinModes,
-        fetchPinOptions,
-        updateProject,
-        updateDevice,
-        deleteProject,
-        deleteDevice,
-        deletePin,
-        togglePinValue,
-        updatePin,
-      }}
-    >
-      {children}
-    </HydroContext.Provider>
-  );
-};

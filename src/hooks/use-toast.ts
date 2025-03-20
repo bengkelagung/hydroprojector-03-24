@@ -1,3 +1,4 @@
+
 import * as React from "react"
 
 import type {
@@ -167,6 +168,23 @@ function toast({ ...props }: Toast) {
     update,
   }
 }
+
+// Add helper methods for success, error, and warning toasts
+toast.success = (message: string) => {
+  return toast({
+    title: "Success",
+    description: message,
+    variant: "default",
+  });
+};
+
+toast.error = (message: string) => {
+  return toast({
+    title: "Error",
+    description: message,
+    variant: "destructive",
+  });
+};
 
 function useToast() {
   const [state, setState] = React.useState<State>(memoryState)

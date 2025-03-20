@@ -16,6 +16,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshSession: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -35,7 +36,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const { toast } = useToast();
 
   // Handle session refresh
-  const refreshSession = async () => {
+  const refreshSession = async (): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.refreshSession();
       if (error) {
@@ -213,7 +214,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         login,
         register,
-        logout
+        logout,
+        refreshSession
       }}
     >
       {children}
