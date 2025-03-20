@@ -559,24 +559,11 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     
     // For long time ranges, use different sampling strategies to improve performance
     if (hours > 24) {
-      // Try to use the database function for sampling if available
-      try {
-        const { data, error } = await supabase
-          .rpc('get_pin_data_sampled', { 
-            pin_id: pinId, 
-            start_time: startDateStr,
-            max_points: maxRecords
-          });
-          
-        if (!error && data && data.length > 0) {
-          return data;
-        }
-      } catch (e) {
-        console.log('Sampling function not available, using fallback method');
-      }
+      // Since the RPC function isn't defined in types, we'll use the fallback method
+      return await getPinHistoryDataFallback(pinId, startDate, maxRecords);
     }
     
-    // Fallback method - direct query with limit
+    // Direct query with limit
     const { data, error } = await supabase
       .from('pin_data')
       .select('id, pin_config_id, value, created_at')
@@ -606,7 +593,7 @@ const getPinHistoryDataFallback = async (pinId: string, timeAgo: Date, maxRecord
   try {
     const { data, error } = await supabase
       .from('pin_data')
-      .select('created_at, value')
+      .select('id, pin_config_id, value, created_at')
       .eq('pin_config_id', pinId)
       .gte('created_at', timeAgo.toISOString())
       .order('created_at', { ascending: true })
