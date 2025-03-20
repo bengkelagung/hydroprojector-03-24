@@ -1,5 +1,5 @@
 
-import React, { memo } from 'react';
+import React, { memo, useMemo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/utils/pin-history';
@@ -12,7 +12,8 @@ interface PinHistoryChartProps {
 }
 
 /**
- * Chart component to visualize pin history data with maximum performance optimizations
+ * Ultra-optimized chart component to visualize pin history data
+ * with extreme performance considerations
  */
 const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   historyData,
@@ -29,8 +30,8 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     );
   }
 
-  // Show a warning for extreme data volume rather than attempting to render
-  if (historyData.length > 200) { // Reduced threshold from 300 to 200
+  // Show a warning for even smaller data volumes to prevent any chance of freezing
+  if (historyData.length > 100) { // Drastically reduced threshold from 200 to 100
     return (
       <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-amber-600 font-medium">Too much data to display</p>
@@ -39,51 +40,37 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     );
   }
 
-  // Process data with maximum optimization
-  const processData = (): ChartDataPoint[] => {
-    // Hard limit on data points - extreme reduction for performance
-    const maxPoints = 5; // Further reduced from 10 to 5 for maximum performance
+  // Extremely optimized data processing with severe data reduction
+  const processedData = useMemo(() => {
+    // Extremely aggressive data reduction - Maximum 3 data points to guarantee performance
+    const maxPoints = 3;
     
     if (historyData.length <= maxPoints) {
       return historyData;
     }
     
-    // For large datasets, use aggressive sampling
+    // For large datasets, use extremely aggressive sampling
     const sampledData: ChartDataPoint[] = [];
     
     // Always include first point
     sampledData.push(historyData[0]);
     
-    // For digital signals, just include transitions and limit to maxPoints
+    // For digital signals with any amount of data points, only include first and last
     if (isDigital) {
-      let lastValue = historyData[0].value;
-      
-      // Include only critical transition points
-      for (let i = 1; i < historyData.length - 1; i++) {
-        if (historyData[i].value !== lastValue && sampledData.length < maxPoints - 1) {
-          sampledData.push(historyData[i]);
-          lastValue = historyData[i].value;
-        }
-      }
-    } else {
-      // For analog signals, select points evenly
-      const interval = Math.floor(historyData.length / (maxPoints - 1));
-      for (let i = interval; i < historyData.length - interval; i += interval) {
-        if (sampledData.length < maxPoints - 1) {
-          sampledData.push(historyData[i]);
-        }
-      }
-    }
+      // Always include last point
+      sampledData.push(historyData[historyData.length - 1]);
+      return sampledData;
+    } 
+    
+    // For analog signals, select exactly 1 middle point
+    const middleIndex = Math.floor(historyData.length / 2);
+    sampledData.push(historyData[middleIndex]);
     
     // Always include last point
-    if (historyData.length > 1) {
-      sampledData.push(historyData[historyData.length - 1]);
-    }
+    sampledData.push(historyData[historyData.length - 1]);
     
     return sampledData;
-  };
-  
-  const processedData = processData();
+  }, [historyData, isDigital]);
 
   const chartConfig = {
     [dataKey]: {
@@ -99,24 +86,25 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
           data={processedData} 
           margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
+          {/* Reduced opacity of grid to improve rendering performance */}
+          <CartesianGrid strokeDasharray="3 3" opacity={0.05} vertical={false} />
           <XAxis 
             dataKey="time" 
             fontSize={8}
             tickMargin={3}
             interval="preserveStartEnd"
-            tickCount={2} // Show only 2 ticks
+            tickCount={2} // Show only start and end ticks
           />
           <YAxis 
             fontSize={8}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
             width={20}
-            tickCount={2} // Show only 2 ticks
+            tickCount={2} // Show only min and max ticks
           />
           <Tooltip content={<ChartTooltip />} />
           <Line 
-            type={isDigital ? "stepAfter" : "monotone"} 
+            type={isDigital ? "stepAfter" : "linear"} // Changed from monotone to linear for better performance
             dataKey={dataKey} 
             stroke={color} 
             dot={false} // Disable dots for better performance
@@ -130,7 +118,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   );
 };
 
-// Use React.memo for component memoization to prevent unnecessary re-renders
+// Use React.memo to prevent unnecessary re-renders
 export default memo(PinHistoryChart);
 
 // Export a function to make it easier to use the component
