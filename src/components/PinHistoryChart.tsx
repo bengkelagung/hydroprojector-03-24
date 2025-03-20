@@ -25,7 +25,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     if (!historyData || historyData.length === 0) return [];
     
     // More aggressive limiting of data points to prevent freezing
-    const maxDataPoints = 50; // Reduced from 100
+    const maxDataPoints = 30; // Further reduced from 50
     let dataToUse = historyData;
     
     if (historyData.length > maxDataPoints) {
@@ -51,8 +51,8 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     
     // Apply a second-level optimization for very large datasets
     // This uses data summarization (min/max/avg) for segments to preserve visual trends
-    if (dataToUse.length > 30) {
-      const segmentSize = Math.ceil(dataToUse.length / 30);
+    if (dataToUse.length > 20) { // Reduced threshold further
+      const segmentSize = Math.ceil(dataToUse.length / 20);
       const summarizedData: ChartDataPoint[] = [];
       
       for (let i = 0; i < dataToUse.length; i += segmentSize) {
@@ -60,29 +60,40 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
         
         // For digital signals, we want to preserve state changes
         if (isDigital) {
-          // For digital, include all transitions (0->1 or 1->0)
-          for (let j = 0; j < segment.length - 1; j++) {
-            if (segment[j].value !== segment[j + 1].value) {
+          // For digital, include only state transitions
+          if (segment.length > 0) summarizedData.push(segment[0]);
+          
+          for (let j = 1; j < segment.length; j++) {
+            if (segment[j-1].value !== segment[j].value) {
               summarizedData.push(segment[j]);
-              summarizedData.push(segment[j + 1]);
             }
           }
-          // Add the last point of the segment if it wasn't added
-          if (summarizedData[summarizedData.length - 1] !== segment[segment.length - 1]) {
-            summarizedData.push(segment[segment.length - 1]);
-          }
         } else {
-          // For analog, use a representative point
-          summarizedData.push(segment[0]);
+          // For analog, use min, max and a middle point to preserve trends
+          if (segment.length > 0) {
+            summarizedData.push(segment[0]); // Always add first point
+            
+            // If segment has more than 3 points, add a middle point
+            if (segment.length > 3) {
+              const midIndex = Math.floor(segment.length / 2);
+              summarizedData.push(segment[midIndex]);
+            }
+            
+            // Add last point of segment
+            if (segment.length > 1) {
+              summarizedData.push(segment[segment.length - 1]);
+            }
+          }
         }
       }
       
       // Always ensure first and last points are included
-      if (summarizedData[0] !== dataToUse[0]) {
+      if (summarizedData.length > 0 && summarizedData[0] !== dataToUse[0]) {
         summarizedData.unshift(dataToUse[0]);
       }
       
-      if (summarizedData[summarizedData.length - 1] !== dataToUse[dataToUse.length - 1]) {
+      if (summarizedData.length > 0 && 
+          summarizedData[summarizedData.length - 1] !== dataToUse[dataToUse.length - 1]) {
         summarizedData.push(dataToUse[dataToUse.length - 1]);
       }
       
@@ -116,14 +127,15 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
           data={processedData} 
           margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" />
+          <CartesianGrid strokeDasharray="3 3" opacity={0.5} />
           <XAxis 
             dataKey="time" 
             fontSize={12}
             tickMargin={5}
             interval="preserveStartEnd"
             tick={{ fontSize: 10 }}
-            minTickGap={15}
+            minTickGap={30}
+            tickCount={5}
           />
           <YAxis 
             fontSize={12}
@@ -131,6 +143,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
             width={40}
             tick={{ fontSize: 10 }}
+            tickCount={5}
           />
           <Tooltip content={<ChartTooltip />} />
           <Legend />
@@ -138,10 +151,11 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
             type={isDigital ? "stepAfter" : "monotone"} 
             dataKey={dataKey} 
             stroke={color} 
-            activeDot={{ r: 4 }} // Reduced size
+            activeDot={{ r: 3 }} // Reduced size further
             dot={false} // Disable dots for better performance
             isAnimationActive={false} // Disable animation for better performance
-            strokeWidth={1.5} // Reduced line thickness
+            strokeWidth={1.2} // Reduced line thickness further
+            connectNulls={true} // Connect across null/missing values
           />
         </LineChart>
       </ResponsiveContainer>

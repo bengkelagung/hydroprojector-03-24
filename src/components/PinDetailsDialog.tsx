@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Save, X, History, LineChart } from 'lucide-react';
+import { Pencil, Trash2, Save, X, History, LineChart, RefreshCw } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -51,6 +51,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const [pinHistory, setPinHistory] = useState<PinHistoryEntry[]>([]);
   const [historyTimeRange, setHistoryTimeRange] = useState<'hour' | 'day' | 'week' | 'month'>('day');
   const [activeTab, setActiveTab] = useState('details');
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
   
   const device = pin ? devices.find(d => d.id === pin.deviceId) : null;
   const project = device ? projects.find(p => p.id === device.projectId) : null;
@@ -73,18 +74,31 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
       setEditPinMode(pin.mode);
       setPinValue(pin.value || '0');
       
+      if (activeTab === 'history') {
+        loadPinHistory();
+      }
+    }
+  }, [pin]);
+  
+  useEffect(() => {
+    if (activeTab === 'history' && pin) {
       loadPinHistory();
     }
-  }, [pin, historyTimeRange]);
+  }, [activeTab, historyTimeRange]);
   
   const loadPinHistory = async () => {
     if (!pin) return;
+    
+    setIsLoadingHistory(true);
     
     try {
       const history = await fetchPinHistory(pin.id, historyTimeRange);
       setPinHistory(history);
     } catch (error) {
       console.error('Error loading pin history:', error);
+      toast.error('Error loading history data');
+    } finally {
+      setIsLoadingHistory(false);
     }
   };
   
@@ -170,13 +184,17 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
     return date.toLocaleString();
   };
   
+  const chartData = useMemo(() => {
+    const isDigital = pin?.dataType === 'digital' || pin?.dataType === 'boolean';
+    return formatPinHistoryForRecharts(pinHistory, isDigital, pin?.name || 'Value');
+  }, [pinHistory, pin?.dataType, pin?.name]);
+  
   if (!pin) return null;
   
   const isOn = pinValue === '1' || pinValue.toLowerCase() === 'on' || pinValue.toLowerCase() === 'true';
   const colorClass = getSignalColor(pin.signalType);
   
   const isDigital = pin.dataType === 'digital' || pin.dataType === 'boolean';
-  const chartData = formatPinHistoryForRecharts(pinHistory, isDigital, pin.name);
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -391,6 +409,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                   <Select 
                     value={historyTimeRange} 
                     onValueChange={(value) => setHistoryTimeRange(value as 'hour' | 'day' | 'week' | 'month')}
+                    disabled={isLoadingHistory}
                   >
                     <SelectTrigger className="w-36">
                       <SelectValue placeholder="Select time range" />
@@ -405,12 +424,29 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 </div>
                 
                 <div className="mb-6">
-                  <h4 className="text-sm font-medium mb-2 flex items-center">
-                    <LineChart className="h-4 w-4 mr-1" />
-                    Data Visualization
+                  <h4 className="text-sm font-medium mb-2 flex items-center justify-between">
+                    <div className="flex items-center">
+                      <LineChart className="h-4 w-4 mr-1" />
+                      Data Visualization
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={loadPinHistory}
+                      disabled={isLoadingHistory}
+                      className="h-7 text-xs"
+                    >
+                      <RefreshCw className={`h-3 w-3 mr-1 ${isLoadingHistory ? 'animate-spin' : ''}`} />
+                      {isLoadingHistory ? 'Loading...' : 'Refresh'}
+                    </Button>
                   </h4>
                   <div className="border rounded-lg overflow-hidden p-2">
-                    {pinHistory.length === 0 ? (
+                    {isLoadingHistory ? (
+                      <div className="text-center py-8 bg-gray-50 rounded-lg">
+                        <RefreshCw className="h-8 w-8 text-gray-300 mx-auto mb-2 animate-spin" />
+                        <p className="text-gray-500">Loading chart data...</p>
+                      </div>
+                    ) : pinHistory.length === 0 ? (
                       <div className="text-center py-8 bg-gray-50 rounded-lg">
                         <LineChart className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                         <p className="text-gray-500">No chart data available</p>
@@ -429,9 +465,14 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                 <div>
                   <h4 className="text-sm font-medium mb-2 flex items-center">
                     <History className="h-4 w-4 mr-1" />
-                    Data Records
+                    Data Records ({isLoadingHistory ? 'Loading...' : pinHistory.length} records)
                   </h4>
-                  {pinHistory.length === 0 ? (
+                  {isLoadingHistory ? (
+                    <div className="text-center py-8 bg-gray-50 rounded-lg">
+                      <RefreshCw className="h-8 w-8 text-gray-300 mx-auto mb-2 animate-spin" />
+                      <p className="text-gray-500">Loading history data...</p>
+                    </div>
+                  ) : pinHistory.length === 0 ? (
                     <div className="text-center py-8 bg-gray-50 rounded-lg">
                       <History className="h-12 w-12 text-gray-300 mx-auto mb-2" />
                       <p className="text-gray-500">No history data available</p>
@@ -446,7 +487,7 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                         <div>Value</div>
                       </div>
                       <div className="max-h-[200px] overflow-y-auto">
-                        {pinHistory.map((entry) => (
+                        {pinHistory.slice(0, 100).map((entry) => (
                           <div 
                             key={entry.id} 
                             className="grid grid-cols-3 text-sm p-2 border-t hover:bg-gray-50"
@@ -465,6 +506,11 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                             </div>
                           </div>
                         ))}
+                        {pinHistory.length > 100 && (
+                          <div className="p-2 text-center text-xs text-gray-500 border-t">
+                            Showing 100 of {pinHistory.length} records
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}

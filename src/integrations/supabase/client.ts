@@ -542,52 +542,57 @@ export const findPinIdByNumber = async (pinNumber: number): Promise<string | nul
 };
 
 /**
- * Get pin history data for a specific pin
- * @param pinId The ID of the pin to get history for
- * @param hours Number of hours of history to retrieve
- * @returns Array of pin history data points
+ * Get pin history data for charts
+ * @param pinId - ID of the pin
+ * @param hours - Number of hours of history to fetch
+ * @returns Array of history data
  */
 export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
   try {
-    const timeAgo = new Date();
-    timeAgo.setHours(timeAgo.getHours() - hours);
+    const startDate = new Date();
+    startDate.setHours(startDate.getHours() - hours);
     
-    // More aggressive limiting to prevent performance issues
-    const maxRecords = 200; // Reduced from 500
+    const startDateStr = startDate.toISOString();
     
-    // Use a dynamic time interval for sampling based on the time range
-    let interval = '10 minutes';
+    // Determine maximum number of records based on time range
+    const maxRecords = hours <= 6 ? 200 : hours <= 24 ? 500 : 1000;
+    
+    // For long time ranges, use different sampling strategies to improve performance
     if (hours > 24) {
-      interval = '1 hour';
-    }
-    if (hours > 72) {
-      interval = '3 hours';
-    }
-    if (hours > 168) { // 7 days
-      interval = '6 hours';
+      // Try to use the database function for sampling if available
+      try {
+        const { data, error } = await supabase
+          .rpc('get_pin_data_sampled', { 
+            pin_id: pinId, 
+            start_time: startDateStr,
+            max_points: maxRecords
+          });
+          
+        if (!error && data && data.length > 0) {
+          return data;
+        }
+      } catch (e) {
+        console.log('Sampling function not available, using fallback method');
+      }
     }
     
-    // Use time_bucket to sample data for large time ranges
-    if (hours > 12) {
-      const { data, error } = await supabase
-        .rpc('sample_pin_data', { 
-          pin_config_id_param: pinId,
-          start_time_param: timeAgo.toISOString(),
-          time_interval_param: interval,
-          max_records_param: maxRecords
-        });
+    // Fallback method - direct query with limit
+    const { data, error } = await supabase
+      .from('pin_data')
+      .select('id, pin_config_id, value, created_at')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDateStr)
+      .order('created_at', { ascending: false })
+      .limit(maxRecords);
       
-      if (error) {
-        console.error('Error fetching sampled pin history data:', error);
-        // Fallback to regular query if RPC fails
-        return getPinHistoryDataFallback(pinId, timeAgo, maxRecords);
-      }
-      
-      return data || [];
-    } else {
-      // For shorter time ranges, use direct query
-      return getPinHistoryDataFallback(pinId, timeAgo, maxRecords);
+    if (error) {
+      console.error('Error fetching pin history data:', error);
+      return [];
     }
+    
+    // Reverse to get chronological order
+    return data ? data.reverse() : [];
+    
   } catch (error) {
     console.error('Error in getPinHistoryData:', error);
     return [];

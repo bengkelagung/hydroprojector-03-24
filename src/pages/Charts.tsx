@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PinHistoryChart from '@/components/PinHistoryChart';
@@ -38,17 +38,18 @@ const Charts = () => {
     });
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
-  const projectOptions = [
+  const projectOptions = useMemo(() => [
     { id: 'all', name: 'All Projects' },
     ...projects
-  ];
+  ], [projects]);
   
-  const deviceOptions = selectedProjectId === 'all'
+  const deviceOptions = useMemo(() => selectedProjectId === 'all'
     ? [{ id: 'all', name: 'All Devices' }, ...devices]
     : [
         { id: 'all', name: 'All Devices' },
         ...devices.filter(d => d.projectId === selectedProjectId)
-      ];
+      ],
+  [selectedProjectId, devices]);
 
   useEffect(() => {
     setSelectedDeviceId('all');
@@ -80,7 +81,14 @@ const Charts = () => {
 
   // Initial data load and timeRange change
   useEffect(() => {
-    fetchChartData();
+    if (filteredPins.length <= 10) { // Only auto-load if we have a reasonable number of pins
+      fetchChartData();
+    } else {
+      // For larger datasets, don't auto-load but inform the user
+      setChartsData({});
+      setIsLoading(false);
+      toast.info(`${filteredPins.length} pins found. Click Refresh to load data.`);
+    }
   }, [filteredPins, timeRange]);
 
   const getTimeRangeHours = useCallback((): number => {
@@ -117,7 +125,7 @@ const Charts = () => {
       const results: Record<string, ChartDataPoint[]> = {};
       
       // Use smaller batch size for better UI responsiveness
-      const batchSize = 3;
+      const batchSize = Math.min(2, Math.ceil(filteredPins.length / 5)); // Even smaller batch size
       
       for (let i = 0; i < filteredPins.length; i += batchSize) {
         // Check if operation has been aborted
@@ -156,7 +164,7 @@ const Charts = () => {
         if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
           setChartsData(prev => ({...prev, ...results}));
           // Allow UI to update between batches
-          await new Promise(resolve => setTimeout(resolve, 50));
+          await new Promise(resolve => setTimeout(resolve, 100)); // Increased delay for UI updates
         }
       }
       
