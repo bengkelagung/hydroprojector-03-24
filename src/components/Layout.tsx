@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -9,7 +8,8 @@ import {
   Menu, 
   ChevronLeft,
   LogOut,
-  User
+  User,
+  BarChart
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useState } from 'react';
@@ -40,15 +40,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // Modified nav items to match the new requirements
   const navItems = [
     { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
     { name: 'Projects', icon: <LayoutDashboard className="w-5 h-5" />, path: '/projects' },
     { name: 'Devices', icon: <Cpu className="w-5 h-5" />, path: '/devices' },
     { name: 'Sensor Readings', icon: <Activity className="w-5 h-5" />, path: '/readings' },
+    { name: 'Pin Charts', icon: <BarChart className="w-5 h-5" />, path: '/charts' },
   ];
 
-  // Get user initials for the avatar
   const getInitials = () => {
     if (!user?.email) return '?';
     return user.email.substring(0, 2).toUpperCase();
@@ -56,7 +55,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
       <div
         className={cn(
           "fixed inset-y-0 left-0 z-50 w-64 bg-white shadow-md transition-transform duration-300 ease-in-out transform lg:translate-x-0 lg:static lg:inset-auto lg:w-64",
@@ -64,7 +62,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         )}
       >
         <div className="flex flex-col h-full">
-          {/* Sidebar header */}
           <div className="flex items-center justify-between px-4 py-5 border-b">
             <div className="flex items-center space-x-2">
               <Leaf className="w-8 h-8 text-hydro-green" />
@@ -80,7 +77,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             </Button>
           </div>
 
-          {/* Sidebar navigation */}
           <nav className="flex-1 px-3 py-4 bg-white space-y-1 overflow-y-auto">
             {navItems.map((item) => (
               <Link
@@ -99,7 +95,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             ))}
           </nav>
 
-          {/* Sidebar footer */}
           <div className="p-4 border-t">
             <button
               onClick={handleLogout}
@@ -112,9 +107,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Top navbar */}
         <header className="bg-white shadow-sm z-10">
           <div className="px-4 sm:px-6 lg:px-8 flex justify-between items-center h-16">
             <div className="flex items-center">
@@ -131,6 +124,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {location.pathname === '/projects' && 'Projects'}
                 {location.pathname === '/devices' && 'Devices'}
                 {location.pathname === '/readings' && 'Sensor Readings'}
+                {location.pathname === '/charts' && 'Pin Charts'}
                 {location.pathname === '/projects/create' && 'Create Project'}
                 {location.pathname === '/devices/create' && 'Add Device'}
                 {location.pathname.includes('/devices/') && location.pathname.includes('/code') && 'Device Code'}
@@ -140,7 +134,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               </h1>
             </div>
             
-            {/* User Profile Dropdown */}
             <div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -170,7 +163,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </div>
         </header>
 
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto bg-gray-50 p-4 sm:p-6 lg:p-8">
           {children}
         </main>
