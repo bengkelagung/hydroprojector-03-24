@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,7 +19,6 @@ const Charts = () => {
   const [timeRange, setTimeRange] = useState<string>('24h');
   const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
   
-  // Filter pins based on selections
   const filteredPins = pins.filter(pin => {
     if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
     if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
@@ -31,7 +29,6 @@ const Charts = () => {
     return true;
   });
 
-  // Get unique project and device options
   const projectOptions = [
     { id: 'all', name: 'All Projects' },
     ...projects
@@ -44,12 +41,10 @@ const Charts = () => {
         ...devices.filter(d => d.projectId === selectedProjectId)
       ];
 
-  // Reset device selection when project changes
   useEffect(() => {
     setSelectedDeviceId('all');
   }, [selectedProjectId]);
 
-  // Auto refresh functionality
   useEffect(() => {
     let interval: NodeJS.Timeout | null = null;
     
@@ -65,7 +60,6 @@ const Charts = () => {
     };
   }, [autoRefresh]);
 
-  // Convert timeRange to hours for the query
   const getTimeRangeHours = (): number => {
     switch (timeRange) {
       case '1h': return 1;
@@ -78,7 +72,6 @@ const Charts = () => {
     }
   };
 
-  // Query for chart data for each pin
   const { data: chartsData, isLoading, isError, refetch } = useQuery({
     queryKey: ['pinCharts', filteredPins.map(p => p.id), timeRange],
     queryFn: async () => {
@@ -89,9 +82,9 @@ const Charts = () => {
         try {
           const history = await getPinHistoryData(pin.id, hours);
           results[pin.id] = history.map(item => ({
-            time: new Date(item.timestamp).toLocaleTimeString(),
-            value: parseFloat(item.value),
-            timestamp: new Date(item.timestamp).getTime()
+            time: new Date(item.created_at).toLocaleTimeString(),
+            value: parseFloat(item.value || '0'),
+            timestamp: new Date(item.created_at).getTime()
           }));
         } catch (error) {
           console.error(`Error fetching history for pin ${pin.id}:`, error);
@@ -105,7 +98,6 @@ const Charts = () => {
     staleTime: 60000 // 1 minute
   });
 
-  // Handler for manual refresh
   const handleRefresh = () => {
     refetch();
   };
@@ -137,7 +129,6 @@ const Charts = () => {
         </div>
       </div>
       
-      {/* Filters */}
       <Card>
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center">
@@ -225,7 +216,6 @@ const Charts = () => {
         </CardContent>
       </Card>
       
-      {/* Charts content with tabs */}
       <Tabs defaultValue="grid" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="grid">Grid View</TabsTrigger>
