@@ -1121,7 +1121,7 @@ void read${pin.name.replace(/\s+/g, '')}() {
   };
 
   const updatePin = (pinId: string, updates: Partial<Pin>): Promise<void> => {
-    return new Promise((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       supabase
         .from('pin_configs')
         .update(updates)
@@ -1162,16 +1162,30 @@ void read${pin.name.replace(/\s+/g, '')}() {
   };
 
   useEffect(() => {
-    if (user) {
-      fetchProjects();
-      fetchDevices();
-      fetchPins();
-      fetchPinOptions();
-      fetchDataTypes();
-      fetchSignalTypes();
-      fetchPinModes();
-      fetchLabels();
-    }
+    const fetchInitialData = async () => {
+      if (user) {
+        try {
+          // Wrap all fetch operations with token refresh capability
+          await withSessionRefresh(fetchProjects);
+          await withSessionRefresh(fetchDevices);
+          await withSessionRefresh(fetchPins);
+          await withSessionRefresh(fetchPinOptions);
+          await withSessionRefresh(fetchDataTypes);
+          await withSessionRefresh(fetchSignalTypes);
+          await withSessionRefresh(fetchPinModes);
+          await withSessionRefresh(fetchLabels);
+        } catch (error) {
+          console.error("Error fetching initial data:", error);
+          toast({
+            title: "Data Loading Error",
+            description: "Failed to load some data. Please refresh the page.",
+            variant: "destructive",
+          });
+        }
+      }
+    };
+    
+    fetchInitialData();
   }, [user]);
 
   useEffect(() => {
