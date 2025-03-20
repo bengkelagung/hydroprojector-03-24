@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useToast } from "@/hooks/use-toast";
+import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from './AuthContext';
 import { 
   supabase, 
@@ -167,7 +167,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const checkTables = async () => {
       try {
-        const tablesExist = await withSessionRefresh(checkTablesExist);
+        const tablesExist = await withSessionRefresh(async () => checkTablesExist());
         if (!tablesExist) {
           toast({
             title: "Database Error",
@@ -176,7 +176,7 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
         }
         
-        const labelColumnExists = await withSessionRefresh(checkLabelColumnExists);
+        const labelColumnExists = await withSessionRefresh(async () => checkLabelColumnExists());
         setHasLabelColumn(!!labelColumnExists);
         setTablesChecked(true);
       } catch (error) {
@@ -215,18 +215,22 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tableExists = await withSessionRefresh(() => checkIfTableExists('projects'));
+      const tableExists = await withSessionRefresh(async () => checkIfTableExists('projects'));
       if (!tableExists) {
         console.warn('Projects table does not exist yet');
         return;
       }
       
-      const result = await withSessionRefresh(() => supabase
-        .from('projects')
-        .select('*')
-        .order('created_at', { ascending: false }));
+      const result = await withSessionRefresh(async () => {
+        const response = await supabase
+          .from('projects')
+          .select('*')
+          .order('created_at', { ascending: false });
+        return response;
+      });
       
-      const { data, error } = result || { data: null, error: null };
+      if (!result) return;
+      const { data, error } = result;
       
       if (error) throw error;
       
@@ -251,25 +255,29 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     if (!user) return;
     
     try {
-      const tableExists = await withSessionRefresh(() => checkIfTableExists('devices'));
+      const tableExists = await withSessionRefresh(async () => checkIfTableExists('devices'));
       if (!tableExists) {
         console.warn('Devices table does not exist yet');
         return;
       }
       
-      const projectsExist = await withSessionRefresh(() => checkIfTableExists('projects'));
+      const projectsExist = await withSessionRefresh(async () => checkIfTableExists('projects'));
       if (!projectsExist) {
         console.warn('Projects table does not exist yet');
         return;
       }
       
-      const result = await withSessionRefresh(() => supabase
-        .from('devices')
-        .select('*, projects!inner(user_id)')
-        .eq('projects.user_id', user.id)
-        .order('created_at', { ascending: false }));
+      const result = await withSessionRefresh(async () => {
+        const response = await supabase
+          .from('devices')
+          .select('*, projects!inner(user_id)')
+          .eq('projects.user_id', user.id)
+          .order('created_at', { ascending: false });
+        return response;
+      });
       
-      const { data, error } = result || { data: null, error: null };
+      if (!result) return;
+      const { data, error } = result;
       
       if (error) throw error;
       
@@ -1119,7 +1127,16 @@ void read${pin.name.replace(/\s+/g, '')}() {
         .update(updates)
         .eq('id', pinId)
         .then(({ error }) => {
-          if (error) throw error;
+          if (error) {
+            console.error('Error updating pin:', error);
+            toast({
+              title: "Error",
+              description: "Failed to update pin",
+              variant: "destructive",
+            });
+            reject(error);
+            return;
+          }
           
           setPins(prev => prev.map(pin => 
             pin.id === pinId ? { ...pin, ...updates } : pin
