@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -20,6 +21,7 @@ import Layout from "./components/Layout";
 import Projects from "./pages/Projects";
 import Devices from "./pages/Devices";
 import Readings from "./pages/Readings";
+import Charts from "./pages/Charts";
 import ProjectDetails from "./pages/ProjectDetails";
 import DeviceDetails from "./pages/DeviceDetails";
 import DeviceWifiSetup from "./pages/DeviceWifiSetup";
@@ -133,6 +135,15 @@ const AppContent = () => {
             <ProtectedRoute>
               <Layout>
                 <Readings />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Charts route */}
+          <Route path="/charts" element={
+            <ProtectedRoute>
+              <Layout>
+                <Charts />
               </Layout>
             </ProtectedRoute>
           } />

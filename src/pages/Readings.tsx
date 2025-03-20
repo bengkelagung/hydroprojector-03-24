@@ -1,11 +1,13 @@
+
 import React, { useState, useEffect } from 'react';
-import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power, FileInput, FileOutput } from 'lucide-react';
+import { Activity, Droplet, ThermometerIcon, AlertTriangle, Cloud, LightbulbIcon, Waves, Flower, Power, FileInput, FileOutput, LineChart } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
 import PinDetailsDialog from '@/components/PinDetailsDialog';
 import { checkLabelColumnExists } from '@/integrations/supabase/client';
 import { toast } from "sonner";
+import { useNavigate } from 'react-router-dom';
 
 const Readings = () => {
   const { pins, devices, projects, togglePinValue } = useHydro();
@@ -14,6 +16,7 @@ const Readings = () => {
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'input' | 'output'>('input');
   const [localPinValues, setLocalPinValues] = useState<Record<string, string>>({});
+  const navigate = useNavigate();
   
   useEffect(() => {
     // Check if label column exists
@@ -108,21 +111,21 @@ const Readings = () => {
     const signalType = pin.signalType;
     
     switch (label) {
-      case 'ph': return 'bg-purple-500';
-      case 'suhu': return 'bg-orange-500';
-      case 'kelembaban': return 'bg-blue-500';
-      case 'lampu': return 'bg-yellow-500';
-      case 'pompa': return 'bg-green-500';
-      case 'level air': return 'bg-cyan-500';
+      case 'ph': return 'bg-purple-100 border-purple-200';
+      case 'suhu': return 'bg-orange-100 border-orange-200';
+      case 'kelembaban': return 'bg-blue-100 border-blue-200';
+      case 'lampu': return 'bg-yellow-100 border-yellow-200';
+      case 'pompa': return 'bg-green-100 border-green-200';
+      case 'level air': return 'bg-cyan-100 border-cyan-200';
       default:
         // Fallback to signal type if no label
         switch (signalType) {
-          case 'pH': return 'bg-purple-500';
-          case 'temperature': return 'bg-orange-500';
-          case 'humidity': return 'bg-blue-500';
-          case 'water-level': return 'bg-cyan-500';
-          case 'light': return 'bg-yellow-500';
-          default: return 'bg-gray-500';
+          case 'pH': return 'bg-purple-100 border-purple-200';
+          case 'temperature': return 'bg-orange-100 border-orange-200';
+          case 'humidity': return 'bg-blue-100 border-blue-200';
+          case 'water-level': return 'bg-cyan-100 border-cyan-200';
+          case 'light': return 'bg-yellow-100 border-yellow-200';
+          default: return 'bg-gray-100 border-gray-200';
         }
     }
   };
@@ -295,6 +298,14 @@ const Readings = () => {
             <FileOutput className="mr-2 h-4 w-4" />
             Output Pins
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => navigate('/charts')}
+            className="text-blue-600 border-blue-200 hover:bg-blue-50"
+          >
+            <LineChart className="mr-2 h-4 w-4" />
+            View Charts
+          </Button>
         </div>
       </div>
 
@@ -324,14 +335,14 @@ const Readings = () => {
                   const colorClass = getPinColor(pin);
                   
                   return (
-                    <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                      <CardHeader className={`bg-opacity-10 ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
+                    <Card key={pin.id} className={`overflow-hidden hover:shadow-lg transition-shadow border ${colorClass}`}>
+                      <CardHeader className="pb-3">
                         <div className="flex items-center">
                           {getPinIcon(pin)}
                           <CardTitle className="capitalize">{pin.name}</CardTitle>
                         </div>
                       </CardHeader>
-                      <CardContent className="pt-6">
+                      <CardContent className="pt-0">
                         <div className="space-y-4">
                           <div className="pb-4">
                             <div className="flex justify-between items-start mb-2">
@@ -355,7 +366,7 @@ const Readings = () => {
                             
                             {getVisualIndicator(pin, value)}
                             
-                            <div className="mt-2">
+                            <div className="mt-4 flex justify-between items-center">
                               <Button 
                                 variant="link" 
                                 className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
@@ -403,14 +414,14 @@ const Readings = () => {
                   const colorClass = getPinColor(pin);
                   
                   return (
-                    <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                      <CardHeader className={`bg-opacity-10 ${colorClass.replace('bg-', 'bg-opacity-10 bg-')}`}>
+                    <Card key={pin.id} className={`overflow-hidden hover:shadow-lg transition-shadow border ${colorClass}`}>
+                      <CardHeader className="pb-3">
                         <div className="flex items-center">
                           {getPinIcon(pin)}
                           <CardTitle className="capitalize">{pin.name}</CardTitle>
                         </div>
                       </CardHeader>
-                      <CardContent className="pt-6">
+                      <CardContent className="pt-0">
                         <div className="space-y-4">
                           <div className="pb-4">
                             <div className="flex justify-between items-center mb-4">
@@ -431,7 +442,7 @@ const Readings = () => {
                             
                             <div className="flex justify-between items-center">
                               <Button 
-                                variant="outline" 
+                                variant="link" 
                                 className="p-0 h-auto text-sm text-blue-600 hover:text-blue-800"
                                 onClick={() => handleOpenPinDetails(pin)}
                               >

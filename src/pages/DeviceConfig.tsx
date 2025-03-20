@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useHydro } from '@/contexts/HydroContext';
@@ -53,6 +54,7 @@ const DeviceConfig = () => {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [tablesExist, setTablesExist] = useState<boolean>(false);
+  const [availablePins, setAvailablePins] = useState<{id: string, name: string, pinNumber: number}[]>([]);
 
   const device = devices.find(d => d.id === deviceId);
   const devicePins = getPinsByDevice(deviceId || '');
@@ -80,6 +82,23 @@ const DeviceConfig = () => {
     
     checkTables();
   }, []);
+
+  // Filter pin options to only show unused pins
+  useEffect(() => {
+    if (!deviceId) return;
+    
+    // Get all used pin numbers for this device
+    const usedPinNumbers = new Set(
+      devicePins.map(pin => pin.pinNumber)
+    );
+    
+    // Filter out used pins from pin options
+    const filteredPins = pinOptions.filter(
+      pin => !usedPinNumbers.has(pin.pinNumber)
+    );
+    
+    setAvailablePins(filteredPins);
+  }, [deviceId, devicePins, pinOptions]);
 
   const onSubmit = async (values: PinConfigFormValues) => {
     if (!deviceId) {
@@ -162,12 +181,12 @@ const DeviceConfig = () => {
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {pinOptions.length === 0 ? (
+                          {availablePins.length === 0 ? (
                             <SelectItem value="none" disabled>
                               No available pins
                             </SelectItem>
                           ) : (
-                            pinOptions.map((pin) => (
+                            availablePins.map((pin) => (
                               <SelectItem key={pin.id} value={pin.id}>
                                 {pin.name} (Pin {pin.pinNumber})
                               </SelectItem>
@@ -320,7 +339,7 @@ const DeviceConfig = () => {
                 <Button 
                   type="submit" 
                   className="w-full"
-                  disabled={isSubmitting || pinOptions.length === 0}
+                  disabled={isSubmitting || availablePins.length === 0}
                 >
                   {isSubmitting ? 'Configuring...' : 'Configure Pin'}
                 </Button>
