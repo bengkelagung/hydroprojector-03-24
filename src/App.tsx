@@ -1,5 +1,5 @@
 
-import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { HydroProvider } from './contexts/HydroContext';
 import Layout from './components/Layout';

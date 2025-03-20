@@ -118,7 +118,7 @@ const Charts = () => {
               Back
             </Button>
           </Link>
-          <h1 className="text-2xl font-bold">Pin Charts</h1>
+          <h1 className="text-2xl font-bold">Grafik</h1>
         </div>
         
         <div className="flex items-center gap-2">
