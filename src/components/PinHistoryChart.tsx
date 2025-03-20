@@ -1,5 +1,5 @@
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/utils/pin-history';
@@ -20,95 +20,78 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   isDigital = false,
   color = '#3b82f6'
 }) => {
-  // Use useMemo to prevent unnecessary re-renders with stronger data reduction
-  const processedData = useMemo(() => {
-    if (!historyData || historyData.length === 0) return [];
+  // Process data immediately without useMemo to avoid reference errors
+  const processData = (inputData: ChartDataPoint[]): ChartDataPoint[] => {
+    if (!inputData || inputData.length === 0) return [];
     
-    // More aggressive limiting of data points to prevent freezing
-    const maxDataPoints = 30; // Further reduced from 50
-    let dataToUse = historyData;
+    // Extreme data reduction for large datasets
+    const maxDataPoints = 20; // Reduced further from 30
+    let dataToUse = inputData;
     
-    if (historyData.length > maxDataPoints) {
-      const interval = Math.ceil(historyData.length / maxDataPoints);
-      
-      // Use a more efficient sampling method
+    if (inputData.length > maxDataPoints) {
+      const interval = Math.ceil(inputData.length / maxDataPoints);
       const sampledData: ChartDataPoint[] = [];
-      for (let i = 0; i < historyData.length; i += interval) {
-        sampledData.push(historyData[i]);
+      
+      // Take first point
+      sampledData.push(inputData[0]);
+      
+      // Sample middle points evenly
+      for (let i = interval; i < inputData.length - interval; i += interval) {
+        sampledData.push(inputData[i]);
       }
       
-      // Always include the first and last data points for accuracy
-      if (sampledData[0] !== historyData[0]) {
-        sampledData.unshift(historyData[0]);
-      }
-      
-      if (sampledData[sampledData.length - 1] !== historyData[historyData.length - 1]) {
-        sampledData.push(historyData[historyData.length - 1]);
+      // Take last point
+      if (inputData.length > 1) {
+        sampledData.push(inputData[inputData.length - 1]);
       }
       
       dataToUse = sampledData;
     }
     
-    // Apply a second-level optimization for very large datasets
-    // This uses data summarization (min/max/avg) for segments to preserve visual trends
-    if (dataToUse.length > 20) { // Reduced threshold further
-      const segmentSize = Math.ceil(dataToUse.length / 20);
-      const summarizedData: ChartDataPoint[] = [];
+    // For digital signals, preserve transitions by adding points before and after changes
+    if (isDigital && dataToUse.length > 1) {
+      const transitionPreservingData: ChartDataPoint[] = [dataToUse[0]];
       
-      for (let i = 0; i < dataToUse.length; i += segmentSize) {
-        const segment = dataToUse.slice(i, i + segmentSize);
+      for (let i = 1; i < dataToUse.length; i++) {
+        const prevValue = dataToUse[i-1].value;
+        const currValue = dataToUse[i].value;
         
-        // For digital signals, we want to preserve state changes
-        if (isDigital) {
-          // For digital, include only state transitions
-          if (segment.length > 0) summarizedData.push(segment[0]);
-          
-          for (let j = 1; j < segment.length; j++) {
-            if (segment[j-1].value !== segment[j].value) {
-              summarizedData.push(segment[j]);
-            }
-          }
-        } else {
-          // For analog, use min, max and a middle point to preserve trends
-          if (segment.length > 0) {
-            summarizedData.push(segment[0]); // Always add first point
-            
-            // If segment has more than 3 points, add a middle point
-            if (segment.length > 3) {
-              const midIndex = Math.floor(segment.length / 2);
-              summarizedData.push(segment[midIndex]);
-            }
-            
-            // Add last point of segment
-            if (segment.length > 1) {
-              summarizedData.push(segment[segment.length - 1]);
-            }
-          }
+        // If there's a state change, add both points to preserve the transition
+        if (prevValue !== currValue) {
+          transitionPreservingData.push(dataToUse[i]);
+        } else if (i % 2 === 0) { // Only add every other point for unchanged values
+          transitionPreservingData.push(dataToUse[i]);
         }
       }
       
-      // Always ensure first and last points are included
-      if (summarizedData.length > 0 && summarizedData[0] !== dataToUse[0]) {
-        summarizedData.unshift(dataToUse[0]);
+      // Ensure last point is included
+      const lastIndex = dataToUse.length - 1;
+      if (transitionPreservingData[transitionPreservingData.length - 1] !== dataToUse[lastIndex]) {
+        transitionPreservingData.push(dataToUse[lastIndex]);
       }
       
-      if (summarizedData.length > 0 && 
-          summarizedData[summarizedData.length - 1] !== dataToUse[dataToUse.length - 1]) {
-        summarizedData.push(dataToUse[dataToUse.length - 1]);
-      }
-      
-      if (summarizedData.length > 0) {
-        dataToUse = summarizedData;
-      }
+      return transitionPreservingData.length > 0 ? transitionPreservingData : dataToUse;
     }
     
     return dataToUse;
-  }, [historyData, isDigital]);
+  };
+  
+  const processedData = processData(historyData);
   
   if (!historyData || historyData.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-gray-500">No history data available</p>
+      </div>
+    );
+  }
+
+  // If we still have too many data points after processing, show a warning instead of rendering
+  if (processedData.length > 200) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
+        <p className="text-amber-600 font-medium">Too much data to display</p>
+        <p className="text-gray-500 text-sm">Try selecting a shorter time range</p>
       </div>
     );
   }
@@ -127,35 +110,31 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
           data={processedData} 
           margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.5} />
+          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
           <XAxis 
             dataKey="time" 
-            fontSize={12}
+            fontSize={10}
             tickMargin={5}
             interval="preserveStartEnd"
-            tick={{ fontSize: 10 }}
-            minTickGap={30}
-            tickCount={5}
+            minTickGap={50}
+            tickCount={3}
           />
           <YAxis 
-            fontSize={12}
+            fontSize={10}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-            width={40}
-            tick={{ fontSize: 10 }}
-            tickCount={5}
+            width={35}
+            tickCount={3}
           />
           <Tooltip content={<ChartTooltip />} />
-          <Legend />
           <Line 
             type={isDigital ? "stepAfter" : "monotone"} 
             dataKey={dataKey} 
             stroke={color} 
-            activeDot={{ r: 3 }} // Reduced size further
-            dot={false} // Disable dots for better performance
-            isAnimationActive={false} // Disable animation for better performance
-            strokeWidth={1.2} // Reduced line thickness further
-            connectNulls={true} // Connect across null/missing values
+            dot={false}
+            isAnimationActive={false}
+            strokeWidth={1}
+            connectNulls={true}
           />
         </LineChart>
       </ResponsiveContainer>
