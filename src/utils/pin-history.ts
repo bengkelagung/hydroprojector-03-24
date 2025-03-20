@@ -1,3 +1,4 @@
+
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PinHistoryEntry {
@@ -39,7 +40,8 @@ export const fetchPinHistory = async (
         .from('pin_data')
         .select('*')
         .eq('pin_config_id', pinId)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(30); // Added stricter limit to prevent browser freezing
         
       if (error) {
         console.error('Error fetching pin history:', error);
@@ -77,7 +79,8 @@ export const fetchPinHistory = async (
         .select('*')
         .eq('pin_config_id', pinId)
         .gte('created_at', startDateString)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .limit(30); // Added stricter limit to prevent browser freezing
         
       if (error) {
         console.error('Error fetching pin history:', error);

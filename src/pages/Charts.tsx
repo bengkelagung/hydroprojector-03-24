@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -33,7 +34,7 @@ const Charts = () => {
         if (!device || device.projectId !== selectedProjectId) return false;
       }
       return true;
-    }).slice(0, 9);
+    }).slice(0, 6); // Reduced from 9 to 6 pins max to prevent performance issues
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = useMemo(() => [
@@ -116,6 +117,7 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
+      // Always use batch size of 1 for maximum performance
       const batchSize = 1;
       
       for (let i = 0; i < filteredPins.length; i += batchSize) {
@@ -135,7 +137,28 @@ const Charts = () => {
             const history = await getPinHistoryData(pin.id, hours);
             
             if (history && history.length > 0) {
-              results[pin.id] = history.map(item => ({
+              // Further limit the number of data points
+              const maxPoints = 20;
+              let processedData;
+              
+              if (history.length > maxPoints) {
+                const interval = Math.floor(history.length / maxPoints);
+                const sampledData = [history[0]];
+                
+                for (let j = interval; j < history.length - interval; j += interval) {
+                  sampledData.push(history[j]);
+                }
+                
+                if (history.length > 1) {
+                  sampledData.push(history[history.length - 1]);
+                }
+                
+                processedData = sampledData;
+              } else {
+                processedData = history;
+              }
+              
+              results[pin.id] = processedData.map(item => ({
                 time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
                 value: parseFloat(item.value || '0'),
                 timestamp: new Date(item.created_at).getTime()
@@ -151,7 +174,7 @@ const Charts = () => {
         
         if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
           setChartsData(prev => ({...prev, ...results}));
-          await new Promise(resolve => setTimeout(resolve, 250));
+          await new Promise(resolve => setTimeout(resolve, 500)); // Increased delay to prevent UI freezing
         }
       }
       
