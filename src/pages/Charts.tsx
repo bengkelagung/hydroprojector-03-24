@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +8,6 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ChartDataPoint } from '@/utils/pin-history';
 import { RefreshCw, Filter } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
 import { getPinHistoryData } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
@@ -34,7 +32,7 @@ const Charts = () => {
         if (!device || device.projectId !== selectedProjectId) return false;
       }
       return true;
-    }).slice(0, 6); // Reduced from 9 to 6 pins max to prevent performance issues
+    }).slice(0, 4);
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = useMemo(() => [
@@ -62,7 +60,6 @@ const Charts = () => {
     
     if (autoRefresh) {
       refreshTimeoutRef.current = setTimeout(() => {
-        console.log('Auto-refreshing charts data');
         fetchChartData();
       }, 120000);
     }
@@ -78,7 +75,7 @@ const Charts = () => {
   }, [autoRefresh, filteredPins, timeRange]);
 
   useEffect(() => {
-    if (filteredPins.length <= 6) {
+    if (filteredPins.length <= 4) {
       fetchChartData();
     } else {
       setChartsData({});
@@ -95,7 +92,7 @@ const Charts = () => {
       case '24h': return 24;
       case '7d': return 24 * 7;
       case '30d': return 24 * 30;
-      default: return 24;
+      default: return 1;
     }
   }, [timeRange]);
 
@@ -117,7 +114,6 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
-      // Always use batch size of 1 for maximum performance
       const batchSize = 1;
       
       for (let i = 0; i < filteredPins.length; i += batchSize) {
@@ -137,8 +133,7 @@ const Charts = () => {
             const history = await getPinHistoryData(pin.id, hours);
             
             if (history && history.length > 0) {
-              // Further limit the number of data points
-              const maxPoints = 20;
+              const maxPoints = 10;
               let processedData;
               
               if (history.length > maxPoints) {
@@ -174,7 +169,7 @@ const Charts = () => {
         
         if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
           setChartsData(prev => ({...prev, ...results}));
-          await new Promise(resolve => setTimeout(resolve, 500)); // Increased delay to prevent UI freezing
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
       }
       

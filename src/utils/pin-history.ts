@@ -34,14 +34,14 @@ export const fetchPinHistory = async (
   let startDate = new Date(now);
   
   if (timeRange === 'all') {
-    // If 'all' is selected, don't filter by date
+    // If 'all' is selected, don't filter by date but limit results
     try {
       const { data, error } = await supabase
         .from('pin_data')
         .select('*')
         .eq('pin_config_id', pinId)
         .order('created_at', { ascending: true })
-        .limit(30); // Added stricter limit to prevent browser freezing
+        .limit(10); // Ultra-aggressive limit to prevent freezing
         
       if (error) {
         console.error('Error fetching pin history:', error);
@@ -80,7 +80,7 @@ export const fetchPinHistory = async (
         .eq('pin_config_id', pinId)
         .gte('created_at', startDateString)
         .order('created_at', { ascending: true })
-        .limit(30); // Added stricter limit to prevent browser freezing
+        .limit(10); // Ultra-aggressive limit to prevent freezing
         
       if (error) {
         console.error('Error fetching pin history:', error);
@@ -105,20 +105,27 @@ export const formatPinHistoryForChart = (
   historyData: PinHistoryEntry[],
   isDigital: boolean = false
 ): PinHistoryData => {
-  const times = historyData.map(entry => {
-    const date = new Date(entry.created_at);
-    return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
-  });
+  // If we have too many points, just use first and last point
+  if (historyData.length > 10) {
+    const first = historyData[0];
+    const last = historyData[historyData.length - 1];
+    
+    const times = [
+      formatTimeString(new Date(first.created_at)),
+      formatTimeString(new Date(last.created_at))
+    ];
+    
+    const values = [
+      formatValue(first.value, isDigital),
+      formatValue(last.value, isDigital)
+    ];
+    
+    return { times, values };
+  }
   
-  const values = historyData.map(entry => {
-    if (isDigital) {
-      // For digital pins, return 1 or 0
-      return entry.value === '1' ? 1 : 0;
-    } else {
-      // For analog pins, parse the value to a number
-      return parseFloat(entry.value) || 0;
-    }
-  });
+  const times = historyData.map(entry => formatTimeString(new Date(entry.created_at)));
+  
+  const values = historyData.map(entry => formatValue(entry.value, isDigital));
   
   return { times, values };
 };
@@ -135,27 +142,49 @@ export const formatPinHistoryForRecharts = (
   isDigital: boolean = false,
   label: string = 'Value'
 ): ChartDataPoint[] => {
-  return historyData.map(entry => {
-    const date = new Date(entry.created_at);
-    const time = `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+  // If we have too many points, just use first and last point for best performance
+  if (historyData.length > 10) {
+    const first = historyData[0];
+    const last = historyData[historyData.length - 1];
     
-    let value: number | string;
-    if (isDigital) {
-      // For digital pins, return 1 or 0
-      value = entry.value === '1' ? 1 : 0;
-    } else {
-      // For analog pins, parse the value to a number
-      value = parseFloat(entry.value) || 0;
-    }
-    
-    return {
-      time,
-      [label]: value,
-      value, // Keep a generic value field for easier access
-      timestamp: entry.created_at
-    };
-  });
+    return [
+      createDataPoint(first, isDigital, label),
+      createDataPoint(last, isDigital, label)
+    ];
+  }
+  
+  return historyData.map(entry => createDataPoint(entry, isDigital, label));
 };
+
+// Helper functions to reduce code duplication and optimize performance
+function formatTimeString(date: Date): string {
+  return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
+}
+
+function formatValue(value: string, isDigital: boolean): number | string {
+  if (isDigital) {
+    return value === '1' ? 1 : 0;
+  } else {
+    return parseFloat(value) || 0;
+  }
+}
+
+function createDataPoint(
+  entry: PinHistoryEntry, 
+  isDigital: boolean, 
+  label: string
+): ChartDataPoint {
+  const date = new Date(entry.created_at);
+  const time = formatTimeString(date);
+  const value = formatValue(entry.value, isDigital);
+  
+  return {
+    time,
+    [label]: value,
+    value,
+    timestamp: entry.created_at
+  };
+}
 
 /**
  * Save pin state to history
