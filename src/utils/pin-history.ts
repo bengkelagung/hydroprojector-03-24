@@ -1,4 +1,3 @@
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface PinHistoryEntry {
@@ -20,37 +19,19 @@ export interface ChartDataPoint {
 }
 
 /**
- * Fetch historical data for a pin with extreme data limitation
+ * Ultra lightweight fetch for pin history - only gets first and last point
  */
 export const fetchPinHistory = async (
   pinId: string, 
   timeRange: 'hour' | 'day' | 'week' | 'month' | 'all' = 'day'
 ): Promise<PinHistoryEntry[]> => {
-  // Calculate the start date based on time range
-  const now = new Date();
-  let startDate = new Date(now);
-  
-  if (timeRange === 'all') {
-    try {
-      const { data, error } = await supabase
-        .from('pin_data')
-        .select('*')
-        .eq('pin_config_id', pinId)
-        .order('created_at', { ascending: true })
-        .limit(2); // Only get first and last point
-        
-      if (error) {
-        console.error('Error fetching pin history:', error);
-        return [];
-      }
-      
-      return data as PinHistoryEntry[] || [];
-    } catch (error) {
-      console.error('Error in fetchPinHistory:', error);
-      return [];
-    }
-  } else {
-    // Handle other time ranges
+  try {
+    // Always get just 2 points (first and last in the time period)
+    // regardless of time range to prevent UI freezing
+    const now = new Date();
+    let startDate = new Date(now);
+    
+    // Calculate the start date based on time range
     switch (timeRange) {
       case 'hour':
         startDate.setHours(now.getHours() - 1);
@@ -64,35 +45,59 @@ export const fetchPinHistory = async (
       case 'month':
         startDate.setMonth(now.getMonth() - 1);
         break;
+      case 'all':
+        // Do nothing, get all time range
+        break;
     }
 
     // Format for Postgres timestamp comparison
     const startDateString = startDate.toISOString();
     
-    try {
-      const { data, error } = await supabase
-        .from('pin_data')
-        .select('*')
-        .eq('pin_config_id', pinId)
-        .gte('created_at', startDateString)
-        .order('created_at', { ascending: true })
-        .limit(2); // Ultra-aggressive limit to prevent freezing
-        
-      if (error) {
-        console.error('Error fetching pin history:', error);
-        return [];
-      }
+    // Get only first point in time range
+    const { data: firstPoint, error: firstError } = await supabase
+      .from('pin_data')
+      .select('*')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDateString)
+      .order('created_at', { ascending: true })
+      .limit(1);
       
-      return data as PinHistoryEntry[] || [];
-    } catch (error) {
-      console.error('Error in fetchPinHistory:', error);
+    if (firstError) {
+      console.error('Error fetching first pin history point:', firstError);
       return [];
     }
+    
+    // Get only last point in time range
+    const { data: lastPoint, error: lastError } = await supabase
+      .from('pin_data')
+      .select('*')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDateString)
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (lastError) {
+      console.error('Error fetching last pin history point:', lastError);
+      return [];
+    }
+    
+    // If we have both points and they're different, return both
+    if (firstPoint && firstPoint.length > 0 && 
+        lastPoint && lastPoint.length > 0 &&
+        firstPoint[0].id !== lastPoint[0].id) {
+      return [...firstPoint, ...lastPoint];
+    }
+    
+    // Otherwise return whichever we have
+    return [...(firstPoint || []), ...(lastPoint || [])];
+  } catch (error) {
+    console.error('Error in fetchPinHistory:', error);
+    return [];
   }
 };
 
 /**
- * Format pin history data for charts - minimized for performance
+ * Format pin history data for charts - only returns the raw minimum data needed
  */
 export const formatPinHistoryForChart = (
   historyData: PinHistoryEntry[],
@@ -106,7 +111,7 @@ export const formatPinHistoryForChart = (
 };
 
 /**
- * Format pin history data for Recharts - minimized for performance
+ * Format pin history data for Recharts - only processes the minimum required
  */
 export const formatPinHistoryForRecharts = (
   historyData: PinHistoryEntry[],
@@ -180,31 +185,60 @@ export const savePinStateToHistory = async (
   }
 };
 
-// Extremely optimized history data fetching for charts
+/**
+ * Ultra-optimized history data fetching for charts - only returns 2 points
+ * to minimize data processing and prevent freezing
+ */
 export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
   try {
     const startDate = new Date();
     startDate.setHours(startDate.getHours() - hours);
     
-    // Extreme limit - just 2 points for any time range
-    const { data, error } = await supabase
+    // Get first point in time range
+    const { data: firstPoint, error: firstError } = await supabase
       .from('pin_data')
       .select('id, pin_config_id, value, created_at')
       .eq('pin_config_id', pinId)
       .gte('created_at', startDate.toISOString())
       .order('created_at', { ascending: true })
-      .limit(2);
+      .limit(1);
     
-    if (error) {
-      console.error('Error fetching pin history data:', error);
+    if (firstError) {
+      console.error('Error fetching first pin history point:', firstError);
       return [];
     }
     
-    return data.map(item => ({
-      time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-      value: parseFloat(item.value || '0'),
-      timestamp: new Date(item.created_at).getTime()
-    }));
+    // Get last point in time range
+    const { data: lastPoint, error: lastError } = await supabase
+      .from('pin_data')
+      .select('id, pin_config_id, value, created_at')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (lastError) {
+      console.error('Error fetching last pin history point:', lastError);
+      return [];
+    }
+    
+    // Combine points and format them
+    const combined = [
+      ...(firstPoint || []).map(item => ({
+        time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        value: parseFloat(item.value || '0'),
+        timestamp: new Date(item.created_at).getTime()
+      })),
+      ...(lastPoint || []).filter(lp => 
+        !firstPoint || !firstPoint.length || lp.id !== firstPoint[0].id
+      ).map(item => ({
+        time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        value: parseFloat(item.value || '0'),
+        timestamp: new Date(item.created_at).getTime()
+      }))
+    ];
+    
+    return combined;
   } catch (error) {
     console.error('Error in getPinHistoryData:', error);
     return [];

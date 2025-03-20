@@ -1,5 +1,5 @@
 
-import React, { memo, useMemo } from 'react';
+import React, { memo } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/utils/pin-history';
@@ -12,7 +12,8 @@ interface PinHistoryChartProps {
 }
 
 /**
- * Ultra-optimized chart component to visualize pin history data
+ * Extremely lightweight chart component to visualize pin history data
+ * Optimized to prevent UI freezing
  */
 const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   historyData,
@@ -29,25 +30,11 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     );
   }
 
-  // Strict limit on data points to prevent freezing
-  if (historyData.length > 10) {
-    return (
-      <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
-        <p className="text-amber-600 font-medium">Too much data to display</p>
-        <p className="text-gray-500 text-sm">Try selecting a shorter time range</p>
-      </div>
-    );
-  }
-
-  // Super minimal data processing - just first and last point
-  const processedData = useMemo(() => {
-    if (historyData.length <= 2) return historyData;
-    
-    return [
-      historyData[0],
-      historyData[historyData.length - 1]
-    ];
-  }, [historyData]);
+  // Extremely aggressive limit to prevent any possible freezing
+  // Only show two data points maximum (first and last)
+  const simplifiedData = historyData.length <= 2 
+    ? historyData 
+    : [historyData[0], historyData[historyData.length - 1]];
 
   const chartConfig = {
     [dataKey]: {
@@ -60,31 +47,31 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     <ChartContainer config={chartConfig} className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart 
-          data={processedData} 
-          margin={{ top: 5, right: 0, left: 0, bottom: 5 }}
+          data={simplifiedData} 
+          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.02} vertical={false} />
+          <CartesianGrid strokeDasharray="3 3" opacity={0.1} vertical={false} />
           <XAxis 
             dataKey="time" 
-            fontSize={7}
+            fontSize={8}
             tickMargin={3}
             tickCount={2} // Only first and last tick
           />
           <YAxis 
-            fontSize={7}
+            fontSize={8}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-            width={15}
+            width={20}
             tickCount={2} // Only min and max ticks
           />
           <Tooltip content={<ChartTooltip />} />
           <Line 
-            type="linear" // Simplest line type for performance
+            type="linear" 
             dataKey={dataKey} 
             stroke={color} 
-            dot={false} // No dots
-            isAnimationActive={false} // No animations
-            strokeWidth={1} // Thin line
+            dot={{ strokeWidth: 1, r: 2 }}
+            isAnimationActive={false} // No animations for performance
+            strokeWidth={1.5}
             connectNulls={true}
           />
         </LineChart>
@@ -94,10 +81,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
 };
 
 // Use React.memo to prevent unnecessary re-renders
-export default memo(PinHistoryChart, (prevProps, nextProps) => {
-  // Only re-render if data array reference changes completely
-  return prevProps.historyData === nextProps.historyData;
-});
+export default memo(PinHistoryChart);
 
 // Simple factory function
 export const createPinHistoryChart = (

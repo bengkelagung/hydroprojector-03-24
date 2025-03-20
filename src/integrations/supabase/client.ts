@@ -542,21 +542,61 @@ export const findPinIdByNumber = async (pinNumber: number): Promise<string | nul
 };
 
 /**
- * Get pin history data for charts
+ * Get pin history data for charts - ultra optimized to prevent freezing
  * @param pinId - ID of the pin
  * @param hours - Number of hours of history to fetch
- * @returns Array of history data
+ * @returns Array of history data (only 2 points max)
  */
 export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
   try {
     const startDate = new Date();
     startDate.setHours(startDate.getHours() - hours);
     
-    // Even more aggressive limits to prevent browser from freezing
-    const maxRecords = hours <= 6 ? 20 : hours <= 24 ? 30 : 40;
+    // Get first point in time range
+    const { data: firstPoint, error: firstError } = await supabase
+      .from('pin_data')
+      .select('id, pin_config_id, value, created_at')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(1);
     
-    // Use the direct query approach for all time ranges
-    return await getPinHistoryDataFallback(pinId, startDate, maxRecords);
+    if (firstError) {
+      console.error('Error fetching first pin history point:', firstError);
+      return [];
+    }
+    
+    // Get last point in time range
+    const { data: lastPoint, error: lastError } = await supabase
+      .from('pin_data')
+      .select('id, pin_config_id, value, created_at')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1);
+    
+    if (lastError) {
+      console.error('Error fetching last pin history point:', lastError);
+      return [];
+    }
+    
+    // Combine points and format them (filter out duplicates if first and last are the same)
+    const combined = [
+      ...(firstPoint || []).map(item => ({
+        time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        value: parseFloat(item.value || '0'),
+        timestamp: new Date(item.created_at).getTime()
+      })),
+      ...(lastPoint || []).filter(lp => 
+        !firstPoint || !firstPoint.length || lp.id !== firstPoint[0].id
+      ).map(item => ({
+        time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+        value: parseFloat(item.value || '0'),
+        timestamp: new Date(item.created_at).getTime()
+      }))
+    ];
+    
+    return combined;
   } catch (error) {
     console.error('Error in getPinHistoryData:', error);
     return [];

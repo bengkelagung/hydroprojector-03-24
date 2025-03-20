@@ -18,11 +18,11 @@ const Charts = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('all');
   const [selectedPinMode, setSelectedPinMode] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<string>('1h');
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(true); // Auto-refresh enabled by default
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [chartsData, setChartsData] = useState<Record<string, ChartDataPoint[]>>({});
   
-  // Strictly limit displayed pins to 2 to prevent freezing
+  // Extremely strict limit of 2 pins maximum to prevent any freezing
   const filteredPins = useMemo(() => {
     const filtered = pins.filter(pin => {
       if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
@@ -34,7 +34,7 @@ const Charts = () => {
       return true;
     });
     
-    // Strict limit to prevent freezing
+    // Ultra strict limit of 2 pins for maximum performance
     return filtered.slice(0, 2);
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
@@ -51,26 +51,29 @@ const Charts = () => {
       ],
   [selectedProjectId, devices]);
 
+  // Reset device when project changes
   useEffect(() => {
     setSelectedDeviceId('all');
   }, [selectedProjectId]);
 
+  // Fast auto-refresh for real-time updates (every 10 seconds)
   useEffect(() => {
     let refreshTimer: NodeJS.Timeout | null = null;
     
     if (autoRefresh) {
-      refreshTimer = setTimeout(() => {
+      refreshTimer = setInterval(() => {
         fetchChartData();
-      }, 30000); // Refresh every 30 seconds
+      }, 10000); // Refresh every 10 seconds for better real-time experience
     }
     
     return () => {
       if (refreshTimer) {
-        clearTimeout(refreshTimer);
+        clearInterval(refreshTimer);
       }
     };
-  }, [autoRefresh, chartsData]);
+  }, [autoRefresh, filteredPins, timeRange]);
 
+  // Fetch data when filters change
   useEffect(() => {
     if (filteredPins.length === 0) {
       setChartsData({});
@@ -91,7 +94,7 @@ const Charts = () => {
     }
   }, [timeRange]);
 
-  // Ultra-optimized data fetching to prevent freezing
+  // Ultra-optimized data fetching - only get 2 points per pin
   const fetchChartData = useCallback(async () => {
     if (filteredPins.length === 0) {
       setChartsData({});
@@ -104,7 +107,7 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
-      // Process one pin at a time
+      // Process pins one at a time to minimize load
       for (const pin of filteredPins) {
         try {
           const history = await getPinHistoryData(pin.id, hours);
@@ -276,7 +279,7 @@ const Charts = () => {
             className={autoRefresh ? "bg-green-600 hover:bg-green-700" : ""}
             disabled={isLoading}
           >
-            {autoRefresh ? "Auto Refresh: On" : "Auto Refresh: Off"}
+            {autoRefresh ? "Real-time: On" : "Real-time: Off"}
           </Button>
         </div>
       </div>
