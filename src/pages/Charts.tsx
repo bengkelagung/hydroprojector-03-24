@@ -65,7 +65,8 @@ export default function Charts() {
         if (data && data.length > 0) {
           newChartData[pin.id] = data.map(item => ({
             timestamp: new Date(item.created_at),
-            value: parseFloat(item.value) || 0
+            value: parseFloat(item.value) || 0,
+            time: new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           }));
         } else {
           // If no data, create some sample data for demonstration
@@ -108,7 +109,8 @@ export default function Charts() {
       
       data.push({
         timestamp: time,
-        value: parseFloat(value.toFixed(2))
+        value: parseFloat(value.toFixed(2)),
+        time: time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       });
     }
     
@@ -249,9 +251,9 @@ export default function Charts() {
                     <CardContent className="pt-4 h-[300px]">
                       {chartData[pin.id] ? (
                         <PinHistoryChart 
-                          data={chartData[pin.id]} 
-                          yAxisLabel={pin.unit || ''} 
-                          isLoading={loading}
+                          historyData={chartData[pin.id]} 
+                          dataKey="value"
+                          color="#3b82f6"
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full text-gray-400">
@@ -298,10 +300,10 @@ export default function Charts() {
                     <CardContent className="pt-4 h-[300px]">
                       {chartData[pin.id] ? (
                         <PinHistoryChart 
-                          data={chartData[pin.id]} 
-                          yAxisLabel="State" 
-                          isLoading={loading}
-                          isBinary={true}
+                          historyData={chartData[pin.id]} 
+                          dataKey="value"
+                          isDigital={true}
+                          color="#10b981"
                         />
                       ) : (
                         <div className="flex items-center justify-center h-full text-gray-400">
