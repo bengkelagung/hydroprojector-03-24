@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { toast } from 'sonner';
+import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 
@@ -32,6 +32,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [session, setSession] = useState<Session | null>(null);
+  const { toast } = useToast();
+
+  // Handle session refresh
+  const refreshSession = async () => {
+    try {
+      const { data, error } = await supabase.auth.refreshSession();
+      if (error) {
+        console.error("Failed to refresh session:", error);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.error("Error refreshing session:", error);
+      return false;
+    }
+  };
 
   useEffect(() => {
     // Set up auth listener
@@ -62,19 +78,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const initializeAuth = async () => {
       setLoading(true);
       
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        const { id, email } = session.user;
-        const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
-        
-        setUser({
-          id,
-          email: email || '',
-          name
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { id, email } = session.user;
+          const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
+          
+          setUser({
+            id,
+            email: email || '',
+            name
+          });
+        }
+      } catch (error) {
+        console.error("Error getting initial session:", error);
+        toast({
+          title: "Authentication Error",
+          description: "Failed to connect to authentication service. Please try again later.",
+          variant: "destructive",
         });
+      } finally {
+        setLoading(false);
       }
-      
-      setLoading(false);
     };
 
     initializeAuth();
@@ -82,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [toast]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -97,9 +122,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      toast.success('Login successful!');
+      toast({
+        title: "Success",
+        description: "Login successful!",
+      });
     } catch (error: any) {
-      toast.error(error.message || 'Login failed. Please try again.');
+      toast({
+        title: "Login Failed",
+        description: error.message || 'Login failed. Please try again.',
+        variant: "destructive",
+      });
       throw error;
     } finally {
       setLoading(false);
@@ -125,14 +157,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw error;
       }
 
-      toast.success('Registration successful!');
+      toast({
+        title: "Success",
+        description: "Registration successful!",
+      });
       
       // For email confirmation flow, show appropriate message
       if (!data.session) {
-        toast.info('Please check your email to confirm your account');
+        toast({
+          title: "Verification Required",
+          description: "Please check your email to confirm your account",
+        });
       }
     } catch (error: any) {
-      toast.error(error.message || 'Registration failed. Please try again.');
+      toast({
+        title: "Registration Failed",
+        description: error.message || 'Registration failed. Please try again.',
+        variant: "destructive",
+      });
       throw error;
     } finally {
       setLoading(false);
@@ -149,9 +191,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       setUser(null);
-      toast.success('Logged out successfully');
+      toast({
+        title: "Success",
+        description: "Logged out successfully",
+      });
     } catch (error: any) {
-      toast.error(error.message || 'Logout failed');
+      toast({
+        title: "Logout Failed",
+        description: error.message || 'Logout failed',
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
     }
