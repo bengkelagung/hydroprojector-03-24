@@ -6,28 +6,16 @@ import {
   supabase, 
   checkTablesExist, 
   checkLabelColumnExists,
-  getDefaultLabels, 
-  fetchLabelsFromDatabase, 
-  fetchPinConfigsWithRelations,
-  fetchPinsWithInfo,
-  fetchDataTypes as fetchDataTypesFromDB,
-  fetchSignalTypes as fetchSignalTypesFromDB,
-  fetchModes as fetchModesFromDB,
-  findDataTypeIdByName,
-  findSignalTypeIdByName,
-  findModeIdByType,
-  findLabelIdByName,
-  findPinIdByNumber,
-  checkIfTableExists,
-  ensureProfileExists
+  getAvailableLabels
 } from '@/integrations/supabase/client';
 
 export interface Project {
   id: string;
   name: string;
   description: string;
-  userId: string;
   createdAt: string;
+  updatedAt: string;
+  userId: string;
 }
 
 export interface Device {
@@ -36,89 +24,101 @@ export interface Device {
   description: string;
   projectId: string;
   createdAt: string;
-  type: string;
+  updatedAt: string;
+  userId: string;
   isConnected: boolean;
-  lastSeen?: string;
-  wifiConfig?: {
-    wifiSSID: string;
-    wifiPassword?: string;
-  };
+  lastSeen: string | null;
 }
-
-export type SignalType = 'pH' | 'temperature' | 'humidity' | 'water-level' | 'nutrient' | 'light' | 'analog' | 'digital' | 'custom' | 'pump' | 'water-pump';
 
 export interface Pin {
   id: string;
   deviceId: string;
   pinNumber: number;
-  dataType: string;
-  signalType: SignalType;
-  mode: 'input' | 'output';
   name: string;
+  mode: 'input' | 'output';
+  signalType: string;
+  dataType: string;
+  createdAt: string;
+  updatedAt: string;
+  userId: string;
+  label?: string;
   value?: string;
   unit?: string;
-  label?: string;
-  lastUpdated?: string;
-}
-
-export interface PinOption {
-  id: string;
-  name: string;
-  pinNumber: number;
 }
 
 interface HydroContextType {
   projects: Project[];
   devices: Device[];
   pins: Pin[];
-  pinOptions: PinOption[];
-  selectedProject: Project | null;
-  selectedDevice: Device | null;
-  createProject: (name: string, description: string) => Promise<Project>;
-  createDevice: (name: string, description: string, projectId: string, type: string) => Promise<Device>;
-  configurePin: (
-    deviceId: string, 
-    pinId: string, 
-    dataType: string, 
-    signalType: SignalType, 
-    mode: 'input' | 'output',
-    name: string,
-    label?: string
-  ) => Promise<Pin>;
-  selectProject: (project: Project | null) => void;
-  selectDevice: (device: Device | null) => void;
+  selectedDeviceId: string | null;
+  availablePinNumbers: number[];
+  signalTypes: string[];
+  dataTypes: string[];
+  pinModes: string[];
+  labels: string[];
+  hasLabelColumn: boolean;
+  tablesChecked: boolean;
+  
+  createProject: (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'userId'>) => Promise<void>;
+  updateProject: (projectId: string, updates: Partial<Project>) => Promise<void>;
+  deleteProject: (projectId: string) => Promise<void>;
+  
+  createDevice: (device: Omit<Device, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'isConnected' | 'lastSeen'>) => Promise<void>;
+  updateDevice: (deviceId: string, updates: Partial<Device>) => Promise<void>;
+  deleteDevice: (deviceId: string) => Promise<void>;
+  
+  createPin: (pin: Omit<Pin, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'value' | 'unit'>) => Promise<void>;
+  updatePin: (pinId: string, updates: Partial<Pin>) => Promise<void>;
+  deletePin: (pinId: string) => Promise<void>;
+  togglePinValue: (pinId: string) => Promise<void>;
+  
   getDevicesByProject: (projectId: string) => Device[];
   getPinsByDevice: (deviceId: string) => Pin[];
-  updateDeviceConnection: (deviceId: string, isConnected: boolean) => void;
-  updatePinValue: (pinId: string, value: string) => void;
-  generateDeviceCode: (deviceId: string) => string;
-  dataTypes: string[];
-  signalTypes: SignalType[];
-  pinModes: ('input' | 'output')[];
-  labels: string[];
-  fetchLabels: () => Promise<void>;
-  fetchDataTypes: () => Promise<void>;
-  fetchSignalTypes: () => Promise<void>;
-  fetchPinModes: () => Promise<void>;
-  fetchPinOptions: () => Promise<void>;
-  updateProject: (projectId: string, updates: Partial<Project>) => void;
-  updateDevice: (deviceId: string, updates: Partial<Device>) => Promise<void>;
-  deleteProject: (projectId: string) => void;
-  deleteDevice: (deviceId: string) => void;
-  deletePin: (pinId: string) => void;
-  togglePinValue: (pinId: string) => void;
-  updatePin: (pinId: string, updates: Partial<Pin>) => Promise<void>;
+  
+  setSelectedDeviceId: (deviceId: string | null) => void;
+  updateAvailablePinOptions: (deviceId: string) => Promise<void>;
+  
+  setProjects: React.Dispatch<React.SetStateAction<Project[]>>;
+  setDevices: React.Dispatch<React.SetStateAction<Device[]>>;
+  setPins: React.Dispatch<React.SetStateAction<Pin[]>>;
 }
 
-const HydroContext = createContext<HydroContextType | undefined>(undefined);
-
-export const useHydro = () => {
-  const context = useContext(HydroContext);
-  if (context === undefined) {
-    throw new Error('useHydro must be used within a HydroProvider');
-  }
-  return context;
-};
+export const HydroContext = createContext<HydroContextType>({
+  projects: [],
+  devices: [],
+  pins: [],
+  selectedDeviceId: null,
+  availablePinNumbers: [],
+  signalTypes: ['general', 'pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light'],
+  dataTypes: ['analog', 'digital', 'boolean', 'string', 'float', 'integer'],
+  pinModes: ['input', 'output'],
+  labels: [],
+  hasLabelColumn: false,
+  tablesChecked: false,
+  
+  createProject: () => Promise.resolve(),
+  updateProject: () => Promise.resolve(),
+  deleteProject: () => Promise.resolve(),
+  
+  createDevice: () => Promise.resolve(),
+  updateDevice: () => Promise.resolve(),
+  deleteDevice: () => Promise.resolve(),
+  
+  createPin: () => Promise.resolve(),
+  updatePin: () => Promise.resolve(),
+  deletePin: () => Promise.resolve(),
+  togglePinValue: () => Promise.resolve(),
+  
+  getDevicesByProject: () => [],
+  getPinsByDevice: () => [],
+  
+  setSelectedDeviceId: () => {},
+  updateAvailablePinOptions: () => Promise.resolve(),
+  
+  setProjects: () => {},
+  setDevices: () => {},
+  setPins: () => {},
+});
 
 export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, refreshSession } = useAuth();
@@ -126,13 +126,11 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [projects, setProjects] = useState<Project[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
   const [pins, setPins] = useState<Pin[]>([]);
-  const [pinOptions, setPinOptions] = useState<PinOption[]>([]);
-  const [availablePinOptions, setAvailablePinOptions] = useState<PinOption[]>([]);
-  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [dataTypes, setDataTypes] = useState<string[]>([]);
-  const [signalTypes, setSignalTypes] = useState<SignalType[]>([]);
-  const [pinModes, setPinModes] = useState<('input' | 'output')[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
+  const [availablePinNumbers, setAvailablePinNumbers] = useState<number[]>([]);
+  const [signalTypes, setSignalTypes] = useState<string[]>(['general', 'pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light']);
+  const [dataTypes, setDataTypes] = useState<string[]>(['analog', 'digital', 'boolean', 'string', 'float', 'integer']);
+  const [pinModes, setPinModes] = useState<string[]>(['input', 'output']);
   const [labels, setLabels] = useState<string[]>([]);
   const [hasLabelColumn, setHasLabelColumn] = useState<boolean>(false);
   const [tablesChecked, setTablesChecked] = useState<boolean>(false);
@@ -141,1069 +139,381 @@ export const HydroProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   useEffect(() => {
     const checkTables = async () => {
       try {
-        const tablesExist = await withSessionRefresh(async () => checkTablesExist());
-        if (!tablesExist) {
-          toast({
-            title: "Database Error",
-            description: "Database tables not set up. Please run the setup script.",
-            variant: "destructive",
-          });
-        }
+        const tablesToCheck = ['projects', 'devices', 'pins', 'pin_history'];
+        const result = await withSessionRefresh(() => checkTablesExist());
         
-        const labelColumnExists = await withSessionRefresh(async () => checkLabelColumnExists());
-        setHasLabelColumn(!!labelColumnExists);
-        setTablesChecked(true);
+        if (result) {
+          console.log('Tables exist');
+          setTablesChecked(true);
+          
+          try {
+            const hasLabelCol = await withSessionRefresh(() => checkLabelColumnExists());
+            setHasLabelColumn(hasLabelCol || false);
+            
+            if (hasLabelCol) {
+              try {
+                const fetchedLabels = await withSessionRefresh(() => getAvailableLabels());
+                setLabels(fetchedLabels || []);
+              } catch (error) {
+                console.error('Error fetching labels:', error);
+              }
+            }
+          } catch (error) {
+            console.error('Error checking label column:', error);
+          }
+        } else {
+          console.log('Tables do not exist');
+          setTablesChecked(false);
+        }
       } catch (error) {
         console.error('Error checking tables:', error);
-        toast({
-          title: "Connection Error",
-          description: "Failed to connect to the database. Please check your internet connection.",
-          variant: "destructive",
-        });
-        setTablesChecked(true);
       }
     };
     
     checkTables();
   }, [toast, withSessionRefresh]);
 
-  const updateAvailablePinOptions = () => {
-    if (!selectedDevice) {
-      const usedPinNumbers = pins.map(pin => pin.pinNumber);
-      const filteredOptions = pinOptions.filter(option => 
-        !usedPinNumbers.includes(option.pinNumber)
+  const updateAvailablePinOptions = async (deviceId: string) => {
+    try {
+      const usedPinNumbers = pins
+        .filter((pin) => pin.deviceId === deviceId)
+        .map((pin) => pin.pinNumber);
+      
+      // Assuming pin numbers can range from 0 to 35 (adjust as necessary)
+      const allPossiblePinNumbers = Array.from({ length: 36 }, (_, i) => i);
+      
+      const availablePinOptions = allPossiblePinNumbers.filter(
+        (pinNumber) => !usedPinNumbers.includes(pinNumber)
       );
-      setAvailablePinOptions(filteredOptions);
-      return;
-    }
-    
-    const usedPinNumbers = pins.map(pin => pin.pinNumber);
-    const availablePins = pinOptions.filter(option => 
-      !usedPinNumbers.includes(option.pinNumber)
-    );
-    
-    setAvailablePinOptions(availablePins);
-  };
-
-  const fetchProjects = async () => {
-    if (!user) return;
-    
-    try {
-      const tableExists = await withSessionRefresh(async () => checkIfTableExists('projects'));
-      if (!tableExists) {
-        console.warn('Projects table does not exist yet');
-        return;
-      }
       
-      const result = await withSessionRefresh(async () => {
-        const response = await supabase
-          .from('projects')
-          .select('*')
-          .order('created_at', { ascending: false });
-        return response;
-      });
-      
-      if (!result) return;
-      const { data, error } = result;
-      
-      if (error) throw error;
-      
-      setProjects((data || []).map(project => ({
-        id: project.id,
-        name: project.project_name,
-        description: project.description || '',
-        userId: project.user_id,
-        createdAt: project.created_at
-      })));
+      setAvailablePinNumbers(availablePinOptions);
     } catch (error) {
-      console.error('Error fetching projects:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load projects",
-        variant: "destructive",
-      });
+      console.error("Error updating available pin options:", error);
     }
   };
 
-  const fetchDevices = async () => {
-    if (!user) return;
-    
+  const createProject = async (project: Omit<Project, 'id' | 'createdAt' | 'updatedAt' | 'userId'>): Promise<void> => {
     try {
-      const tableExists = await withSessionRefresh(async () => checkIfTableExists('devices'));
-      if (!tableExists) {
-        console.warn('Devices table does not exist yet');
-        return;
-      }
-      
-      const projectsExist = await withSessionRefresh(async () => checkIfTableExists('projects'));
-      if (!projectsExist) {
-        console.warn('Projects table does not exist yet');
-        return;
-      }
-      
-      const result = await withSessionRefresh(async () => {
-        const response = await supabase
-          .from('devices')
-          .select('*, projects!inner(user_id)')
-          .eq('projects.user_id', user.id)
-          .order('created_at', { ascending: false });
-        return response;
-      });
-      
-      if (!result) return;
-      const { data, error } = result;
-      
-      if (error) throw error;
-      
-      setDevices((data || []).map(device => {
-        return {
-          id: device.id,
-          name: device.device_name,
-          description: device.description || '',
-          projectId: device.project_id,
-          type: device.device_type,
-          isConnected: device.is_connected,
-          lastSeen: device.last_seen,
-          createdAt: device.created_at,
-          wifiConfig: undefined
-        };
-      }));
-    } catch (error) {
-      console.error('Error fetching devices:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load devices",
-        variant: "destructive",
-      });
-    }
-  };
+      if (!user) throw new Error("User not authenticated");
 
-  const fetchPins = async () => {
-    if (!user) return;
-    
-    try {
-      const tablesExist = await checkTablesExist();
-      if (!tablesExist) {
-        console.warn('Required tables do not exist yet');
-        return;
-      }
-      
-      const configs = await fetchPinConfigsWithRelations(user.id);
-      
-      if (!configs || configs.length === 0) {
-        setPins([]);
-        return;
-      }
-      
-      setPins(configs.map(config => ({
-        id: config.id,
-        deviceId: config.device_id,
-        pinNumber: config.pin_number,
-        dataType: config.data_type_name,
-        signalType: config.signal_type_name as SignalType,
-        mode: config.mode_type as 'input' | 'output',
-        name: config.name,
-        unit: config.unit || '',
-        label: config.label_name || '',
-        value: config.value || '',
-        lastUpdated: config.last_updated || ''
-      })));
-      
-    } catch (error) {
-      console.error('Error fetching pins:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load pin configurations",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const fetchPinOptions = async () => {
-    try {
-      const tableExists = await checkIfTableExists('pins');
-      if (!tableExists) {
-        console.warn('Pins table does not exist yet');
-        return;
-      }
-      
-      const { data, error } = await supabase
-        .from('pins')
-        .select('*')
-        .order('pin_number', { ascending: true });
-      
-      if (error) throw error;
-      
-      setPinOptions(data.map(pin => ({
-        id: pin.id,
-        name: pin.pin_name,
-        pinNumber: pin.pin_number
-      })));
-    } catch (error) {
-      console.error('Error fetching pin options:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load pin options",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const fetchDataTypes = async () => {
-    try {
-      const types = await fetchDataTypesFromDB();
-      if (types && types.length > 0) {
-        setDataTypes(types);
-      } else {
-        setDataTypes(['integer', 'float', 'boolean', 'string', 'analog', 'digital']);
-      }
-    } catch (error) {
-      console.error('Error fetching data types:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load data types",
-        variant: "destructive",
-      });
-      setDataTypes(['integer', 'float', 'boolean', 'string', 'analog', 'digital']);
-    }
-  };
-
-  const fetchSignalTypes = async () => {
-    try {
-      const types = await fetchSignalTypesFromDB();
-      if (types && types.length > 0) {
-        setSignalTypes(types as SignalType[]);
-      } else {
-        setSignalTypes(['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'analog', 'digital', 'custom']);
-      }
-    } catch (error) {
-      console.error('Error fetching signal types:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load signal types",
-        variant: "destructive",
-      });
-      setSignalTypes(['pH', 'temperature', 'humidity', 'water-level', 'nutrient', 'light', 'analog', 'digital', 'custom']);
-    }
-  };
-
-  const fetchPinModes = async () => {
-    try {
-      const modes = await fetchModesFromDB();
-      if (modes && modes.length > 0) {
-        setPinModes(modes as ('input' | 'output')[]);
-      } else {
-        setPinModes(['input', 'output']);
-      }
-    } catch (error) {
-      console.error('Error fetching pin modes:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load pin modes",
-        variant: "destructive",
-      });
-      setPinModes(['input', 'output']);
-    }
-  };
-
-  const fetchLabels = async () => {
-    try {
-      const labels = await fetchLabelsFromDatabase();
-      setLabels(labels);
-    } catch (error) {
-      console.error('Error in fetchLabels:', error);
-      toast({
-        title: "Data Error",
-        description: "Failed to load labels",
-        variant: "destructive",
-      });
-      setLabels(getDefaultLabels());
-    }
-  };
-
-  const createProject = async (name: string, description: string): Promise<Project> => {
-    if (!user) throw new Error('User must be logged in to create a project');
-
-    try {
-      const profileExists = await ensureProfileExists(user.id);
-      if (!profileExists) {
-        throw new Error('Failed to ensure user profile exists');
-      }
-      
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('profile_id')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      
-      if (profileError) {
-        console.error('Error fetching profile:', profileError);
-        throw new Error('Failed to fetch user profile');
-      }
-      
-      if (!profileData) {
-        console.error('No profile found for user, attempting to create one');
-        
-        const createSuccess = await ensureProfileExists(user.id);
-        if (!createSuccess) {
-          throw new Error('Failed to create user profile');
-        }
-        
-        const { data: newProfileData, error: newProfileError } = await supabase
-          .from('profiles')
-          .select('profile_id')
-          .eq('user_id', user.id)
-          .maybeSingle();
-          
-        if (newProfileError || !newProfileData) {
-          console.error('Error fetching newly created profile:', newProfileError);
-          throw new Error('Failed to fetch newly created profile');
-        }
-        
-        const { data, error } = await supabase
-          .from('projects')
-          .insert([{
-            project_name: name,
-            description,
-            user_id: user.id,
-            profile_id: newProfileData.profile_id
-          }])
-          .select()
-          .single();
-        
-        if (error) throw error;
-        
-        const newProject: Project = {
-          id: data.id,
-          name: data.project_name,
-          description: data.description || '',
-          userId: data.user_id,
-          createdAt: data.created_at
-        };
-        
-        setProjects(prev => [newProject, ...prev]);
-        toast({
-          title: "Success",
-          description: "Project created successfully!",
-        });
-        return newProject;
-      }
-      
       const { data, error } = await supabase
         .from('projects')
-        .insert([{
-          project_name: name,
-          description,
-          user_id: user.id,
-          profile_id: profileData.profile_id
-        }])
+        .insert([{ ...project, userId: user.id }])
         .select()
         .single();
-      
+
       if (error) throw error;
-      
-      const newProject: Project = {
-        id: data.id,
-        name: data.project_name,
-        description: data.description || '',
-        userId: data.user_id,
-        createdAt: data.created_at
-      };
-      
-      setProjects(prev => [newProject, ...prev]);
-      toast({
-        title: "Success",
-        description: "Project created successfully!",
-      });
-      return newProject;
+
+      setProjects((prevProjects) => [...prevProjects, data]);
     } catch (error) {
-      console.error('Error creating project:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create project",
-        variant: "destructive",
-      });
+      console.error("Error creating project:", error);
       throw error;
     }
   };
 
-  const createDevice = async (
-    name: string, 
-    description: string, 
-    projectId: string, 
-    type: string
-  ): Promise<Device> => {
+  const updateProject = async (projectId: string, updates: Partial<Project>): Promise<void> => {
     try {
-      const { data, error } = await supabase
-        .from('devices')
-        .insert([{
-          device_name: name,
-          description,
-          project_id: projectId,
-          device_type: type,
-          status: 'ACTIVE'
-        }])
-        .select()
-        .single();
-      
-      if (error) throw error;
-      
-      const newDevice: Device = {
-        id: data.id,
-        name: data.device_name,
-        description: data.description || '',
-        projectId: data.project_id,
-        type: data.device_type,
-        isConnected: data.is_connected,
-        lastSeen: data.last_seen,
-        createdAt: data.created_at
-      };
-      
-      setDevices(prev => [newDevice, ...prev]);
-      toast({
-        title: "Success",
-        description: "Device created successfully!",
-      });
-      return newDevice;
-    } catch (error) {
-      console.error('Error creating device:', error);
-      toast({
-        title: "Error",
-        description: "Failed to create device",
-        variant: "destructive",
-      });
-      throw error;
-    }
-  };
-
-  const configurePin = async (
-    deviceId: string, 
-    pinId: string, 
-    dataType: string, 
-    signalType: SignalType, 
-    mode: 'input' | 'output',
-    name: string,
-    label?: string
-  ): Promise<Pin> => {
-    try {
-      console.log("Configuring pin with values:", { deviceId, pinId, dataType, signalType, mode, name, label });
-      
-      const tablesExist = await checkTablesExist();
-      if (!tablesExist) {
-        toast.error('Pin configs table does not exist yet. Please run the setup script.');
-        throw new Error('Pin configs table does not exist');
-      }
-      
-      const selectedPin = pinOptions.find(p => p.id === pinId);
-      if (!selectedPin) {
-        console.error('Selected pin not found:', pinId);
-        throw new Error('Selected pin not found');
-      }
-      
-      const pinNumber = selectedPin.pinNumber;
-      
-      const existingPin = pins.find(p => p.deviceId === deviceId && p.pinNumber === pinNumber);
-      
-      console.log("Looking up data type ID for:", dataType);
-      const dataTypeId = await findDataTypeIdByName(dataType);
-      console.log("Data type ID result:", dataTypeId);
-      
-      console.log("Looking up signal type ID for:", signalType);
-      const signalTypeId = await findSignalTypeIdByName(signalType);
-      console.log("Signal type ID result:", signalTypeId);
-      
-      console.log("Looking up mode ID for:", mode);
-      const modeId = await findModeIdByType(mode);
-      console.log("Mode ID result:", modeId);
-      
-      let labelId = null;
-      if (label) {
-        console.log("Looking up label ID for:", label);
-        labelId = await findLabelIdByName(label);
-        console.log("Label ID result:", labelId);
-      }
-      
-      if (!dataTypeId || !signalTypeId || !modeId) {
-        console.error("Missing reference IDs:", { dataTypeId, signalTypeId, modeId });
-        throw new Error('Failed to get required reference IDs');
-      }
-      
-      let pinData;
-      
-      const pinConfigData = {
-        device_id: deviceId,
-        pin_id: pinId,
-        data_type_id: dataTypeId,
-        signal_type_id: signalTypeId,
-        mode_id: modeId,
-        label_id: labelId,
-        name,
-        unit: ""
-      };
-      
-      console.log("Pin config data being saved:", pinConfigData);
-      
-      if (existingPin) {
-        const { data, error } = await supabase
-          .from('pin_configs')
-          .update(pinConfigData)
-          .eq('id', existingPin.id)
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('Error updating pin:', error);
-          throw error;
-        }
-        
-        pinData = data;
-        toast.success('Pin updated successfully!');
-      } else {
-        const { data, error } = await supabase
-          .from('pin_configs')
-          .insert([pinConfigData])
-          .select()
-          .single();
-        
-        if (error) {
-          console.error('Error inserting pin:', error);
-          throw error;
-        }
-        
-        pinData = data;
-        toast.success('Pin configured successfully!');
-      }
-      
-      const newPin: Pin = {
-        id: pinData.id,
-        deviceId: pinData.device_id,
-        pinNumber: selectedPin.pinNumber,
-        dataType: dataType,
-        signalType: signalType,
-        mode: mode,
-        name: pinData.name,
-        label: label || '',
-        unit: pinData.unit || '',
-        value: '',
-        lastUpdated: ''
-      };
-      
-      setPins(prev => prev.map(p => p.id === newPin.id ? newPin : p));
-      updateAvailablePinOptions();
-      
-      return newPin;
-    } catch (error) {
-      console.error('Error configuring pin:', error);
-      toast.error('Failed to configure pin');
-      throw error;
-    }
-  };
-
-  const selectProject = (project: Project | null) => {
-    setSelectedProject(project);
-    if (project && selectedDevice && selectedDevice.projectId !== project.id) {
-      setSelectedDevice(null);
-    }
-  };
-
-  const selectDevice = (device: Device | null) => {
-    setSelectedDevice(device);
-  };
-
-  const getDevicesByProject = (projectId: string): Device[] => {
-    return devices.filter(device => device.projectId === projectId);
-  };
-
-  const getPinsByDevice = (deviceId: string): Pin[] => {
-    return pins.filter(pin => pin.deviceId === deviceId);
-  };
-
-  const updateDeviceConnection = async (deviceId: string, isConnected: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('devices')
-        .update({ 
-          is_connected: isConnected,
-          last_seen: isConnected ? new Date().toISOString() : undefined
-        })
-        .eq('id', deviceId);
-      
-      if (error) throw error;
-      
-      setDevices(prev => 
-        prev.map(device => 
-          device.id === deviceId 
-            ? { ...device, isConnected, lastSeen: isConnected ? new Date().toISOString() : device.lastSeen } 
-            : device
-        )
-      );
-    } catch (error) {
-      console.error('Error updating device connection:', error);
-      toast.error('Failed to update device connection status');
-    }
-  };
-
-  const updatePinValue = async (pinId: string, value: string) => {
-    try {
-      const { error } = await supabase
-        .from('pin_data')
-        .insert([{
-          pin_config_id: pinId,
-          value
-        }]);
-      
-      if (error) throw error;
-      
-      setPins(prev => 
-        prev.map(pin => 
-          pin.id === pinId 
-            ? { ...pin, value, lastUpdated: new Date().toISOString() } 
-            : pin
-        )
-      );
-    } catch (error) {
-      console.error('Error updating pin value:', error);
-      toast.error('Failed to update pin value');
-    }
-  };
-
-  const generateDeviceCode = (deviceId: string): string => {
-    const device = devices.find(d => d.id === deviceId);
-    if (!device) throw new Error('Device not found');
-    
-    const devicePins = pins.filter(p => p.deviceId === deviceId);
-    
-    const wifiSSID = device.wifiConfig?.wifiSSID || "YOUR_WIFI_SSID";
-    const wifiPassword = device.wifiConfig?.wifiPassword || "YOUR_WIFI_PASSWORD";
-    
-    return `
-// Hydroprojector Auto-generated code for ${device.name}
-// Device ID: ${device.id}
-
-#include <WiFi.h>
-#include <HTTPClient.h>
-#include <ArduinoJson.h>
-
-// Wi-Fi credentials
-const char* ssid = "${wifiSSID}";
-const char* password = "${wifiPassword}";
-
-// Device identifier
-const char* deviceId = "${device.id}";
-
-// API endpoint (replace with your actual endpoint in production)
-const char* apiEndpoint = "https://azgxttbpxelnlemnvenl.supabase.co/rest/v1/pin_data";
-const char* supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImF6Z3h0dGJweGVsbmxlbW52ZW5sIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE2OTA5NzAsImV4cCI6MjA1NzI2Njk3MH0.Q5Niw0hZItt4KM-THiCOt9b4g7eDHsH5Wg4PoZ83m8U";
-
-// Function prototypes
-void setupWiFi();
-void sendSensorData();
-${devicePins.map(pin => 
-  `void setup${pin.name.replace(/\s+/g, '')}();
-void read${pin.name.replace(/\s+/g, '')}();`
-).join('\n')}
-
-void setup() {
-  Serial.begin(115200);
-  setupWiFi();
-  
-  // Setup pins
-${devicePins.map(pin => 
-  `  // Setup for ${pin.name} (${pin.signalType}) on pin ${pin.pinNumber}
-  pinMode(${pin.pinNumber}, ${pin.mode === 'input' ? 'INPUT' : 'OUTPUT'});`
-).join('\n')}
-}
-
-void loop() {
-  // Read sensors and send data
-${devicePins.filter(p => p.mode === 'input').map(pin => 
-  `  read${pin.name.replace(/\s+/g, '')}();`
-).join('\n')}
-  
-  // Send data to server
-  sendSensorData();
-  
-  // Wait before next reading
-  delay(10000);  // 10 seconds
-}
-
-void setupWiFi() {
-  Serial.println("Connecting to WiFi...");
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  
-  Serial.println("");
-  Serial.println("WiFi connected");
-  Serial.println("IP address: ");
-  Serial.println(WiFi.localIP());
-}
-
-void sendSensorData() {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(apiEndpoint);
-    http.addHeader("Content-Type", "application/json");
-    http.addHeader("apikey", supabaseKey);
-    http.addHeader("Prefer", "return=minimal");
-    
-    // Create JSON document
-    StaticJsonDocument<1024> doc;
-    
-    // Add sensor readings
-${devicePins.filter(p => p.mode === 'input').map(pin => {
-  const readFunction = pin.dataType === 'float' ? 
-    `(float)analogRead(${pin.pinNumber}) / 4095.0 * 3.3` : 
-    `${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber})`;
-      
-  return `    // Send ${pin.name} data
-    {
-      JsonDocument pinData;
-      pinData["pin_config_id"] = "${pin.id}";
-      pinData["value"] = String(${readFunction});
-      
-      String jsonStr;
-      serializeJson(pinData, jsonStr);
-      
-      http.begin(apiEndpoint);
-      http.addHeader("Content-Type", "application/json");
-      http.addHeader("apikey", supabaseKey);
-      http.addHeader("Prefer", "return=minimal");
-      
-      int httpResponseCode = http.POST(jsonStr);
-      if (httpResponseCode > 0) {
-        Serial.print("${pin.name} data sent. HTTP Response code: ");
-        Serial.println(httpResponseCode);
-      }
-      else {
-        Serial.print("Error sending ${pin.name} data. HTTP Response code: ");
-        Serial.println(httpResponseCode);
-      }
-      
-      http.end();
-    }`;
-}).join('\n\n')}
-  }
-}
-
-${devicePins.map(pin => {
-  const readFunction = pin.dataType === 'float' ? 
-    `(float)analogRead(${pin.pinNumber}) / 4095.0 * 3.3` : 
-    `${pin.dataType === 'analog' ? 'analogRead' : 'digitalRead'}(${pin.pinNumber})`;
-  
-  return `
-void read${pin.name.replace(/\s+/g, '')}() {
-  ${pin.dataType === 'float' ? 'float' : 'int'} ${pin.name.replace(/\s+/g, '')}Value = ${readFunction};
-  Serial.print("${pin.name}: ");
-  Serial.println(${pin.name.replace(/\s+/g, '')}Value);
-}`;
-}).join('\n')}
-`;
-  };
-
-  const togglePinValue = async (pinId: string) => {
-    try {
-      const pin = pins.find(p => p.id === pinId);
-      if (!pin) {
-        console.error(`Pin with ID ${pinId} not found`);
-        return;
-      }
-
-      const currentValue = pin.value || '0';
-      const newValue = currentValue === '1' ? '0' : '1';
-
-      const { error } = await supabase
-        .from('pin_configs')
-        .update({ value: newValue })
-        .eq('id', pinId);
-
-      if (error) {
-        console.error('Error updating pin value:', error);
-        throw error;
-      }
-
-      const { error: historyError } = await supabase
-        .from('pin_data')
-        .insert({
-          pin_config_id: pinId,
-          value: newValue
-        });
-
-      if (historyError) {
-        console.error('Error recording pin history:', historyError);
-      }
-
-      setPins(pins.map(p => 
-        p.id === pinId ? { ...p, value: newValue } : p
-      ));
-
-      return newValue;
-    } catch (error) {
-      console.error('Error in togglePinValue:', error);
-      throw error;
-    }
-  };
-
-  const updateProject = async (projectId: string, updates: Partial<Project>) => {
-    try {
-      const supabaseUpdates: any = {};
-      
-      if (updates.name) supabaseUpdates.project_name = updates.name;
-      if (updates.description !== undefined) supabaseUpdates.description = updates.description;
-      
       const { error } = await supabase
         .from('projects')
-        .update(supabaseUpdates)
+        .update(updates)
         .eq('id', projectId);
-      
+
       if (error) throw error;
-      
-      setProjects(prev => 
-        prev.map(project => 
-          project.id === projectId ? { ...project, ...updates } : project
-        )
+
+      setProjects((prevProjects) =>
+        prevProjects.map((project) => (project.id === projectId ? { ...project, ...updates } : project))
       );
-      
-      toast({
-        title: "Success",
-        description: "Project updated successfully",
-      });
     } catch (error) {
-      console.error('Error updating project:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update project",
-        variant: "destructive",
-      });
+      console.error("Error updating project:", error);
+      throw error;
+    }
+  };
+
+  const deleteProject = async (projectId: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+
+      if (error) throw error;
+
+      setProjects((prevProjects) => prevProjects.filter((project) => project.id !== projectId));
+    } catch (error) {
+      console.error("Error deleting project:", error);
+      throw error;
+    }
+  };
+
+  const createDevice = async (device: Omit<Device, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'isConnected' | 'lastSeen'>): Promise<void> => {
+    try {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from('devices')
+        .insert([{ ...device, userId: user.id }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setDevices((prevDevices) => [...prevDevices, data]);
+    } catch (error) {
+      console.error("Error creating device:", error);
       throw error;
     }
   };
 
   const updateDevice = async (deviceId: string, updates: Partial<Device>): Promise<void> => {
     try {
-      const supabaseUpdates: any = {};
-      
-      if (updates.name) supabaseUpdates.device_name = updates.name;
-      
-      if (updates.description !== undefined) {
-        supabaseUpdates.description = updates.description;
-      }
-      
-      if (updates.isConnected !== undefined) supabaseUpdates.is_connected = updates.isConnected;
-      
       const { error } = await supabase
         .from('devices')
-        .update(supabaseUpdates)
+        .update(updates)
         .eq('id', deviceId);
-      
+
       if (error) throw error;
-      
-      setDevices(prev => 
-        prev.map(device => 
-          device.id === deviceId ? { ...device, ...updates } : device
-        )
+
+      setDevices((prevDevices) =>
+        prevDevices.map((device) => (device.id === deviceId ? { ...device, ...updates } : device))
       );
-      
-      toast({
-        title: "Success",
-        description: "Device updated successfully",
-      });
     } catch (error) {
-      console.error('Error updating device:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update device",
-        variant: "destructive",
-      });
+      console.error("Error updating device:", error);
       throw error;
     }
   };
 
-  const deleteProject = async (projectId: string) => {
-    try {
-      const { error } = await supabase
-        .from('projects')
-        .delete()
-        .eq('id', projectId);
-      
-      if (error) throw error;
-      
-      setProjects(prev => prev.filter(project => project.id !== projectId));
-      toast({
-        title: "Success",
-        description: "Project deleted successfully",
-      });
-    } catch (error) {
-      console.error('Error deleting project:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete project",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const deleteDevice = async (deviceId: string) => {
+  const deleteDevice = async (deviceId: string): Promise<void> => {
     try {
       const { error } = await supabase
         .from('devices')
         .delete()
         .eq('id', deviceId);
-      
+
       if (error) throw error;
-      
-      setDevices(prev => prev.filter(device => device.id !== deviceId));
-      toast({
-        title: "Success",
-        description: "Device deleted successfully",
-      });
+
+      setDevices((prevDevices) => prevDevices.filter((device) => device.id !== deviceId));
     } catch (error) {
-      console.error('Error deleting device:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete device",
-        variant: "destructive",
-      });
+      console.error("Error deleting device:", error);
+      throw error;
     }
   };
 
-  const deletePin = async (pinId: string) => {
+  const createPin = async (pin: Omit<Pin, 'id' | 'createdAt' | 'updatedAt' | 'userId' | 'value' | 'unit'>): Promise<void> => {
+    try {
+      if (!user) throw new Error("User not authenticated");
+
+      const { data, error } = await supabase
+        .from('pins')
+        .insert([{ ...pin, userId: user.id }])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setPins((prevPins) => [...prevPins, data]);
+    } catch (error) {
+      console.error("Error creating pin:", error);
+      throw error;
+    }
+  };
+
+  const updatePin = async (pinId: string, updates: Partial<Pin>): Promise<void> => {
     try {
       const { error } = await supabase
-        .from('pin_configs')
-        .delete()
+        .from('pins')
+        .update(updates)
         .eq('id', pinId);
-      
+
       if (error) throw error;
-      
-      setPins(prev => prev.filter(pin => pin.id !== pinId));
-      toast({
-        title: "Success",
-        description: "Pin deleted successfully",
-      });
+
+      setPins((prevPins) =>
+        prevPins.map((pin) => (pin.id === pinId ? { ...pin, ...updates } : pin))
+      );
+
+      return Promise.resolve();
     } catch (error) {
-      console.error('Error deleting pin:', error);
-      toast({
-        title: "Error",
-        description: "Failed to delete pin",
-        variant: "destructive",
-      });
+      console.error('Error updating pin:', error);
+      throw error;
     }
   };
 
-  const updatePin = (pinId: string, updates: Partial<Pin>): Promise<void> => {
-    return new Promise<void>((resolve, reject) => {
-      supabase
-        .from('pin_configs')
-        .update(updates)
-        .eq('id', pinId)
-        .then(({ error }) => {
-          if (error) {
-            console.error('Error updating pin:', error);
-            toast({
-              title: "Error",
-              description: "Failed to update pin",
-              variant: "destructive",
-            });
-            reject(error);
-            return;
-          }
-          
-          setPins(prev => prev.map(pin => 
-            pin.id === pinId ? { ...pin, ...updates } : pin
-          ));
-          
-          toast({
-            title: "Success",
-            description: "Pin updated successfully",
-          });
-          
-          resolve();
-        })
-        .catch((error) => {
-          console.error('Error updating pin:', error);
-          toast({
-            title: "Error",
-            description: "Failed to update pin",
-            variant: "destructive",
-          });
-          reject(error);
-        });
-    });
+  const deletePin = async (pinId: string): Promise<void> => {
+    try {
+      const { error } = await supabase
+        .from('pins')
+        .delete()
+        .eq('id', pinId);
+
+      if (error) throw error;
+
+      setPins((prevPins) => prevPins.filter((pin) => pin.id !== pinId));
+    } catch (error) {
+      console.error("Error deleting pin:", error);
+      throw error;
+    }
+  };
+  
+  const togglePinValue = async (pinId: string): Promise<void> => {
+    try {
+      const pin = pins.find(p => p.id === pinId);
+      if (!pin) throw new Error("Pin not found");
+      
+      const newValue = pin.value === '1' ? '0' : '1';
+      
+      const { error } = await supabase
+        .from('pins')
+        .update({ value: newValue })
+        .eq('id', pinId);
+        
+      if (error) throw error;
+      
+      setPins(prevPins => 
+        prevPins.map(p => (p.id === pinId ? { ...p, value: newValue } : p))
+      );
+    } catch (error) {
+      console.error("Error toggling pin value:", error);
+      throw error;
+    }
+  };
+
+  const getDevicesByProject = (projectId: string): Device[] => {
+    return devices.filter((device) => device.projectId === projectId);
+  };
+
+  const getPinsByDevice = (deviceId: string): Pin[] => {
+    return pins.filter((pin) => pin.deviceId === deviceId);
   };
 
   useEffect(() => {
+    if (selectedDeviceId) {
+      updateAvailablePinOptions(selectedDeviceId);
+    }
+  }, [selectedDeviceId, pins]);
+  
+  useEffect(() => {
+    const handleRealtimeChanges = () => {
+      supabase
+        .channel('any')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'devices' },
+          (payload) => {
+            if (payload.eventType === 'UPDATE') {
+              const updatedDevice = payload.new as Device;
+              setDevices((prevDevices) =>
+                prevDevices.map((device) =>
+                  device.id === updatedDevice.id ? updatedDevice : device
+                )
+              );
+            }
+          }
+        )
+        .subscribe()
+    }
+    handleRealtimeChanges()
+  }, [])
+
+  useEffect(() => {
+    if (!user) {
+      setProjects([]);
+      setDevices([]);
+      setPins([]);
+      return;
+    }
+
     const fetchInitialData = async () => {
-      if (user) {
-        try {
-          // Wrap all fetch operations with token refresh capability
-          await withSessionRefresh(fetchProjects);
-          await withSessionRefresh(fetchDevices);
-          await withSessionRefresh(fetchPins);
-          await withSessionRefresh(fetchPinOptions);
-          await withSessionRefresh(fetchDataTypes);
-          await withSessionRefresh(fetchSignalTypes);
-          await withSessionRefresh(fetchPinModes);
-          await withSessionRefresh(fetchLabels);
-        } catch (error) {
-          console.error("Error fetching initial data:", error);
-          toast({
-            title: "Data Loading Error",
-            description: "Failed to load some data. Please refresh the page.",
-            variant: "destructive",
-          });
-        }
+      try {
+        // Fetch projects
+        const { data: projectsData, error: projectsError } = await withSessionRefresh(() =>
+          supabase
+            .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false })
+        ) as { data: Project[] | null, error: any };
+
+        if (projectsError) throw projectsError;
+        setProjects(projectsData || []);
+
+        // Fetch devices
+        const { data: devicesData, error: devicesError } = await withSessionRefresh(() =>
+          supabase
+            .from('devices')
+            .select('*')
+            .order('created_at', { ascending: false })
+        ) as { data: Device[] | null, error: any };
+
+        if (devicesError) throw devicesError;
+        setDevices(devicesData || []);
+
+        // Fetch pins
+        const { data: pinsData, error: pinsError } = await withSessionRefresh(() =>
+          supabase
+            .from('pins')
+            .select('*')
+            .order('created_at', { ascending: false })
+        ) as { data: Pin[] | null, error: any };
+
+        if (pinsError) throw pinsError;
+        setPins(pinsData || []);
+        
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
       }
     };
     
     fetchInitialData();
   }, [user, withSessionRefresh]);
-
-  useEffect(() => {
-    updateAvailablePinOptions();
-  }, [selectedDevice, pins, pinOptions]);
-
+  
+  const contextValue: HydroContextType = {
+    projects,
+    devices,
+    pins,
+    selectedDeviceId,
+    availablePinNumbers,
+    signalTypes,
+    dataTypes,
+    pinModes,
+    labels,
+    hasLabelColumn,
+    tablesChecked,
+    
+    createProject,
+    updateProject,
+    deleteProject,
+    
+    createDevice,
+    updateDevice,
+    deleteDevice,
+    
+    createPin,
+    updatePin,
+    deletePin,
+    togglePinValue,
+    
+    getDevicesByProject,
+    getPinsByDevice,
+    
+    setSelectedDeviceId,
+    updateAvailablePinOptions,
+    
+    setProjects,
+    setDevices,
+    setPins,
+  };
+  
   return (
     <HydroContext.Provider
-      value={{
-        projects,
-        devices,
-        pins,
-        pinOptions,
-        selectedProject,
-        selectedDevice,
-        createProject,
-        createDevice,
-        configurePin,
-        selectProject,
-        selectDevice,
-        getDevicesByProject,
-        getPinsByDevice,
-        updateDeviceConnection,
-        updatePinValue,
-        generateDeviceCode,
-        dataTypes,
-        signalTypes,
-        pinModes,
-        labels,
-        fetchLabels,
-        fetchDataTypes,
-        fetchSignalTypes,
-        fetchPinModes,
-        fetchPinOptions,
-        updateProject,
-        updateDevice,
-        deleteProject,
-        deleteDevice,
-        deletePin,
-        togglePinValue,
-        updatePin,
-      }}
+      value={contextValue}
     >
       {children}
     </HydroContext.Provider>
   );
+};
+
+export const useHydro = () => {
+  const context = useContext(HydroContext);
+  if (context === undefined) {
+    throw new Error('useHydro must be used within a HydroProvider');
+  }
+  return context;
 };

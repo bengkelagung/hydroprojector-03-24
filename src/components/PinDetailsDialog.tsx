@@ -1,10 +1,11 @@
+
 import React, { useState, useEffect } from 'react';
 import { Pin, useHydro } from '@/contexts/HydroContext';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Pencil, Trash2, Save, X, History, LineChart } from 'lucide-react';
+import { Pencil, Trash2, Save, X, History } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -27,9 +28,9 @@ import {
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { checkTablesExist } from '@/integrations/supabase/client';
-import { fetchPinHistory, PinHistoryEntry, formatPinHistoryForRecharts } from '@/utils/pin-history';
+import { fetchPinHistory, PinHistoryEntry } from '@/utils/pin-history';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import PinHistoryChart from '@/components/PinHistoryChart';
+import { Link } from 'react-router-dom';
 
 interface PinDetailsDialogProps {
   open: boolean;
@@ -176,7 +177,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
   const colorClass = getSignalColor(pin.signalType);
   
   const isDigital = pin.dataType === 'digital' || pin.dataType === 'boolean';
-  const chartData = formatPinHistoryForRecharts(pinHistory, isDigital, pin.name);
   
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -380,6 +380,19 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                       </div>
                     </CardContent>
                   </Card>
+                  
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-base">Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Link to="/charts">
+                        <Button variant="outline" className="w-full">
+                          View Charts
+                        </Button>
+                      </Link>
+                    </CardContent>
+                  </Card>
                 </div>
               )}
             </TabsContent>
@@ -402,28 +415,6 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                       <SelectItem value="month">Last Month</SelectItem>
                     </SelectContent>
                   </Select>
-                </div>
-                
-                <div className="mb-6">
-                  <h4 className="text-sm font-medium mb-2 flex items-center">
-                    <LineChart className="h-4 w-4 mr-1" />
-                    Data Visualization
-                  </h4>
-                  <div className="border rounded-lg overflow-hidden p-2">
-                    {pinHistory.length === 0 ? (
-                      <div className="text-center py-8 bg-gray-50 rounded-lg">
-                        <LineChart className="h-12 w-12 text-gray-300 mx-auto mb-2" />
-                        <p className="text-gray-500">No chart data available</p>
-                      </div>
-                    ) : (
-                      <PinHistoryChart 
-                        historyData={chartData} 
-                        dataKey={pin.name} 
-                        isDigital={isDigital}
-                        color={getSignalColor(pin.signalType).replace('bg-', 'text-')}
-                      />
-                    )}
-                  </div>
                 </div>
                 
                 <div>
@@ -468,6 +459,15 @@ const PinDetailsDialog = ({ open, onOpenChange, pin }: PinDetailsDialogProps) =>
                       </div>
                     </div>
                   )}
+                </div>
+                
+                <div className="flex justify-center mt-4">
+                  <Link to="/charts">
+                    <Button variant="outline">
+                      <History className="mr-2 h-4 w-4" />
+                      View All Charts
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </TabsContent>
