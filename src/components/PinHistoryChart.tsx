@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { ChartContainer, ChartTooltip } from '@/components/ui/chart';
 import { ChartDataPoint } from '@/utils/pin-history';
 
@@ -12,7 +12,7 @@ interface PinHistoryChartProps {
 }
 
 /**
- * Chart component to visualize pin history data with optimized performance
+ * Chart component to visualize pin history data with extreme optimizations for performance
  */
 const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   historyData,
@@ -20,64 +20,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   isDigital = false,
   color = '#3b82f6'
 }) => {
-  // Process data immediately without useMemo to avoid reference errors
-  const processData = (inputData: ChartDataPoint[]): ChartDataPoint[] => {
-    if (!inputData || inputData.length === 0) return [];
-    
-    // Extreme data reduction for large datasets
-    const maxDataPoints = 20; // Reduced further from 30
-    let dataToUse = inputData;
-    
-    if (inputData.length > maxDataPoints) {
-      const interval = Math.ceil(inputData.length / maxDataPoints);
-      const sampledData: ChartDataPoint[] = [];
-      
-      // Take first point
-      sampledData.push(inputData[0]);
-      
-      // Sample middle points evenly
-      for (let i = interval; i < inputData.length - interval; i += interval) {
-        sampledData.push(inputData[i]);
-      }
-      
-      // Take last point
-      if (inputData.length > 1) {
-        sampledData.push(inputData[inputData.length - 1]);
-      }
-      
-      dataToUse = sampledData;
-    }
-    
-    // For digital signals, preserve transitions by adding points before and after changes
-    if (isDigital && dataToUse.length > 1) {
-      const transitionPreservingData: ChartDataPoint[] = [dataToUse[0]];
-      
-      for (let i = 1; i < dataToUse.length; i++) {
-        const prevValue = dataToUse[i-1].value;
-        const currValue = dataToUse[i].value;
-        
-        // If there's a state change, add both points to preserve the transition
-        if (prevValue !== currValue) {
-          transitionPreservingData.push(dataToUse[i]);
-        } else if (i % 2 === 0) { // Only add every other point for unchanged values
-          transitionPreservingData.push(dataToUse[i]);
-        }
-      }
-      
-      // Ensure last point is included
-      const lastIndex = dataToUse.length - 1;
-      if (transitionPreservingData[transitionPreservingData.length - 1] !== dataToUse[lastIndex]) {
-        transitionPreservingData.push(dataToUse[lastIndex]);
-      }
-      
-      return transitionPreservingData.length > 0 ? transitionPreservingData : dataToUse;
-    }
-    
-    return dataToUse;
-  };
-  
-  const processedData = processData(historyData);
-  
+  // Immediately check for empty data to avoid unnecessary processing
   if (!historyData || historyData.length === 0) {
     return (
       <div className="flex items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
@@ -86,8 +29,54 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
     );
   }
 
-  // If we still have too many data points after processing, show a warning instead of rendering
-  if (processedData.length > 200) {
+  // Process data with extreme optimization
+  const processData = (): ChartDataPoint[] => {
+    // Hard limit on data points - extreme reduction for performance
+    const maxPoints = 15; // Reduced from 20 for even better performance
+    
+    if (historyData.length <= maxPoints) {
+      return historyData;
+    }
+    
+    // For large datasets, use aggressive sampling
+    const sampledData: ChartDataPoint[] = [];
+    
+    // Always include first and last points
+    sampledData.push(historyData[0]);
+    
+    // For digital signals, focus on transitions
+    if (isDigital) {
+      let lastValue = historyData[0].value;
+      
+      // Include points where state changes (with reduced density)
+      for (let i = 1; i < historyData.length - 1; i++) {
+        if (historyData[i].value !== lastValue && sampledData.length < maxPoints - 1) {
+          sampledData.push(historyData[i]);
+          lastValue = historyData[i].value;
+        }
+      }
+    } else {
+      // For analog signals, sample evenly across the range
+      const interval = Math.ceil(historyData.length / (maxPoints - 2));
+      for (let i = interval; i < historyData.length - interval; i += interval) {
+        if (sampledData.length < maxPoints - 1) {
+          sampledData.push(historyData[i]);
+        }
+      }
+    }
+    
+    // Always include last point
+    if (historyData.length > 1) {
+      sampledData.push(historyData[historyData.length - 1]);
+    }
+    
+    return sampledData;
+  };
+  
+  const processedData = processData();
+  
+  // Show a warning for extreme data volume rather than attempting to render
+  if (historyData.length > 500) {
     return (
       <div className="flex flex-col items-center justify-center h-40 bg-gray-50 rounded-lg border border-gray-200">
         <p className="text-amber-600 font-medium">Too much data to display</p>
@@ -108,22 +97,21 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
       <ResponsiveContainer width="100%" height="100%">
         <LineChart 
           data={processedData} 
-          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+          margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
         >
-          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+          <CartesianGrid strokeDasharray="3 3" opacity={0.2} vertical={false} />
           <XAxis 
             dataKey="time" 
-            fontSize={10}
+            fontSize={9}
             tickMargin={5}
             interval="preserveStartEnd"
-            minTickGap={50}
-            tickCount={3}
+            tickCount={2}
           />
           <YAxis 
-            fontSize={10}
+            fontSize={9}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
-            width={35}
+            width={25}
             tickCount={3}
           />
           <Tooltip content={<ChartTooltip />} />
@@ -133,7 +121,7 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
             stroke={color} 
             dot={false}
             isAnimationActive={false}
-            strokeWidth={1}
+            strokeWidth={1.5}
             connectNulls={true}
           />
         </LineChart>

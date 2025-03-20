@@ -552,34 +552,12 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     const startDate = new Date();
     startDate.setHours(startDate.getHours() - hours);
     
-    const startDateStr = startDate.toISOString();
+    // Limit the number of records based on time range to prevent browser freezing
+    // Much more aggressive limits to prevent browser from freezing
+    const maxRecords = hours <= 6 ? 100 : hours <= 24 ? 150 : 200;
     
-    // Determine maximum number of records based on time range
-    const maxRecords = hours <= 6 ? 200 : hours <= 24 ? 500 : 1000;
-    
-    // For long time ranges, use different sampling strategies to improve performance
-    if (hours > 24) {
-      // Since the RPC function isn't defined in types, we'll use the fallback method
-      return await getPinHistoryDataFallback(pinId, startDate, maxRecords);
-    }
-    
-    // Direct query with limit
-    const { data, error } = await supabase
-      .from('pin_data')
-      .select('id, pin_config_id, value, created_at')
-      .eq('pin_config_id', pinId)
-      .gte('created_at', startDateStr)
-      .order('created_at', { ascending: false })
-      .limit(maxRecords);
-      
-    if (error) {
-      console.error('Error fetching pin history data:', error);
-      return [];
-    }
-    
-    // Reverse to get chronological order
-    return data ? data.reverse() : [];
-    
+    // Use the direct query approach for all time ranges
+    return await getPinHistoryDataFallback(pinId, startDate, maxRecords);
   } catch (error) {
     console.error('Error in getPinHistoryData:', error);
     return [];
@@ -591,6 +569,7 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
  */
 const getPinHistoryDataFallback = async (pinId: string, timeAgo: Date, maxRecords: number) => {
   try {
+    // For longer time periods, sample data by increasing the interval between points
     const { data, error } = await supabase
       .from('pin_data')
       .select('id, pin_config_id, value, created_at')
@@ -602,6 +581,29 @@ const getPinHistoryDataFallback = async (pinId: string, timeAgo: Date, maxRecord
     if (error) {
       console.error('Error fetching pin history data:', error);
       return [];
+    }
+    
+    // If we have a very large dataset, sample it to reduce browser load
+    if (data && data.length > 100) {
+      const samplingInterval = Math.ceil(data.length / 100);
+      const sampledData = [];
+      
+      // Always include first point
+      if (data.length > 0) {
+        sampledData.push(data[0]);
+      }
+      
+      // Sample middle points
+      for (let i = samplingInterval; i < data.length - samplingInterval; i += samplingInterval) {
+        sampledData.push(data[i]);
+      }
+      
+      // Always include last point
+      if (data.length > 1) {
+        sampledData.push(data[data.length - 1]);
+      }
+      
+      return sampledData;
     }
     
     return data || [];
