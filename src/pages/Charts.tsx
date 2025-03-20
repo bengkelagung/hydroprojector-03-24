@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useHydro, Pin } from '@/contexts/HydroContext';
+
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useHydro } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PinHistoryChart from '@/components/PinHistoryChart';
 import { Button } from '@/components/ui/button';
@@ -20,11 +21,10 @@ const Charts = () => {
   const [autoRefresh, setAutoRefresh] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [chartsData, setChartsData] = useState<Record<string, ChartDataPoint[]>>({});
-  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
   
+  // Strictly limit displayed pins to 2 to prevent freezing
   const filteredPins = useMemo(() => {
-    return pins.filter(pin => {
+    const filtered = pins.filter(pin => {
       if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
       if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
       if (selectedProjectId !== 'all') {
@@ -32,7 +32,10 @@ const Charts = () => {
         if (!device || device.projectId !== selectedProjectId) return false;
       }
       return true;
-    }).slice(0, 4);
+    });
+    
+    // Strict limit to prevent freezing
+    return filtered.slice(0, 2);
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = useMemo(() => [
@@ -53,34 +56,26 @@ const Charts = () => {
   }, [selectedProjectId]);
 
   useEffect(() => {
-    if (refreshTimeoutRef.current) {
-      clearTimeout(refreshTimeoutRef.current);
-      refreshTimeoutRef.current = null;
-    }
+    let refreshTimer: NodeJS.Timeout | null = null;
     
     if (autoRefresh) {
-      refreshTimeoutRef.current = setTimeout(() => {
+      refreshTimer = setTimeout(() => {
         fetchChartData();
-      }, 120000);
+      }, 30000); // Refresh every 30 seconds
     }
     
     return () => {
-      if (refreshTimeoutRef.current) {
-        clearTimeout(refreshTimeoutRef.current);
-      }
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
+      if (refreshTimer) {
+        clearTimeout(refreshTimer);
       }
     };
-  }, [autoRefresh, filteredPins, timeRange]);
+  }, [autoRefresh, chartsData]);
 
   useEffect(() => {
-    if (filteredPins.length <= 4) {
-      fetchChartData();
-    } else {
+    if (filteredPins.length === 0) {
       setChartsData({});
-      setIsLoading(false);
-      toast.info(`${filteredPins.length} pins found. Click Refresh to load data.`);
+    } else {
+      fetchChartData();
     }
   }, [filteredPins, timeRange]);
 
@@ -96,13 +91,8 @@ const Charts = () => {
     }
   }, [timeRange]);
 
+  // Ultra-optimized data fetching to prevent freezing
   const fetchChartData = useCallback(async () => {
-    if (isLoading && abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    
-    abortControllerRef.current = new AbortController();
-    
     if (filteredPins.length === 0) {
       setChartsData({});
       return;
@@ -114,81 +104,25 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
-      const batchSize = 1;
-      
-      for (let i = 0; i < filteredPins.length; i += batchSize) {
-        if (abortControllerRef.current?.signal.aborted) {
-          console.log('Chart data fetching aborted');
-          return;
-        }
-        
-        const batch = filteredPins.slice(i, i + batchSize);
-        
-        await Promise.all(batch.map(async (pin) => {
-          try {
-            if (abortControllerRef.current?.signal.aborted) {
-              return;
-            }
-            
-            const history = await getPinHistoryData(pin.id, hours);
-            
-            if (history && history.length > 0) {
-              const maxPoints = 10;
-              let processedData;
-              
-              if (history.length > maxPoints) {
-                const interval = Math.floor(history.length / maxPoints);
-                const sampledData = [history[0]];
-                
-                for (let j = interval; j < history.length - interval; j += interval) {
-                  sampledData.push(history[j]);
-                }
-                
-                if (history.length > 1) {
-                  sampledData.push(history[history.length - 1]);
-                }
-                
-                processedData = sampledData;
-              } else {
-                processedData = history;
-              }
-              
-              results[pin.id] = processedData.map(item => ({
-                time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
-                value: parseFloat(item.value || '0'),
-                timestamp: new Date(item.created_at).getTime()
-              }));
-            } else {
-              results[pin.id] = [];
-            }
-          } catch (error) {
-            console.error(`Error fetching history for pin ${pin.id}:`, error);
-            results[pin.id] = [];
-          }
-        }));
-        
-        if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
-          setChartsData(prev => ({...prev, ...results}));
-          await new Promise(resolve => setTimeout(resolve, 1000));
+      // Process one pin at a time
+      for (const pin of filteredPins) {
+        try {
+          const history = await getPinHistoryData(pin.id, hours);
+          results[pin.id] = history;
+        } catch (error) {
+          console.error(`Error fetching history for pin ${pin.id}:`, error);
+          results[pin.id] = [];
         }
       }
       
-      if (!abortControllerRef.current?.signal.aborted) {
-        setChartsData(results);
-      }
+      setChartsData(results);
     } catch (error) {
       console.error('Error fetching chart data:', error);
       toast.error('Error loading chart data');
     } finally {
-      if (!abortControllerRef.current?.signal.aborted) {
-        setIsLoading(false);
-      }
+      setIsLoading(false);
     }
   }, [filteredPins, getTimeRangeHours]);
-
-  const handleRefresh = useCallback(() => {
-    fetchChartData();
-  }, [fetchChartData]);
 
   const renderGridView = useCallback(() => {
     if (isLoading && Object.keys(chartsData).length === 0) {
@@ -211,7 +145,7 @@ const Charts = () => {
     }
     
     return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {filteredPins.map(pin => {
           const device = devices.find(d => d.id === pin.deviceId);
           const project = device ? projects.find(p => p.id === device.projectId) : null;
@@ -327,7 +261,7 @@ const Charts = () => {
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={handleRefresh}
+            onClick={fetchChartData}
             className="flex items-center gap-2"
             disabled={isLoading}
           >

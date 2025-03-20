@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 export interface PinHistoryEntry {
   id: string;
-  pin_config_id: string;  // Matches database structure
+  pin_config_id: string;
   value: string;
   created_at: string;
 }
@@ -20,10 +20,7 @@ export interface ChartDataPoint {
 }
 
 /**
- * Fetch historical data for a pin
- * @param pinId The ID of the pin
- * @param timeRange 'hour', 'day', 'week', 'month', 'all'
- * @returns Array of pin data entries
+ * Fetch historical data for a pin with extreme data limitation
  */
 export const fetchPinHistory = async (
   pinId: string, 
@@ -34,18 +31,17 @@ export const fetchPinHistory = async (
   let startDate = new Date(now);
   
   if (timeRange === 'all') {
-    // If 'all' is selected, don't filter by date but limit results
     try {
       const { data, error } = await supabase
         .from('pin_data')
         .select('*')
         .eq('pin_config_id', pinId)
         .order('created_at', { ascending: true })
-        .limit(10); // Ultra-aggressive limit to prevent freezing
+        .limit(2); // Only get first and last point
         
       if (error) {
         console.error('Error fetching pin history:', error);
-        throw error;
+        return [];
       }
       
       return data as PinHistoryEntry[] || [];
@@ -80,11 +76,11 @@ export const fetchPinHistory = async (
         .eq('pin_config_id', pinId)
         .gte('created_at', startDateString)
         .order('created_at', { ascending: true })
-        .limit(10); // Ultra-aggressive limit to prevent freezing
+        .limit(2); // Ultra-aggressive limit to prevent freezing
         
       if (error) {
         console.error('Error fetching pin history:', error);
-        throw error;
+        return [];
       }
       
       return data as PinHistoryEntry[] || [];
@@ -96,67 +92,32 @@ export const fetchPinHistory = async (
 };
 
 /**
- * Format pin history data for use with charts
- * @param historyData Raw pin history data
- * @param isDigital Whether the pin is digital (on/off)
- * @returns Formatted data for charts
+ * Format pin history data for charts - minimized for performance
  */
 export const formatPinHistoryForChart = (
   historyData: PinHistoryEntry[],
   isDigital: boolean = false
 ): PinHistoryData => {
-  // If we have too many points, just use first and last point
-  if (historyData.length > 10) {
-    const first = historyData[0];
-    const last = historyData[historyData.length - 1];
-    
-    const times = [
-      formatTimeString(new Date(first.created_at)),
-      formatTimeString(new Date(last.created_at))
-    ];
-    
-    const values = [
-      formatValue(first.value, isDigital),
-      formatValue(last.value, isDigital)
-    ];
-    
-    return { times, values };
-  }
-  
+  // Just use the data as is - we've already limited it at the source
   const times = historyData.map(entry => formatTimeString(new Date(entry.created_at)));
-  
   const values = historyData.map(entry => formatValue(entry.value, isDigital));
   
   return { times, values };
 };
 
 /**
- * Format pin history data for use with Recharts
- * @param historyData Raw pin history data
- * @param isDigital Whether the pin is digital (on/off)
- * @param label Optional label for the data series
- * @returns Array of data points for Recharts
+ * Format pin history data for Recharts - minimized for performance
  */
 export const formatPinHistoryForRecharts = (
   historyData: PinHistoryEntry[],
   isDigital: boolean = false,
   label: string = 'Value'
 ): ChartDataPoint[] => {
-  // If we have too many points, just use first and last point for best performance
-  if (historyData.length > 10) {
-    const first = historyData[0];
-    const last = historyData[historyData.length - 1];
-    
-    return [
-      createDataPoint(first, isDigital, label),
-      createDataPoint(last, isDigital, label)
-    ];
-  }
-  
+  // Just use the data as is - we've already limited it at the source
   return historyData.map(entry => createDataPoint(entry, isDigital, label));
 };
 
-// Helper functions to reduce code duplication and optimize performance
+// Helper functions
 function formatTimeString(date: Date): string {
   return `${date.getHours()}:${date.getMinutes().toString().padStart(2, '0')}`;
 }
@@ -188,9 +149,6 @@ function createDataPoint(
 
 /**
  * Save pin state to history
- * @param pinId The ID of the pin
- * @param value The value to save
- * @returns Success status
  */
 export const savePinStateToHistory = async (
   pinId: string,
@@ -219,5 +177,36 @@ export const savePinStateToHistory = async (
   } catch (error) {
     console.error('Error in savePinStateToHistory:', error);
     return false;
+  }
+};
+
+// Extremely optimized history data fetching for charts
+export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
+  try {
+    const startDate = new Date();
+    startDate.setHours(startDate.getHours() - hours);
+    
+    // Extreme limit - just 2 points for any time range
+    const { data, error } = await supabase
+      .from('pin_data')
+      .select('id, pin_config_id, value, created_at')
+      .eq('pin_config_id', pinId)
+      .gte('created_at', startDate.toISOString())
+      .order('created_at', { ascending: true })
+      .limit(2);
+    
+    if (error) {
+      console.error('Error fetching pin history data:', error);
+      return [];
+    }
+    
+    return data.map(item => ({
+      time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+      value: parseFloat(item.value || '0'),
+      timestamp: new Date(item.created_at).getTime()
+    }));
+  } catch (error) {
+    console.error('Error in getPinHistoryData:', error);
+    return [];
   }
 };
