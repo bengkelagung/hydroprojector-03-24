@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import PinHistoryChart from '@/components/PinHistoryChart';
@@ -10,6 +11,7 @@ import { ChartDataPoint } from '@/utils/pin-history';
 import { RefreshCw, Filter } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getPinHistoryData } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 const Charts = () => {
   const { pins, devices, projects } = useHydro();
@@ -17,17 +19,24 @@ const Charts = () => {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('all');
   const [selectedPinMode, setSelectedPinMode] = useState<string>('all');
   const [timeRange, setTimeRange] = useState<string>('24h');
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
+  const [autoRefresh, setAutoRefresh] = useState<boolean>(false); // Default to false to prevent performance issues
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [chartsData, setChartsData] = useState<Record<string, ChartDataPoint[]>>({});
+  const refreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
   
-  const filteredPins = pins.filter(pin => {
-    if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
-    if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
-    if (selectedProjectId !== 'all') {
-      const device = devices.find(d => d.id === pin.deviceId);
-      if (!device || device.projectId !== selectedProjectId) return false;
-    }
-    return true;
-  });
+  // Derive filteredPins from the filter states
+  const filteredPins = useMemo(() => {
+    return pins.filter(pin => {
+      if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
+      if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
+      if (selectedProjectId !== 'all') {
+        const device = devices.find(d => d.id === pin.deviceId);
+        if (!device || device.projectId !== selectedProjectId) return false;
+      }
+      return true;
+    });
+  }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = [
     { id: 'all', name: 'All Projects' },
@@ -45,22 +54,36 @@ const Charts = () => {
     setSelectedDeviceId('all');
   }, [selectedProjectId]);
 
+  // Auto refresh effect with better cleanup and error handling
   useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+      refreshTimeoutRef.current = null;
+    }
     
     if (autoRefresh) {
-      interval = setInterval(() => {
+      refreshTimeoutRef.current = setTimeout(() => {
         console.log('Auto-refreshing charts data');
-        refetch();
+        fetchChartData();
       }, 60000); // Refresh every minute
     }
     
     return () => {
-      if (interval) clearInterval(interval);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
     };
-  }, [autoRefresh]);
+  }, [autoRefresh, filteredPins, timeRange]);
 
-  const getTimeRangeHours = (): number => {
+  // Initial data load and timeRange change
+  useEffect(() => {
+    fetchChartData();
+  }, [filteredPins, timeRange]);
+
+  const getTimeRangeHours = useCallback((): number => {
     switch (timeRange) {
       case '1h': return 1;
       case '6h': return 6;
@@ -70,53 +93,220 @@ const Charts = () => {
       case '30d': return 24 * 30;
       default: return 24;
     }
-  };
+  }, [timeRange]);
 
   const fetchChartData = useCallback(async () => {
-    const hours = getTimeRangeHours();
-    const results: Record<string, ChartDataPoint[]> = {};
-    
-    const batchSize = 5;
-    for (let i = 0; i < filteredPins.length; i += batchSize) {
-      const batch = filteredPins.slice(i, i + batchSize);
-      
-      await Promise.all(batch.map(async (pin) => {
-        try {
-          const history = await getPinHistoryData(pin.id, hours);
-          if (history && history.length > 0) {
-            results[pin.id] = history.map(item => ({
-              time: new Date(item.created_at).toLocaleTimeString(),
-              value: parseFloat(item.value || '0'),
-              timestamp: new Date(item.created_at).getTime()
-            }));
-          } else {
-            results[pin.id] = [];
-          }
-        } catch (error) {
-          console.error(`Error fetching history for pin ${pin.id}:`, error);
-          results[pin.id] = [];
-        }
-      }));
-      
-      if (i + batchSize < filteredPins.length) {
-        await new Promise(resolve => setTimeout(resolve, 50));
-      }
+    // If already loading, cancel previous request
+    if (isLoading && abortControllerRef.current) {
+      abortControllerRef.current.abort();
     }
     
-    return results;
+    // Create new abort controller
+    abortControllerRef.current = new AbortController();
+    
+    // Handle empty pin list efficiently
+    if (filteredPins.length === 0) {
+      setChartsData({});
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    try {
+      const hours = getTimeRangeHours();
+      const results: Record<string, ChartDataPoint[]> = {};
+      
+      // Use smaller batch size for better UI responsiveness
+      const batchSize = 3;
+      
+      for (let i = 0; i < filteredPins.length; i += batchSize) {
+        // Check if operation has been aborted
+        if (abortControllerRef.current?.signal.aborted) {
+          console.log('Chart data fetching aborted');
+          return;
+        }
+        
+        const batch = filteredPins.slice(i, i + batchSize);
+        
+        await Promise.all(batch.map(async (pin) => {
+          try {
+            // Check if operation has been aborted
+            if (abortControllerRef.current?.signal.aborted) {
+              return;
+            }
+            
+            const history = await getPinHistoryData(pin.id, hours);
+            
+            if (history && history.length > 0) {
+              results[pin.id] = history.map(item => ({
+                time: new Date(item.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}),
+                value: parseFloat(item.value || '0'),
+                timestamp: new Date(item.created_at).getTime()
+              }));
+            } else {
+              results[pin.id] = [];
+            }
+          } catch (error) {
+            console.error(`Error fetching history for pin ${pin.id}:`, error);
+            results[pin.id] = [];
+          }
+        }));
+        
+        // Update state after each batch to show progress
+        if (i + batchSize < filteredPins.length && !abortControllerRef.current?.signal.aborted) {
+          setChartsData(prev => ({...prev, ...results}));
+          // Allow UI to update between batches
+          await new Promise(resolve => setTimeout(resolve, 50));
+        }
+      }
+      
+      // Only update final state if not aborted
+      if (!abortControllerRef.current?.signal.aborted) {
+        setChartsData(results);
+      }
+    } catch (error) {
+      console.error('Error fetching chart data:', error);
+      toast.error('Error loading chart data');
+    } finally {
+      if (!abortControllerRef.current?.signal.aborted) {
+        setIsLoading(false);
+      }
+    }
   }, [filteredPins, getTimeRangeHours]);
 
-  const { data: chartsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ['pinCharts', filteredPins.map(p => p.id), timeRange],
-    queryFn: fetchChartData,
-    refetchOnWindowFocus: false,
-    staleTime: 60000, // 1 minute
-    retry: 1, // Reduce retries to prevent multiple heavy requests
-  });
+  const handleRefresh = useCallback(() => {
+    fetchChartData();
+  }, [fetchChartData]);
 
-  const handleRefresh = () => {
-    refetch();
-  };
+  // This will help with memory issues by preventing unnecessary renders
+  const renderGridView = useCallback(() => {
+    if (isLoading && Object.keys(chartsData).length === 0) {
+      return (
+        <div className="flex justify-center items-center h-40">
+          <p className="text-muted-foreground">Loading charts data...</p>
+        </div>
+      );
+    }
+    
+    if (filteredPins.length === 0) {
+      return (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Adjust your filters to see pin charts or configure pins for your devices.
+          </p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {filteredPins.map(pin => {
+          const device = devices.find(d => d.id === pin.deviceId);
+          const project = device ? projects.find(p => p.id === device.projectId) : null;
+          const pinData = chartsData?.[pin.id] || [];
+          const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
+          
+          return (
+            <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex justify-between">
+                  <span>{pin.name}</span>
+                  <span className="text-sm font-normal text-muted-foreground capitalize">
+                    {pin.mode}
+                  </span>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {device?.name} • {project?.name}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[200px] w-full">
+                  {pinData.length > 0 ? (
+                    <PinHistoryChart 
+                      historyData={pinData} 
+                      dataKey="value" 
+                      isDigital={isDigital}
+                      color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">No history data available</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }, [filteredPins, chartsData, isLoading, devices, projects]);
+
+  // Similarly, optimize list view rendering
+  const renderListView = useCallback(() => {
+    if (isLoading && Object.keys(chartsData).length === 0) {
+      return (
+        <div className="flex justify-center items-center h-40">
+          <p className="text-muted-foreground">Loading charts data...</p>
+        </div>
+      );
+    }
+    
+    if (filteredPins.length === 0) {
+      return (
+        <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
+          <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
+          <p className="text-gray-600 mb-6 max-w-md mx-auto">
+            Adjust your filters to see pin charts or configure pins for your devices.
+          </p>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="space-y-6">
+        {filteredPins.map(pin => {
+          const device = devices.find(d => d.id === pin.deviceId);
+          const project = device ? projects.find(p => p.id === device.projectId) : null;
+          const pinData = chartsData?.[pin.id] || [];
+          const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
+          
+          return (
+            <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg flex justify-between">
+                  <span>{pin.name}</span>
+                  <span className="text-sm font-normal text-muted-foreground capitalize">
+                    {pin.mode}
+                  </span>
+                </CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {device?.name} • {project?.name}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <div className="h-[300px] w-full">
+                  {pinData.length > 0 ? (
+                    <PinHistoryChart 
+                      historyData={pinData} 
+                      dataKey="value" 
+                      isDigital={isDigital}
+                      color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
+                      <p className="text-gray-500">No history data available</p>
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+    );
+  }, [filteredPins, chartsData, isLoading, devices, projects]);
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -129,9 +319,10 @@ const Charts = () => {
             size="sm" 
             onClick={handleRefresh}
             className="flex items-center gap-2"
+            disabled={isLoading}
           >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            {isLoading ? 'Loading...' : 'Refresh'}
           </Button>
           
           <Button
@@ -139,6 +330,7 @@ const Charts = () => {
             size="sm"
             onClick={() => setAutoRefresh(!autoRefresh)}
             className={autoRefresh ? "bg-green-600 hover:bg-green-700" : ""}
+            disabled={isLoading}
           >
             {autoRefresh ? "Auto Refresh: On" : "Auto Refresh: Off"}
           </Button>
@@ -159,6 +351,7 @@ const Charts = () => {
               <Select 
                 value={selectedProjectId} 
                 onValueChange={setSelectedProjectId}
+                disabled={isLoading}
               >
                 <SelectTrigger id="project-filter">
                   <SelectValue placeholder="Select Project" />
@@ -178,6 +371,7 @@ const Charts = () => {
               <Select 
                 value={selectedDeviceId} 
                 onValueChange={setSelectedDeviceId}
+                disabled={isLoading}
               >
                 <SelectTrigger id="device-filter">
                   <SelectValue placeholder="Select Device" />
@@ -197,6 +391,7 @@ const Charts = () => {
               <Select 
                 value={selectedPinMode} 
                 onValueChange={setSelectedPinMode}
+                disabled={isLoading}
               >
                 <SelectTrigger id="mode-filter">
                   <SelectValue placeholder="Select Mode" />
@@ -214,6 +409,7 @@ const Charts = () => {
               <Select 
                 value={timeRange} 
                 onValueChange={setTimeRange}
+                disabled={isLoading}
               >
                 <SelectTrigger id="time-range">
                   <SelectValue placeholder="Select Time Range" />
@@ -239,115 +435,11 @@ const Charts = () => {
         </TabsList>
         
         <TabsContent value="grid" className="space-y-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <p className="text-muted-foreground">Loading charts data...</p>
-            </div>
-          ) : filteredPins.length === 0 ? (
-            <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Adjust your filters to see pin charts or configure pins for your devices.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPins.map(pin => {
-                const device = devices.find(d => d.id === pin.deviceId);
-                const project = device ? projects.find(p => p.id === device.projectId) : null;
-                const pinData = chartsData?.[pin.id] || [];
-                const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
-                
-                return (
-                  <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg flex justify-between">
-                        <span>{pin.name}</span>
-                        <span className="text-sm font-normal text-muted-foreground capitalize">
-                          {pin.mode}
-                        </span>
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {device?.name} • {project?.name}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[200px] w-full">
-                        {pinData.length > 0 ? (
-                          <PinHistoryChart 
-                            historyData={pinData} 
-                            dataKey="value" 
-                            isDigital={isDigital}
-                            color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
-                            <p className="text-gray-500">No history data available</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          {renderGridView()}
         </TabsContent>
         
         <TabsContent value="list" className="space-y-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <p className="text-muted-foreground">Loading charts data...</p>
-            </div>
-          ) : filteredPins.length === 0 ? (
-            <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Adjust your filters to see pin charts or configure pins for your devices.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {filteredPins.map(pin => {
-                const device = devices.find(d => d.id === pin.deviceId);
-                const project = device ? projects.find(p => p.id === device.projectId) : null;
-                const pinData = chartsData?.[pin.id] || [];
-                const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
-                
-                return (
-                  <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg flex justify-between">
-                        <span>{pin.name}</span>
-                        <span className="text-sm font-normal text-muted-foreground capitalize">
-                          {pin.mode}
-                        </span>
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {device?.name} • {project?.name}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[300px] w-full">
-                        {pinData.length > 0 ? (
-                          <PinHistoryChart 
-                            historyData={pinData} 
-                            dataKey="value" 
-                            isDigital={isDigital}
-                            color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
-                            <p className="text-gray-500">No history data available</p>
-                          </div>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
+          {renderListView()}
         </TabsContent>
       </Tabs>
     </div>

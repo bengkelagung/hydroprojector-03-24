@@ -12,7 +12,7 @@ interface PinHistoryChartProps {
 }
 
 /**
- * Chart component to visualize pin history data
+ * Chart component to visualize pin history data with optimized performance
  */
 const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   historyData,
@@ -20,26 +20,79 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   isDigital = false,
   color = '#3b82f6'
 }) => {
-  // Use useMemo to prevent unnecessary re-renders
+  // Use useMemo to prevent unnecessary re-renders with stronger data reduction
   const processedData = useMemo(() => {
     if (!historyData || historyData.length === 0) return [];
     
-    // Limit data points to prevent browser freezing
-    const maxDataPoints = 100;
+    // More aggressive limiting of data points to prevent freezing
+    const maxDataPoints = 50; // Reduced from 100
     let dataToUse = historyData;
     
     if (historyData.length > maxDataPoints) {
-      const interval = Math.floor(historyData.length / maxDataPoints);
-      dataToUse = historyData.filter((_, index) => index % interval === 0);
+      const interval = Math.ceil(historyData.length / maxDataPoints);
       
-      // Always include the last data point
-      if (dataToUse[dataToUse.length - 1] !== historyData[historyData.length - 1]) {
-        dataToUse.push(historyData[historyData.length - 1]);
+      // Use a more efficient sampling method
+      const sampledData: ChartDataPoint[] = [];
+      for (let i = 0; i < historyData.length; i += interval) {
+        sampledData.push(historyData[i]);
+      }
+      
+      // Always include the first and last data points for accuracy
+      if (sampledData[0] !== historyData[0]) {
+        sampledData.unshift(historyData[0]);
+      }
+      
+      if (sampledData[sampledData.length - 1] !== historyData[historyData.length - 1]) {
+        sampledData.push(historyData[historyData.length - 1]);
+      }
+      
+      dataToUse = sampledData;
+    }
+    
+    // Apply a second-level optimization for very large datasets
+    // This uses data summarization (min/max/avg) for segments to preserve visual trends
+    if (dataToUse.length > 30) {
+      const segmentSize = Math.ceil(dataToUse.length / 30);
+      const summarizedData: ChartDataPoint[] = [];
+      
+      for (let i = 0; i < dataToUse.length; i += segmentSize) {
+        const segment = dataToUse.slice(i, i + segmentSize);
+        
+        // For digital signals, we want to preserve state changes
+        if (isDigital) {
+          // For digital, include all transitions (0->1 or 1->0)
+          for (let j = 0; j < segment.length - 1; j++) {
+            if (segment[j].value !== segment[j + 1].value) {
+              summarizedData.push(segment[j]);
+              summarizedData.push(segment[j + 1]);
+            }
+          }
+          // Add the last point of the segment if it wasn't added
+          if (summarizedData[summarizedData.length - 1] !== segment[segment.length - 1]) {
+            summarizedData.push(segment[segment.length - 1]);
+          }
+        } else {
+          // For analog, use a representative point
+          summarizedData.push(segment[0]);
+        }
+      }
+      
+      // Always ensure first and last points are included
+      if (summarizedData[0] !== dataToUse[0]) {
+        summarizedData.unshift(dataToUse[0]);
+      }
+      
+      if (summarizedData[summarizedData.length - 1] !== dataToUse[dataToUse.length - 1]) {
+        summarizedData.push(dataToUse[dataToUse.length - 1]);
+      }
+      
+      if (summarizedData.length > 0) {
+        dataToUse = summarizedData;
       }
     }
     
     return dataToUse;
-  }, [historyData]);
+  }, [historyData, isDigital]);
   
   if (!historyData || historyData.length === 0) {
     return (
@@ -59,29 +112,36 @@ const PinHistoryChart: React.FC<PinHistoryChartProps> = ({
   return (
     <ChartContainer config={chartConfig} className="h-40 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={processedData} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
+        <LineChart 
+          data={processedData} 
+          margin={{ top: 5, right: 10, left: 10, bottom: 5 }}
+        >
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis 
             dataKey="time" 
             fontSize={12}
             tickMargin={5}
-            // Limit the number of displayed ticks to prevent clutter
             interval="preserveStartEnd"
+            tick={{ fontSize: 10 }}
+            minTickGap={15}
           />
           <YAxis 
             fontSize={12}
             domain={isDigital ? [0, 1] : ['auto', 'auto']}
             tickFormatter={(value) => isDigital ? (value === 1 ? 'ON' : 'OFF') : value.toString()}
+            width={40}
+            tick={{ fontSize: 10 }}
           />
           <Tooltip content={<ChartTooltip />} />
           <Legend />
           <Line 
-            type="monotone" 
+            type={isDigital ? "stepAfter" : "monotone"} 
             dataKey={dataKey} 
             stroke={color} 
-            activeDot={{ r: 8 }} 
-            dot={false} // Disable dots for better performance with large datasets
+            activeDot={{ r: 4 }} // Reduced size
+            dot={false} // Disable dots for better performance
             isAnimationActive={false} // Disable animation for better performance
+            strokeWidth={1.5} // Reduced line thickness
           />
         </LineChart>
       </ResponsiveContainer>

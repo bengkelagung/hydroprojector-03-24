@@ -552,9 +552,53 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     const timeAgo = new Date();
     timeAgo.setHours(timeAgo.getHours() - hours);
     
-    // Add a limit to prevent retrieving too much data
-    const maxRecords = 500;
+    // More aggressive limiting to prevent performance issues
+    const maxRecords = 200; // Reduced from 500
     
+    // Use a dynamic time interval for sampling based on the time range
+    let interval = '10 minutes';
+    if (hours > 24) {
+      interval = '1 hour';
+    }
+    if (hours > 72) {
+      interval = '3 hours';
+    }
+    if (hours > 168) { // 7 days
+      interval = '6 hours';
+    }
+    
+    // Use time_bucket to sample data for large time ranges
+    if (hours > 12) {
+      const { data, error } = await supabase
+        .rpc('sample_pin_data', { 
+          pin_config_id_param: pinId,
+          start_time_param: timeAgo.toISOString(),
+          time_interval_param: interval,
+          max_records_param: maxRecords
+        });
+      
+      if (error) {
+        console.error('Error fetching sampled pin history data:', error);
+        // Fallback to regular query if RPC fails
+        return getPinHistoryDataFallback(pinId, timeAgo, maxRecords);
+      }
+      
+      return data || [];
+    } else {
+      // For shorter time ranges, use direct query
+      return getPinHistoryDataFallback(pinId, timeAgo, maxRecords);
+    }
+  } catch (error) {
+    console.error('Error in getPinHistoryData:', error);
+    return [];
+  }
+};
+
+/**
+ * Fallback method to get pin history data without using RPC
+ */
+const getPinHistoryDataFallback = async (pinId: string, timeAgo: Date, maxRecords: number) => {
+  try {
     const { data, error } = await supabase
       .from('pin_data')
       .select('created_at, value')
@@ -570,7 +614,7 @@ export const getPinHistoryData = async (pinId: string, hours: number = 24) => {
     
     return data || [];
   } catch (error) {
-    console.error('Error in getPinHistoryData:', error);
+    console.error('Error in getPinHistoryDataFallback:', error);
     return [];
   }
 };
