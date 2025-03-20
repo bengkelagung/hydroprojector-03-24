@@ -1094,40 +1094,45 @@ void read${pin.name.replace(/\s+/g, '')}() {
     }
   };
 
-  const updatePin = async (pinId: string, updates: Partial<Pin>): Promise<void> => {
-    try {
-      const { error } = await supabase
+  const updatePin = (pinId: string, updates: Partial<Pin>): Promise<void> => {
+    return new Promise<void>((resolve, reject) => {
+      supabase
         .from('pin_configs')
         .update(updates)
-        .eq('id', pinId);
-      
-      if (error) {
-        console.error('Error updating pin:', error);
-        toast({
-          title: "Error",
-          description: "Failed to update pin",
-          variant: "destructive",
+        .eq('id', pinId)
+        .then(({ error }) => {
+          if (error) {
+            console.error('Error updating pin:', error);
+            toast({
+              title: "Error",
+              description: "Failed to update pin",
+              variant: "destructive",
+            });
+            reject(error);
+            return;
+          }
+          
+          setPins(prev => prev.map(pin => 
+            pin.id === pinId ? { ...pin, ...updates } : pin
+          ));
+          
+          toast({
+            title: "Success",
+            description: "Pin updated successfully",
+          });
+          
+          resolve();
+        })
+        .catch((error) => {
+          console.error('Error updating pin:', error);
+          toast({
+            title: "Error",
+            description: "Failed to update pin",
+            variant: "destructive",
+          });
+          reject(error);
         });
-        throw error;
-      }
-      
-      setPins(prev => prev.map(pin => 
-        pin.id === pinId ? { ...pin, ...updates } : pin
-      ));
-      
-      toast({
-        title: "Success",
-        description: "Pin updated successfully",
-      });
-    } catch (error) {
-      console.error('Error updating pin:', error);
-      toast({
-        title: "Error",
-        description: "Failed to update pin",
-        variant: "destructive",
-      });
-      throw error;
-    }
+    });
   };
 
   useEffect(() => {
