@@ -1127,5 +1127,78 @@ void read${pin.name.replace(/\s+/g, '')}() {
           
           toast({
             title: "Success",
-           
+            description: "Pin updated successfully",
+          });
+          
+          resolve();
+        })
+        .catch((error) => {
+          console.error('Error updating pin:', error);
+          toast({
+            title: "Error",
+            description: "Failed to update pin",
+            variant: "destructive",
+          });
+          reject(error);
+        });
+    });
+  };
 
+  useEffect(() => {
+    if (user) {
+      fetchProjects();
+      fetchDevices();
+      fetchPins();
+      fetchPinOptions();
+      fetchDataTypes();
+      fetchSignalTypes();
+      fetchPinModes();
+      fetchLabels();
+    }
+  }, [user]);
+
+  useEffect(() => {
+    updateAvailablePinOptions();
+  }, [selectedDevice, pins, pinOptions]);
+
+  return (
+    <HydroContext.Provider
+      value={{
+        projects,
+        devices,
+        pins,
+        pinOptions,
+        selectedProject,
+        selectedDevice,
+        createProject,
+        createDevice,
+        configurePin,
+        selectProject,
+        selectDevice,
+        getDevicesByProject,
+        getPinsByDevice,
+        updateDeviceConnection,
+        updatePinValue,
+        generateDeviceCode,
+        dataTypes,
+        signalTypes,
+        pinModes,
+        labels,
+        fetchLabels,
+        fetchDataTypes,
+        fetchSignalTypes,
+        fetchPinModes,
+        fetchPinOptions,
+        updateProject,
+        updateDevice,
+        deleteProject,
+        deleteDevice,
+        deletePin,
+        togglePinValue,
+        updatePin,
+      }}
+    >
+      {children}
+    </HydroContext.Provider>
+  );
+};
