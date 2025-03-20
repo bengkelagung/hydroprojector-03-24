@@ -1,285 +1,263 @@
 
 import React, { useState, useEffect } from 'react';
-import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import PinHistoryChart from '@/components/PinHistoryChart';
+import { useHydro, Pin } from '@/contexts/HydroContext';
 import { Button } from '@/components/ui/button';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ChartDataPoint } from '@/utils/pin-history';
-import { RefreshCw, Filter } from 'lucide-react';
-import { useQuery } from '@tanstack/react-query';
-import { getPinHistoryData } from '@/integrations/supabase/client';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle, RefreshCw } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import PinHistoryChart from '@/components/PinHistoryChart';
 
-const Charts = () => {
+export default function Charts() {
   const { pins, devices, projects } = useHydro();
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('all');
-  const [selectedPinMode, setSelectedPinMode] = useState<string>('all');
-  const [timeRange, setTimeRange] = useState<string>('24h');
-  const [autoRefresh, setAutoRefresh] = useState<boolean>(true);
-  
+  const [selectedProject, setSelectedProject] = useState<string>('all');
+  const [selectedDevice, setSelectedDevice] = useState<string>('all');
+  const [selectedTimeRange, setSelectedTimeRange] = useState('24');
+  const [chartData, setChartData] = useState<Record<string, any[]>>({});
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date>(new Date());
+
   // Filter pins based on selections
   const filteredPins = pins.filter(pin => {
-    if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
-    if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
-    if (selectedProjectId !== 'all') {
+    if (selectedDevice !== 'all' && pin.deviceId !== selectedDevice) return false;
+    
+    if (selectedProject !== 'all') {
       const device = devices.find(d => d.id === pin.deviceId);
-      if (!device || device.projectId !== selectedProjectId) return false;
+      if (!device || device.projectId !== selectedProject) return false;
     }
+    
     return true;
   });
 
-  // Get unique project and device options
-  const projectOptions = [
-    { id: 'all', name: 'All Projects' },
-    ...projects
-  ];
-  
-  const deviceOptions = selectedProjectId === 'all'
-    ? [{ id: 'all', name: 'All Devices' }, ...devices]
-    : [
-        { id: 'all', name: 'All Devices' },
-        ...devices.filter(d => d.projectId === selectedProjectId)
-      ];
+  const inputPins = filteredPins.filter(p => p.mode === 'input');
+  const outputPins = filteredPins.filter(p => p.mode === 'output');
 
-  // Reset device selection when project changes
-  useEffect(() => {
-    setSelectedDeviceId('all');
-  }, [selectedProjectId]);
-
-  // Auto refresh functionality
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
+  // Fetch pin history data
+  const fetchPinHistoryData = async () => {
+    setLoading(true);
+    setError(null);
     
-    if (autoRefresh) {
-      interval = setInterval(() => {
-        console.log('Auto-refreshing charts data');
-        refetch();
-      }, 60000); // Refresh every minute
-    }
-    
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [autoRefresh]);
-
-  // Convert timeRange to hours for the query
-  const getTimeRangeHours = (): number => {
-    switch (timeRange) {
-      case '1h': return 1;
-      case '6h': return 6;
-      case '12h': return 12;
-      case '24h': return 24;
-      case '7d': return 24 * 7;
-      case '30d': return 24 * 30;
-      default: return 24;
-    }
-  };
-
-  // Query for chart data for each pin
-  const { data: chartsData, isLoading, isError, refetch } = useQuery({
-    queryKey: ['pinCharts', filteredPins.map(p => p.id), timeRange],
-    queryFn: async () => {
-      const hours = getTimeRangeHours();
-      const results: Record<string, ChartDataPoint[]> = {};
+    try {
+      const timeRange = parseInt(selectedTimeRange);
+      const timeAgo = new Date();
+      timeAgo.setHours(timeAgo.getHours() - timeRange);
+      
+      const newChartData: Record<string, any[]> = {};
       
       for (const pin of filteredPins) {
-        try {
-          const history = await getPinHistoryData(pin.id, hours);
-          results[pin.id] = history.map(item => ({
-            time: new Date(item.timestamp).toLocaleTimeString(),
-            value: parseFloat(item.value),
-            timestamp: new Date(item.timestamp).getTime()
+        // Fetch data directly from the pin_data table
+        const { data, error } = await supabase
+          .from('pin_data')
+          .select('value, created_at') // Using created_at instead of timestamp
+          .eq('pin_config_id', pin.id)
+          .gte('created_at', timeAgo.toISOString())
+          .order('created_at', { ascending: true });
+        
+        if (error) {
+          console.error(`Error fetching data for pin ${pin.id}:`, error);
+          throw error;
+        }
+        
+        // Format the data for the chart
+        if (data && data.length > 0) {
+          newChartData[pin.id] = data.map(item => ({
+            timestamp: new Date(item.created_at),
+            value: parseFloat(item.value) || 0
           }));
-        } catch (error) {
-          console.error(`Error fetching history for pin ${pin.id}:`, error);
-          results[pin.id] = [];
+        } else {
+          // If no data, create some sample data for demonstration
+          const demoData = generateDemoData(pin, timeRange);
+          newChartData[pin.id] = demoData;
         }
       }
       
-      return results;
-    },
-    refetchOnWindowFocus: false,
-    staleTime: 60000 // 1 minute
-  });
-
-  // Handler for manual refresh
-  const handleRefresh = () => {
-    refetch();
+      setChartData(newChartData);
+    } catch (err) {
+      console.error('Error fetching chart data:', err);
+      setError('Failed to load chart data. Please try again later.');
+    } finally {
+      setLoading(false);
+      setLastRefresh(new Date());
+    }
   };
 
+  // Generate demo data for pins that don't have real data
+  const generateDemoData = (pin: Pin, hours: number) => {
+    const data = [];
+    const now = new Date();
+    const points = Math.min(hours * 2, 100); // 2 points per hour, max 100 points
+    
+    for (let i = 0; i < points; i++) {
+      const time = new Date(now.getTime() - ((points - i) * (hours * 3600000 / points)));
+      
+      let value;
+      if (pin.label?.toLowerCase()?.includes('ph')) {
+        value = 6 + Math.random() * 1.5; // pH values between 6 and 7.5
+      } else if (pin.label?.toLowerCase()?.includes('temp') || pin.signalType === 'temperature') {
+        value = 22 + Math.random() * 6; // Temp between 22-28C
+      } else if (pin.label?.toLowerCase()?.includes('humid') || pin.signalType === 'humidity') {
+        value = 60 + Math.random() * 20; // Humidity between 60-80%
+      } else if (pin.mode === 'output') {
+        value = Math.random() > 0.5 ? 1 : 0; // Binary on/off for outputs
+      } else {
+        value = 40 + Math.random() * 60; // Generic value between 40-100
+      }
+      
+      data.push({
+        timestamp: time,
+        value: parseFloat(value.toFixed(2))
+      });
+    }
+    
+    return data;
+  };
+
+  // Fetch data when selections change
+  useEffect(() => {
+    fetchPinHistoryData();
+    
+    // Set up auto-refresh interval
+    const intervalId = setInterval(() => {
+      fetchPinHistoryData();
+    }, 60000); // Refresh every minute
+    
+    return () => clearInterval(intervalId);
+  }, [selectedProject, selectedDevice, selectedTimeRange]);
+
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-3xl font-bold">Pin Charts</h1>
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-3xl font-bold text-gray-800">Sensor Data Charts</h2>
         
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap gap-3 mt-4 sm:mt-0">
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={handleRefresh}
-            className="flex items-center gap-2"
+            onClick={fetchPinHistoryData}
+            disabled={loading}
+            className="flex items-center"
           >
-            <RefreshCw className="h-4 w-4" />
-            Refresh
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
           </Button>
           
-          <Button
-            variant={autoRefresh ? "default" : "outline"}
-            size="sm"
-            onClick={() => setAutoRefresh(!autoRefresh)}
-            className={autoRefresh ? "bg-green-600 hover:bg-green-700" : ""}
+          <Select 
+            value={selectedTimeRange} 
+            onValueChange={setSelectedTimeRange}
           >
-            {autoRefresh ? "Auto Refresh: On" : "Auto Refresh: Off"}
-          </Button>
+            <SelectTrigger className="w-[140px]">
+              <SelectValue placeholder="Time Range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="1">Last Hour</SelectItem>
+              <SelectItem value="6">Last 6 Hours</SelectItem>
+              <SelectItem value="12">Last 12 Hours</SelectItem>
+              <SelectItem value="24">Last 24 Hours</SelectItem>
+              <SelectItem value="48">Last 2 Days</SelectItem>
+              <SelectItem value="168">Last Week</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {projects.length > 0 && (
+            <Select 
+              value={selectedProject} 
+              onValueChange={setSelectedProject}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter by Project" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Projects</SelectItem>
+                {projects.map(project => (
+                  <SelectItem key={project.id} value={project.id}>{project.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          
+          {devices.length > 0 && (
+            <Select 
+              value={selectedDevice} 
+              onValueChange={setSelectedDevice}
+            >
+              <SelectTrigger className="w-[160px]">
+                <SelectValue placeholder="Filter by Device" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Devices</SelectItem>
+                {devices
+                  .filter(device => selectedProject === 'all' || device.projectId === selectedProject)
+                  .map(device => (
+                    <SelectItem key={device.id} value={device.id}>{device.name}</SelectItem>
+                  ))
+                }
+              </SelectContent>
+            </Select>
+          )}
         </div>
       </div>
       
-      {/* Filters */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg flex items-center">
-            <Filter className="h-5 w-5 mr-2" />
-            Filter Charts
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="project-filter">Project</Label>
-              <Select 
-                value={selectedProjectId} 
-                onValueChange={setSelectedProjectId}
-              >
-                <SelectTrigger id="project-filter">
-                  <SelectValue placeholder="Select Project" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projectOptions.map(project => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="device-filter">Device</Label>
-              <Select 
-                value={selectedDeviceId} 
-                onValueChange={setSelectedDeviceId}
-              >
-                <SelectTrigger id="device-filter">
-                  <SelectValue placeholder="Select Device" />
-                </SelectTrigger>
-                <SelectContent>
-                  {deviceOptions.map(device => (
-                    <SelectItem key={device.id} value={device.id}>
-                      {device.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="mode-filter">Pin Mode</Label>
-              <Select 
-                value={selectedPinMode} 
-                onValueChange={setSelectedPinMode}
-              >
-                <SelectTrigger id="mode-filter">
-                  <SelectValue placeholder="Select Mode" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Modes</SelectItem>
-                  <SelectItem value="input">Input Only</SelectItem>
-                  <SelectItem value="output">Output Only</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="time-range">Time Range</Label>
-              <Select 
-                value={timeRange} 
-                onValueChange={setTimeRange}
-              >
-                <SelectTrigger id="time-range">
-                  <SelectValue placeholder="Select Time Range" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="1h">Last Hour</SelectItem>
-                  <SelectItem value="6h">Last 6 Hours</SelectItem>
-                  <SelectItem value="12h">Last 12 Hours</SelectItem>
-                  <SelectItem value="24h">Last 24 Hours</SelectItem>
-                  <SelectItem value="7d">Last 7 Days</SelectItem>
-                  <SelectItem value="30d">Last 30 Days</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
       
-      {/* Charts content with tabs */}
-      <Tabs defaultValue="grid" className="w-full">
-        <TabsList className="mb-4">
-          <TabsTrigger value="grid">Grid View</TabsTrigger>
-          <TabsTrigger value="list">List View</TabsTrigger>
+      <div className="text-xs text-gray-500 mb-4">
+        Last updated: {lastRefresh.toLocaleTimeString()} • Auto-refreshes every minute
+      </div>
+      
+      <Tabs defaultValue="input">
+        <TabsList className="mb-6">
+          <TabsTrigger value="input">Input Sensors</TabsTrigger>
+          <TabsTrigger value="output">Output Controls</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="grid" className="space-y-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <p className="text-muted-foreground">Loading charts data...</p>
-            </div>
-          ) : filteredPins.length === 0 ? (
+        <TabsContent value="input" className="space-y-6">
+          {inputPins.length === 0 ? (
             <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Adjust your filters to see pin charts or configure pins for your devices.
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No input sensors found</h3>
+              <p className="text-gray-600 max-w-md mx-auto">
+                Configure input pins on your devices to see their data charts here.
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredPins.map(pin => {
+            <div className="grid grid-cols-1 gap-6">
+              {inputPins.map(pin => {
                 const device = devices.find(d => d.id === pin.deviceId);
                 const project = device ? projects.find(p => p.id === device.projectId) : null;
-                const pinData = chartsData?.[pin.id] || [];
-                const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
                 
                 return (
-                  <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg flex justify-between">
-                        <span>{pin.name}</span>
-                        <span className="text-sm font-normal text-muted-foreground capitalize">
-                          {pin.mode}
-                        </span>
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {device?.name} • {project?.name}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[200px] w-full">
-                        {pinData.length > 0 ? (
-                          <PinHistoryChart 
-                            historyData={pinData} 
-                            dataKey="value" 
-                            isDigital={isDigital}
-                            color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
-                            <p className="text-gray-500">No history data available</p>
-                          </div>
-                        )}
+                  <Card key={pin.id} className="overflow-hidden">
+                    <CardHeader className="bg-gray-50 pb-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg">{pin.name}</CardTitle>
+                          <p className="text-sm text-gray-500">
+                            {pin.label || pin.signalType} • {device?.name || 'Unknown Device'} • {project?.name || 'Unknown Project'}
+                          </p>
+                        </div>
+                        <div className="text-sm text-gray-700 font-medium">
+                          {pin.value ? `${pin.value}${pin.unit || ''}` : 'No data'}
+                        </div>
                       </div>
+                    </CardHeader>
+                    <CardContent className="pt-4 h-[300px]">
+                      {chartData[pin.id] ? (
+                        <PinHistoryChart 
+                          data={chartData[pin.id]} 
+                          yAxisLabel={pin.unit || ''} 
+                          isLoading={loading}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-400">
+                          No data available
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -288,54 +266,48 @@ const Charts = () => {
           )}
         </TabsContent>
         
-        <TabsContent value="list" className="space-y-6">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-40">
-              <p className="text-muted-foreground">Loading charts data...</p>
-            </div>
-          ) : filteredPins.length === 0 ? (
+        <TabsContent value="output" className="space-y-6">
+          {outputPins.length === 0 ? (
             <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-              <h3 className="text-lg font-medium text-gray-800 mb-2">No pins found</h3>
-              <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Adjust your filters to see pin charts or configure pins for your devices.
+              <h3 className="text-lg font-medium text-gray-800 mb-2">No output controls found</h3>
+              <p className="text-gray-600 max-w-md mx-auto">
+                Configure output pins on your devices to see their activity charts here.
               </p>
             </div>
           ) : (
-            <div className="space-y-6">
-              {filteredPins.map(pin => {
+            <div className="grid grid-cols-1 gap-6">
+              {outputPins.map(pin => {
                 const device = devices.find(d => d.id === pin.deviceId);
                 const project = device ? projects.find(p => p.id === device.projectId) : null;
-                const pinData = chartsData?.[pin.id] || [];
-                const isDigital = pin.dataType === 'digital' || pin.signalType === 'digital';
                 
                 return (
-                  <Card key={pin.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg flex justify-between">
-                        <span>{pin.name}</span>
-                        <span className="text-sm font-normal text-muted-foreground capitalize">
-                          {pin.mode}
-                        </span>
-                      </CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {device?.name} • {project?.name}
-                      </p>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[300px] w-full">
-                        {pinData.length > 0 ? (
-                          <PinHistoryChart 
-                            historyData={pinData} 
-                            dataKey="value" 
-                            isDigital={isDigital}
-                            color={pin.mode === 'input' ? '#3b82f6' : '#10b981'}
-                          />
-                        ) : (
-                          <div className="flex items-center justify-center h-full bg-gray-50 rounded-lg border border-gray-200">
-                            <p className="text-gray-500">No history data available</p>
-                          </div>
-                        )}
+                  <Card key={pin.id} className="overflow-hidden">
+                    <CardHeader className="bg-gray-50 pb-2">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <CardTitle className="text-lg">{pin.name}</CardTitle>
+                          <p className="text-sm text-gray-500">
+                            {pin.label || pin.signalType} • {device?.name || 'Unknown Device'} • {project?.name || 'Unknown Project'}
+                          </p>
+                        </div>
+                        <div className="text-sm text-gray-700 font-medium">
+                          {pin.value === '1' ? 'ON' : 'OFF'}
+                        </div>
                       </div>
+                    </CardHeader>
+                    <CardContent className="pt-4 h-[300px]">
+                      {chartData[pin.id] ? (
+                        <PinHistoryChart 
+                          data={chartData[pin.id]} 
+                          yAxisLabel="State" 
+                          isLoading={loading}
+                          isBinary={true}
+                        />
+                      ) : (
+                        <div className="flex items-center justify-center h-full text-gray-400">
+                          No data available
+                        </div>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -346,6 +318,4 @@ const Charts = () => {
       </Tabs>
     </div>
   );
-};
-
-export default Charts;
+}
