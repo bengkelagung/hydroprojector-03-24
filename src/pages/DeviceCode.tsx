@@ -65,8 +65,8 @@ const char* WIFI_PASSWORD = "${device.wifiConfig.wifiPassword || ''}";
       deviceCode += `
 // WiFi Configuration - NOT CONFIGURED
 // You need to configure WiFi credentials on the device setup page
-const char* WIFI_SSID = ""; // REPLACE WITH YOUR WIFI SSID
-const char* WIFI_PASSWORD = ""; // REPLACE WITH YOUR WIFI PASSWORD
+const char* WIFI_SSID = ""; // CONFIGURE WiFi in the device settings!
+const char* WIFI_PASSWORD = ""; // CONFIGURE WiFi in the device settings!
 `;
     }
 
