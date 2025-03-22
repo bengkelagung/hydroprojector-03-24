@@ -99,6 +99,9 @@ const QRCodeScanner: React.FC<QRScannerProps> = ({
     });
     
     toast.success(`Found network: ${ssid}`);
+    
+    // Make sure to call onConnect with the scanned credentials
+    // This is the key part that ensures the credentials are passed up to the parent
     onConnect(ssid, password);
   };
 
