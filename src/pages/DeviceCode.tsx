@@ -50,7 +50,7 @@ const DeviceCode = () => {
     return <DeviceNotFound />;
   }
 
-  const hasWifiConfig = device.wifiConfig && device.wifiConfig.wifiSSID;
+  const hasWifiConfig = device.wifiConfig && Boolean(device.wifiConfig.wifiSSID);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -68,7 +68,7 @@ const DeviceCode = () => {
           <DeviceCodeCard 
             device={device} 
             code={code} 
-            hasWifiConfig={hasWifiConfig}
+            hasWifiConfig={Boolean(hasWifiConfig)}
             simulateDeviceConnection={simulateDeviceConnection}
           />
         </div>
@@ -76,7 +76,7 @@ const DeviceCode = () => {
         <div className="lg:col-span-1">
           <DeviceInfoCard 
             device={device} 
-            hasWifiConfig={hasWifiConfig} 
+            hasWifiConfig={Boolean(hasWifiConfig)} 
           />
         </div>
       </div>
