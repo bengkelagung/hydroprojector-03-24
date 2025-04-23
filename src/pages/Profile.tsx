@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,14 +20,24 @@ const Profile = () => {
     image: user?.image || ''
   });
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => ({ ...prev, image: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setFormData(prev => ({ ...prev, image: base64String }));
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error("Error processing image:", error);
+        toast({
+          title: "Error",
+          description: "Failed to process image",
+          variant: "destructive"
+        });
+      }
     }
   };
 
@@ -37,7 +46,6 @@ const Profile = () => {
     setIsSubmitting(true);
     
     try {
-      // Update user metadata in Supabase
       const { error } = await supabase.auth.updateUser({
         data: {
           name: formData.name,
@@ -50,7 +58,6 @@ const Profile = () => {
         throw error;
       }
 
-      // Refresh the session to get updated user data
       await refreshSession();
 
       toast({

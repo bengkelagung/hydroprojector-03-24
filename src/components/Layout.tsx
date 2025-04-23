@@ -143,7 +143,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar>
                       {user?.image ? (
-                        <AvatarImage src={user.image} alt={user.name} />
+                        <AvatarImage src={user.image} alt={user.name || user.email} />
                       ) : (
                         <AvatarFallback className="bg-hydro-blue text-white">
                           {getInitials()}
