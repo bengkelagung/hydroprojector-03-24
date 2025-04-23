@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -23,7 +24,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -131,6 +132,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 {location.pathname.includes('/devices/') && location.pathname.includes('/config') && 'Configure Device'}
                 {location.pathname.includes('/projects/') && location.pathname.includes('/details') && 'Project Details'}
                 {location.pathname.includes('/devices/') && location.pathname.includes('/details') && 'Device Details'}
+                {location.pathname === '/profile' && 'Profile'}
+                {location.pathname === '/charts' && 'Pin Charts'}
               </h1>
             </div>
 
@@ -139,18 +142,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" className="relative h-10 w-10 rounded-full">
                     <Avatar>
-                      <AvatarFallback className="bg-hydro-blue text-white">
-                        {getInitials()}
-                      </AvatarFallback>
+                      {user?.image ? (
+                        <AvatarImage src={user.image} alt={user.name} />
+                      ) : (
+                        <AvatarFallback className="bg-hydro-blue text-white">
+                          {getInitials()}
+                        </AvatarFallback>
+                      )}
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem className="flex items-center">
+                  <DropdownMenuItem className="flex items-center" onClick={() => navigate('/profile')}>
                     <UserRound className="mr-2 h-4 w-4" />
-                    <span>{user?.email}</span>
+                    <span>{user?.name || user?.email}</span>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-red-600">

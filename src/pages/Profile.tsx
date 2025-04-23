@@ -7,11 +7,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { UserRound, Mail, Phone, Pencil } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Profile = () => {
-  const { user } = useAuth();
+  const { user, refreshSession } = useAuth();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: user?.name || '',
     email: user?.email || '',
@@ -30,14 +32,43 @@ const Profile = () => {
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically update the user profile in your backend
-    toast({
-      title: "Success",
-      description: "Profile updated successfully",
-    });
-    setIsEditing(false);
+    setIsSubmitting(true);
+    
+    try {
+      // Update user metadata in Supabase
+      const { error } = await supabase.auth.updateUser({
+        data: {
+          name: formData.name,
+          phone: formData.phone,
+          image: formData.image
+        }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      // Refresh the session to get updated user data
+      await refreshSession();
+
+      toast({
+        title: "Success",
+        description: "Profile updated successfully",
+      });
+      
+      setIsEditing(false);
+    } catch (error: any) {
+      toast({
+        title: "Update Failed",
+        description: error.message || "Failed to update profile",
+        variant: "destructive"
+      });
+      console.error("Profile update error:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -101,16 +132,7 @@ const Profile = () => {
                   <Mail className="w-6 h-6 text-hydro-blue" />
                   <div className="flex-1">
                     <Label className="text-sm text-gray-500">Email</Label>
-                    {isEditing ? (
-                      <Input
-                        type="email"
-                        value={formData.email}
-                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                        className="mt-1"
-                      />
-                    ) : (
-                      <p className="text-lg font-medium text-gray-800">{formData.email}</p>
-                    )}
+                    <p className="text-lg font-medium text-gray-800">{formData.email}</p>
                   </div>
                 </div>
                 
@@ -137,12 +159,21 @@ const Profile = () => {
                       <Button 
                         type="button" 
                         variant="outline" 
-                        onClick={() => setIsEditing(false)}
+                        onClick={() => {
+                          setFormData({
+                            name: user?.name || '',
+                            email: user?.email || '',
+                            phone: user?.phone || '',
+                            image: user?.image || ''
+                          });
+                          setIsEditing(false);
+                        }}
+                        disabled={isSubmitting}
                       >
                         Cancel
                       </Button>
-                      <Button type="submit">
-                        Save Changes
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? 'Saving...' : 'Save Changes'}
                       </Button>
                     </div>
                   ) : (
