@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,6 +47,7 @@ const Profile = () => {
     setIsSubmitting(true);
     
     try {
+      // Use direct updateUser method which doesn't depend on database tables
       const { error } = await supabase.auth.updateUser({
         data: {
           name: formData.name,
@@ -58,6 +60,7 @@ const Profile = () => {
         throw error;
       }
 
+      // Make sure to refresh the session to get the updated user data
       await refreshSession();
 
       toast({
@@ -67,12 +70,12 @@ const Profile = () => {
       
       setIsEditing(false);
     } catch (error: any) {
+      console.error("Profile update error:", error);
       toast({
         title: "Update Failed",
         description: error.message || "Failed to update profile",
         variant: "destructive"
       });
-      console.error("Profile update error:", error);
     } finally {
       setIsSubmitting(false);
     }
