@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from '@/integrations/supabase/client';
@@ -8,6 +7,8 @@ interface AuthUser {
   id: string;
   email: string;
   name: string;
+  phone?: string;
+  image?: string;
 }
 
 interface AuthContextType {
@@ -35,7 +36,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const { toast } = useToast();
 
-  // Handle session refresh
   const refreshSession = async (): Promise<boolean> => {
     try {
       const { data, error } = await supabase.auth.refreshSession();
@@ -51,7 +51,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // Set up auth listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
@@ -59,13 +58,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         if (session?.user) {
           const { id, email } = session.user;
-          // Use email name as fallback if no user metadata
           const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
           
           setUser({
             id,
             email: email || '',
-            name
+            name,
+            phone: session.user.user_metadata.phone || '',
+            image: session.user.user_metadata.image || ''
           });
         } else {
           setUser(null);
@@ -75,7 +75,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
-    // Get initial session
     const initializeAuth = async () => {
       setLoading(true);
       
@@ -88,7 +87,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser({
             id,
             email: email || '',
-            name
+            name,
+            phone: session.user.user_metadata.phone || '',
+            image: session.user.user_metadata.image || ''
           });
         }
       } catch (error) {
@@ -143,7 +144,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setLoading(true);
 
-      // Register user with Supabase
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -163,7 +163,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Registration successful!",
       });
       
-      // For email confirmation flow, show appropriate message
       if (!data.session) {
         toast({
           title: "Verification Required",
