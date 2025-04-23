@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -9,7 +8,7 @@ import {
   Menu, 
   ChevronLeft,
   LogOut,
-  User,
+  UserRound,
   BarChart3
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,13 +40,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     navigate('/login');
   };
 
-  // Modified nav items to include Charts menu item
+  // Modified nav items to include Profile menu item
   const navItems = [
     { name: 'Dashboard', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
     { name: 'Projects', icon: <LayoutDashboard className="w-5 h-5" />, path: '/projects' },
     { name: 'Devices', icon: <Cpu className="w-5 h-5" />, path: '/devices' },
     { name: 'Sensor Readings', icon: <Activity className="w-5 h-5" />, path: '/readings' },
     { name: 'Pin Charts', icon: <BarChart3 className="w-5 h-5" />, path: '/charts' },
+    { name: 'Profile', icon: <UserRound className="w-5 h-5" />, path: '/profile' },
   ];
 
   // Get user initials for the avatar

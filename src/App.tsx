@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -25,6 +24,7 @@ import Charts from "./pages/Charts";
 import ProjectDetails from "./pages/ProjectDetails";
 import DeviceDetails from "./pages/DeviceDetails";
 import DeviceWifiSetup from "./pages/DeviceWifiSetup";
+import Profile from "./pages/Profile";
 
 const queryClient = new QueryClient();
 
@@ -59,6 +59,15 @@ const AppContent = () => {
             <ProtectedRoute>
               <Layout>
                 <Dashboard />
+              </Layout>
+            </ProtectedRoute>
+          } />
+          
+          {/* Profile route */}
+          <Route path="/profile" element={
+            <ProtectedRoute>
+              <Layout>
+                <Profile />
               </Layout>
             </ProtectedRoute>
           } />
