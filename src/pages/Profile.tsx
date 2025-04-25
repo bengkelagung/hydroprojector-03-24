@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -41,13 +40,15 @@ const Profile = () => {
   const [email, setEmail] = useState(user?.email || "");
   const [phone, setPhone] = useState(user?.phone || "");
   const [loading, setLoading] = useState(false);
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.image || null);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     if (user) {
       setFullName(user.name || "");
       setEmail(user.email || "");
       setPhone(user.phone || "");
+      setAvatarUrl(user.image || null);
     }
   }, [user]);
 
@@ -60,12 +61,108 @@ const Profile = () => {
       .toUpperCase();
   };
 
+  const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      setUploading(true);
+      console.log('Starting avatar upload...');
+      
+      if (!event.target.files || event.target.files.length === 0) {
+        throw new Error("You must select an image to upload.");
+      }
+
+      const file = event.target.files[0];
+      console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
+      
+      const fileExt = file.name.split(".").pop();
+      const filePath = `${user?.id}/avatar.${fileExt}`;
+      console.log('Upload path:', filePath);
+      console.log('User ID:', user?.id);
+      console.log('Storage bucket:', 'avatars');
+
+      // Upload image to Supabase Storage
+      const { error: uploadError, data } = await supabase.storage
+        .from("avatars")
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) {
+        console.error('Upload error details:', uploadError);
+        throw uploadError;
+      }
+
+      console.log('Upload successful:', data);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from("avatars")
+        .getPublicUrl(filePath);
+
+      console.log('Generated public URL:', publicUrl);
+
+      // Update user metadata with avatar URL
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: { avatar_url: publicUrl }
+      });
+
+      if (updateError) {
+        console.error('Metadata update error details:', updateError);
+        throw updateError;
+      }
+
+      console.log('User metadata updated successfully');
+
+      // Update profile in database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          avatar_url: publicUrl
+        })
+        .eq('user_id', user?.id);
+
+      if (profileError) {
+        console.error('Profile update error details:', profileError);
+        throw profileError;
+      }
+
+      console.log('Profile updated successfully');
+      setAvatarUrl(publicUrl);
+      toast.success("Avatar updated successfully");
+    } catch (error: any) {
+      console.error('Full error in uploadAvatar:', error);
+      toast.error(`Error uploading avatar: ${error.message}`);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleUpdateProfile = async () => {
     try {
       setLoading(true);
 
-      // Update profile data in database
-      // This is just a mockup for now - actual implementation would depend on your Supabase schema
+      // Split name into first and last name
+      const [firstName, ...lastNameParts] = fullName.split(' ');
+      const lastName = lastNameParts.join(' ');
+
+      // Update user metadata
+      const { error: updateError } = await supabase.auth.updateUser({
+        data: {
+          first_name: firstName,
+          last_name: lastName || null,
+          phone: phone,
+        }
+      });
+
+      if (updateError) throw updateError;
+
+      // Update profile in database
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: firstName,
+          last_name: lastName || null
+        })
+        .eq('user_id', user?.id);
+
+      if (profileError) throw profileError;
       
       toast.success("Profile updated successfully");
     } catch (error: any) {
@@ -104,15 +201,39 @@ const Profile = () => {
 
   const handleDeleteAccount = async () => {
     try {
-      // In a real implementation, you would:
-      // 1. Delete user data from your database
-      // 2. Delete the user from Supabase auth
-      
+      setLoading(true);
+
+      // Delete profile data
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', user?.id);
+
+      if (profileError) throw profileError;
+
+      // Delete avatar from storage
+      if (avatarUrl) {
+        const filePath = avatarUrl.split('/').pop();
+        if (filePath) {
+          const { error: storageError } = await supabase.storage
+            .from('avatars')
+            .remove([`${user?.id}/${filePath}`]);
+
+          if (storageError) throw storageError;
+        }
+      }
+
+      // Delete user account
+      const { error: authError } = await supabase.auth.admin.deleteUser(user?.id || '');
+      if (authError) throw authError;
+
       await logout();
       toast.success("Account deleted successfully");
       navigate("/login");
     } catch (error: any) {
       toast.error(`Error deleting account: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -126,22 +247,36 @@ const Profile = () => {
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8">
             <div className="relative">
               <Avatar className="w-24 h-24 border-2 border-gray-200">
-                {user?.image ? (
-                  <AvatarImage src={user.image} alt={fullName} />
+                {avatarUrl ? (
+                  <AvatarImage src={avatarUrl} alt={fullName} />
                 ) : (
                   <AvatarFallback className="bg-hydro-blue text-xl text-white">
                     {getInitials()}
                   </AvatarFallback>
                 )}
               </Avatar>
-              <Button
-                size="icon"
-                variant="secondary"
-                className="absolute bottom-0 right-0 rounded-full w-8 h-8"
-                title="Upload photo"
+              <label 
+                htmlFor="avatar-upload" 
+                className="absolute bottom-0 right-0"
               >
-                <Camera className="h-4 w-4" />
-              </Button>
+                <div
+                  className={`bg-green-500 hover:bg-green-600 rounded-full w-8 h-8 flex items-center justify-center cursor-pointer ${uploading ? 'opacity-50' : ''}`}
+                >
+                  {uploading ? (
+                    <span className="animate-spin text-white">...</span>
+                  ) : (
+                    <Camera className="h-4 w-4 text-white" />
+                  )}
+                </div>
+                <input
+                  id="avatar-upload"
+                  type="file"
+                  accept="image/*"
+                  onChange={uploadAvatar}
+                  className="hidden"
+                  disabled={uploading}
+                />
+              </label>
             </div>
 
             <div className="space-y-1 text-center md:text-left">
@@ -150,7 +285,7 @@ const Profile = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid gap-6">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
               <Input
@@ -172,9 +307,7 @@ const Profile = () => {
                 disabled
               />
             </div>
-          </div>
 
-          <div className="mt-6">
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
               <Input
@@ -248,7 +381,6 @@ const Profile = () => {
         </CardContent>
       </Card>
 
-      {/* Password Change Dialog */}
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent>
           <DialogHeader>
