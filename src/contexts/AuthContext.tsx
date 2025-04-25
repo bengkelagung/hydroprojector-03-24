@@ -14,6 +14,7 @@ interface AuthUser {
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  session: Session | null;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -50,159 +51,142 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateUserState = (session: Session | null) => {
+    if (session?.user) {
+      const { id, email, user_metadata } = session.user;
+      setUser({
+        id,
+        email: email || '',
+        name: user_metadata.first_name ? `${user_metadata.first_name} ${user_metadata.last_name || ''}`.trim() : email?.split('@')[0] || 'User',
+        phone: user_metadata.phone || '',
+        image: user_metadata.avatar_url || ''
+      });
+    } else {
+      setUser(null);
+    }
+  };
+
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setLoading(true);
-        
-        if (session?.user) {
-          const { id, email } = session.user;
-          const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
-          
-          setUser({
-            id,
-            email: email || '',
-            name,
-            phone: session.user.user_metadata.phone || '',
-            image: session.user.user_metadata.image || ''
-          });
-        } else {
-          setUser(null);
-        }
-        
+        updateUserState(session);
         setLoading(false);
       }
     );
 
-    const initializeAuth = async () => {
-      setLoading(true);
-      
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { id, email } = session.user;
-          const name = session.user.user_metadata.name || email?.split('@')[0] || 'User';
-          
-          setUser({
-            id,
-            email: email || '',
-            name,
-            phone: session.user.user_metadata.phone || '',
-            image: session.user.user_metadata.image || ''
-          });
-        }
-      } catch (error) {
-        console.error("Error getting initial session:", error);
-        toast({
-          title: "Authentication Error",
-          description: "Failed to connect to authentication service. Please try again later.",
-          variant: "destructive",
-        });
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initializeAuth();
-
     return () => {
       subscription.unsubscribe();
     };
-  }, [toast]);
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
-      setLoading(true);
-      
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+
+      // Fetch profile data
+      const { data: profileData, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', data.user.id)
+        .single();
+
+      if (!profileError && profileData) {
+        // Update user metadata with profile data
+        await supabase.auth.updateUser({
+          data: {
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            avatar_url: profileData.avatar_url
+          }
+        });
       }
 
       toast({
         title: "Success",
-        description: "Login successful!",
+        description: "Logged in successfully",
       });
     } catch (error: any) {
       toast({
-        title: "Login Failed",
-        description: error.message || 'Login failed. Please try again.',
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const register = async (name: string, email: string, password: string) => {
     try {
-      setLoading(true);
+      // Split name into first and last name
+      const [firstName, ...lastNameParts] = name.split(' ');
+      const lastName = lastNameParts.join(' ');
 
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            name: name
-          }
-        }
+            first_name: firstName,
+            last_name: lastName || null,
+          },
+        },
       });
 
-      if (error) {
-        throw error;
+      if (error) throw error;
+
+      // Create profile
+      if (data.user) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .insert([
+            {
+              user_id: data.user.id,
+              first_name: firstName,
+              last_name: lastName || null,
+              email: email,
+            },
+          ]);
+
+        if (profileError) throw profileError;
       }
 
       toast({
         title: "Success",
-        description: "Registration successful!",
+        description: "Registration successful! Please check your email for verification.",
       });
-      
-      if (!data.session) {
-        toast({
-          title: "Verification Required",
-          description: "Please check your email to confirm your account",
-        });
-      }
     } catch (error: any) {
       toast({
-        title: "Registration Failed",
-        description: error.message || 'Registration failed. Please try again.',
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const logout = async () => {
     try {
-      setLoading(true);
       const { error } = await supabase.auth.signOut();
+      if (error) throw error;
       
-      if (error) {
-        throw error;
-      }
-      
-      setUser(null);
       toast({
         title: "Success",
         description: "Logged out successfully",
       });
     } catch (error: any) {
       toast({
-        title: "Logout Failed",
-        description: error.message || 'Logout failed',
+        title: "Error",
+        description: error.message,
         variant: "destructive",
       });
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -211,10 +195,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       value={{
         user,
         loading,
+        session,
         login,
         register,
         logout,
-        refreshSession
+        refreshSession,
       }}
     >
       {children}
