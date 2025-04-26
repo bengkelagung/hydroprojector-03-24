@@ -1,0 +1,6 @@
+[global]
+maxDuration = 60
+
+[[fetch.files]]
+name = "supabase"
+path = "supabase.ts" 
