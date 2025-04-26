@@ -203,34 +203,29 @@ const Profile = () => {
     try {
       setLoading(true);
 
-      // Delete profile data
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('user_id', user?.id);
+      // Get the current session
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      if (!session) throw new Error("No active session");
 
-      if (profileError) throw profileError;
-
-      // Delete avatar from storage
-      if (avatarUrl) {
-        const filePath = avatarUrl.split('/').pop();
-        if (filePath) {
-          const { error: storageError } = await supabase.storage
-            .from('avatars')
-            .remove([`${user?.id}/${filePath}`]);
-
-          if (storageError) throw storageError;
+      // Delete user data using server function
+      const { error: deleteError } = await supabase.functions.invoke('delete-user', {
+        body: { userId: user?.id },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
         }
-      }
+      });
 
-      // Delete user account
-      const { error: authError } = await supabase.auth.admin.deleteUser(user?.id || '');
-      if (authError) throw authError;
+      if (deleteError) {
+        console.error('Delete user error:', deleteError);
+        throw new Error(deleteError.message || 'Failed to delete account');
+      }
 
       await logout();
       toast.success("Account deleted successfully");
       navigate("/login");
     } catch (error: any) {
+      console.error('Error deleting account:', error);
       toast.error(`Error deleting account: ${error.message}`);
     } finally {
       setLoading(false);
