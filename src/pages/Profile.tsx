@@ -203,22 +203,20 @@ const Profile = () => {
     try {
       setLoading(true);
 
-      // Get the current session
+      // Get the current session to ensure we're authenticated
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session) throw new Error("No active session");
+      if (sessionError || !session) {
+        throw new Error('Please log in again to delete your account');
+      }
 
-      // Delete user data using server function
-      const { error: deleteError } = await supabase.functions.invoke('delete-user', {
-        body: { userId: user?.id },
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        }
-      });
+      // Call the delete_user_account procedure
+      const { error: deleteError } = await supabase
+        .schema('public')
+        .rpc('delete_user_account');
 
       if (deleteError) {
-        console.error('Delete user error:', deleteError);
-        throw new Error(deleteError.message || 'Failed to delete account');
+        console.error('Error deleting account:', deleteError);
+        throw new Error(deleteError.message);
       }
 
       await logout();
