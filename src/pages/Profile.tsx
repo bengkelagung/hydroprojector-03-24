@@ -209,10 +209,10 @@ const Profile = () => {
         throw new Error('Please log in again to delete your account');
       }
 
-      // Call the delete_user_account procedure
-      const { error: deleteError } = await supabase
-        .schema('public')
-        .rpc('delete_user_account');
+      // Call the delete-user Edge Function
+      const { error: deleteError } = await supabase.functions.invoke('delete-user', {
+        body: { userId: session.user.id }
+      });
 
       if (deleteError) {
         console.error('Error deleting account:', deleteError);
