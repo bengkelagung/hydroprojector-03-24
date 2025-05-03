@@ -62,7 +62,7 @@ export default function Register() {
             console.error('Sign out error:', signOutError)
           }
           
-          // Redirect to the resend verification page instead of registration success
+          // Redirect to the resend verification page
           const redirectUrl = `/resend-verification?email=${encodeURIComponent(email)}`
           console.log('Redirecting to:', redirectUrl)
           router.push(redirectUrl)
