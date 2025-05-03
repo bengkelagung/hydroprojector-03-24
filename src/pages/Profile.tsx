@@ -258,10 +258,7 @@ const Profile = () => {
         </CardContent>
       </Card>
 
-      <Card>
-        
-        
-      </Card>
+      
 
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
         <DialogContent>
