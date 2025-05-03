@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useState } from 'react'
@@ -8,6 +9,7 @@ import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import Image from 'next/image'
 import { supabase } from '../lib/supabase'
+import Link from 'next/link'
 
 export default function Login() {
   const [isLoading, setIsLoading] = useState(false)
@@ -44,6 +46,14 @@ export default function Login() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  const handleResendVerification = () => {
+    if (!email.trim()) {
+      toast.error('Please enter your email address first')
+      return
+    }
+    router.push(`/resend-verification?email=${encodeURIComponent(email)}`)
   }
 
   return (
@@ -120,11 +130,11 @@ export default function Login() {
 
         <div className="space-y-4 text-center">
           <div className="text-sm text-gray-500">
-            <p>Haven't verified your email?</p>
+            <p>Haven't verified your email yet?</p>
             <Button
               variant="outline"
               className="mt-2 w-full"
-              onClick={() => router.push(`/resend-verification?email=${encodeURIComponent(email)}`)}
+              onClick={handleResendVerification}
             >
               Resend verification email
             </Button>
@@ -145,4 +155,4 @@ export default function Login() {
       </div>
     </div>
   )
-} 
+}

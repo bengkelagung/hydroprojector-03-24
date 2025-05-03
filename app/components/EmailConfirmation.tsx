@@ -1,8 +1,8 @@
+
 'use client'
 
 import * as React from 'react'
 import { useState } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { Button } from './ui/button'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
@@ -50,19 +50,6 @@ export default function EmailConfirmation({ email }: EmailConfirmationProps) {
               </p>
               
               <ResendVerification email={email} />
-              
-              <div className="mt-4 text-sm text-muted-foreground">
-                <p>
-                  Already verified?{' '}
-                  <Button
-                    variant="link"
-                    className="p-0 h-auto font-normal"
-                    onClick={() => router.push('/login')}
-                  >
-                    Sign in
-                  </Button>
-                </p>
-              </div>
             </div>
           </div>
         </div>
