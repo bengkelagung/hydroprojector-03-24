@@ -7,31 +7,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
-
 const Profile = () => {
-  const { user, logout, deleteAccount } = useAuth();
+  const {
+    user,
+    logout,
+    deleteAccount
+  } = useAuth();
   const navigate = useNavigate();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -44,7 +30,6 @@ const Profile = () => {
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.image || null);
   const [uploading, setUploading] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-
   useEffect(() => {
     if (user) {
       setFullName(user.name || "");
@@ -53,28 +38,19 @@ const Profile = () => {
       setAvatarUrl(user.image || null);
     }
   }, [user]);
-
   const getInitials = () => {
     if (!fullName) return user?.email?.substring(0, 1).toUpperCase() || "U";
-    return fullName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+    return fullName.split(" ").map(n => n[0]).join("").toUpperCase();
   };
-
   const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
       setUploading(true);
       console.log('Starting avatar upload...');
-      
       if (!event.target.files || event.target.files.length === 0) {
         throw new Error("You must select an image to upload.");
       }
-
       const file = event.target.files[0];
       console.log('Selected file:', file.name, 'Size:', file.size, 'Type:', file.type);
-      
       const fileExt = file.name.split(".").pop();
       const filePath = `${user?.id}/avatar.${fileExt}`;
       console.log('Upload path:', filePath);
@@ -82,50 +58,51 @@ const Profile = () => {
       console.log('Storage bucket:', 'avatars');
 
       // Upload image to Supabase Storage
-      const { error: uploadError, data } = await supabase.storage
-        .from("avatars")
-        .upload(filePath, file, { upsert: true });
-
+      const {
+        error: uploadError,
+        data
+      } = await supabase.storage.from("avatars").upload(filePath, file, {
+        upsert: true
+      });
       if (uploadError) {
         console.error('Upload error details:', uploadError);
         throw uploadError;
       }
-
       console.log('Upload successful:', data);
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from("avatars")
-        .getPublicUrl(filePath);
-
+      const {
+        data: {
+          publicUrl
+        }
+      } = supabase.storage.from("avatars").getPublicUrl(filePath);
       console.log('Generated public URL:', publicUrl);
 
       // Update user metadata with avatar URL
-      const { error: updateError } = await supabase.auth.updateUser({
-        data: { avatar_url: publicUrl }
+      const {
+        error: updateError
+      } = await supabase.auth.updateUser({
+        data: {
+          avatar_url: publicUrl
+        }
       });
-
       if (updateError) {
         console.error('Metadata update error details:', updateError);
         throw updateError;
       }
-
       console.log('User metadata updated successfully');
 
       // Update profile in database
       if (!user?.id) throw new Error("User ID is required");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          avatar_url: publicUrl
-        })
-        .eq('user_id', user.id);
-
+      const {
+        error: profileError
+      } = await supabase.from('profiles').update({
+        avatar_url: publicUrl
+      }).eq('user_id', user.id);
       if (profileError) {
         console.error('Profile update error details:', profileError);
         throw profileError;
       }
-
       console.log('Profile updated successfully');
       setAvatarUrl(publicUrl);
       toast.success("Avatar updated successfully");
@@ -136,7 +113,6 @@ const Profile = () => {
       setUploading(false);
     }
   };
-
   const handleUpdateProfile = async () => {
     try {
       setLoading(true);
@@ -146,28 +122,26 @@ const Profile = () => {
       const lastName = lastNameParts.join(' ');
 
       // Update user metadata
-      const { error: updateError } = await supabase.auth.updateUser({
+      const {
+        error: updateError
+      } = await supabase.auth.updateUser({
         data: {
           first_name: firstName,
           last_name: lastName || null,
-          phone: phone,
+          phone: phone
         }
       });
-
       if (updateError) throw updateError;
 
       // Update profile in database
       if (!user?.id) throw new Error("User ID is required");
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          first_name: firstName,
-          last_name: lastName || null
-        })
-        .eq('user_id', user.id);
-
+      const {
+        error: profileError
+      } = await supabase.from('profiles').update({
+        first_name: firstName,
+        last_name: lastName || null
+      }).eq('user_id', user.id);
       if (profileError) throw profileError;
-      
       toast.success("Profile updated successfully");
     } catch (error: any) {
       toast.error(`Error updating profile: ${error.message}`);
@@ -175,22 +149,19 @@ const Profile = () => {
       setLoading(false);
     }
   };
-
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       toast.error("New passwords do not match");
       return;
     }
-
     try {
       setLoading(true);
-      
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
+      const {
+        error
+      } = await supabase.auth.updateUser({
+        password: newPassword
       });
-
       if (error) throw error;
-
       toast.success("Password updated successfully");
       setIsPasswordDialogOpen(false);
       setCurrentPassword("");
@@ -202,25 +173,29 @@ const Profile = () => {
       setLoading(false);
     }
   };
-
   const handleDeleteAccount = async () => {
     try {
       setLoading(true);
 
       // Get the current session to ensure we're authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const {
+        data: {
+          session
+        },
+        error: sessionError
+      } = await supabase.auth.getSession();
       if (sessionError || !session) {
         throw new Error('Please log in again to delete your account');
       }
 
       // Call the delete_user_account function directly
-      const { error: deleteError } = await supabase.rpc('delete_user_account');
-
+      const {
+        error: deleteError
+      } = await supabase.rpc('delete_user_account');
       if (deleteError) {
         console.error('Error deleting account:', deleteError);
         throw new Error(deleteError.message);
       }
-
       await logout();
       toast.success("Account deleted successfully");
       navigate("/login");
@@ -231,9 +206,7 @@ const Profile = () => {
       setLoading(false);
     }
   };
-
-  return (
-    <div className="container mx-auto max-w-4xl py-6 space-y-6">
+  return <div className="container mx-auto max-w-4xl py-6 space-y-6">
       <Card>
         <CardHeader>
           <CardTitle className="text-2xl font-bold">Profile Information</CardTitle>
@@ -242,35 +215,15 @@ const Profile = () => {
           <div className="flex flex-col md:flex-row items-center md:items-start gap-6 mb-8">
             <div className="relative">
               <Avatar className="w-24 h-24 border-2 border-gray-200">
-                {avatarUrl ? (
-                  <AvatarImage src={avatarUrl} alt={fullName} />
-                ) : (
-                  <AvatarFallback className="bg-hydro-blue text-xl text-white">
+                {avatarUrl ? <AvatarImage src={avatarUrl} alt={fullName} /> : <AvatarFallback className="bg-hydro-blue text-xl text-white">
                     {getInitials()}
-                  </AvatarFallback>
-                )}
+                  </AvatarFallback>}
               </Avatar>
-              <label 
-                htmlFor="avatar-upload" 
-                className="absolute bottom-0 right-0"
-              >
-                <div
-                  className={`bg-green-500 hover:bg-green-600 rounded-full w-8 h-8 flex items-center justify-center cursor-pointer ${uploading ? 'opacity-50' : ''}`}
-                >
-                  {uploading ? (
-                    <span className="animate-spin text-white">...</span>
-                  ) : (
-                    <Camera className="h-4 w-4 text-white" />
-                  )}
+              <label htmlFor="avatar-upload" className="absolute bottom-0 right-0">
+                <div className={`bg-green-500 hover:bg-green-600 rounded-full w-8 h-8 flex items-center justify-center cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
+                  {uploading ? <span className="animate-spin text-white">...</span> : <Camera className="h-4 w-4 text-white" />}
                 </div>
-                <input
-                  id="avatar-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={uploadAvatar}
-                  className="hidden"
-                  disabled={uploading}
-                />
+                <input id="avatar-upload" type="file" accept="image/*" onChange={uploadAvatar} className="hidden" disabled={uploading} />
               </label>
             </div>
 
@@ -283,43 +236,22 @@ const Profile = () => {
           <div className="grid gap-6">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                placeholder="Enter your full name"
-              />
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Enter your full name" />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="email">Email Address</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="your.email@example.com"
-                disabled
-              />
+              <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="your.email@example.com" disabled />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="Your phone number"
-              />
+              <Input id="phone" value={phone} onChange={e => setPhone(e.target.value)} placeholder="Your phone number" />
             </div>
           </div>
 
           <div className="mt-8 flex justify-end">
-            <Button 
-              onClick={handleUpdateProfile} 
-              className="bg-hydro-blue hover:bg-blue-700" 
-              disabled={loading}
-            >
+            <Button onClick={handleUpdateProfile} className="bg-hydro-blue hover:bg-blue-700" disabled={loading}>
               {loading ? "Saving..." : "Save Changes"}
             </Button>
           </div>
@@ -327,53 +259,8 @@ const Profile = () => {
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold">Account Settings</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-8">
-          <div>
-            <h3 className="text-lg font-medium mb-2">Password</h3>
-            <p className="text-gray-500 mb-4">Manage your account password and security settings</p>
-            <Button
-              variant="outline"
-              onClick={() => setIsPasswordDialogOpen(true)}
-              className="border-gray-300"
-            >
-              Change Password
-            </Button>
-          </div>
-
-          <div>
-            <h3 className="text-lg font-medium mb-2 text-red-600">Delete Account</h3>
-            <p className="text-gray-500 mb-4">Permanently delete your account and all associated data</p>
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="bg-red-500 hover:bg-red-600">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  Delete Account
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone. This will permanently delete your account
-                    and remove all of your data from our servers.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => setIsDeleteDialogOpen(true)}
-                    className="bg-red-500 hover:bg-red-600"
-                  >
-                    Delete Account
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          </div>
-        </CardContent>
+        
+        
       </Card>
 
       <Dialog open={isPasswordDialogOpen} onOpenChange={setIsPasswordDialogOpen}>
@@ -388,30 +275,15 @@ const Profile = () => {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="current-password">Current Password</Label>
-              <Input
-                id="current-password"
-                type="password"
-                value={currentPassword}
-                onChange={(e) => setCurrentPassword(e.target.value)}
-              />
+              <Input id="current-password" type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="new-password">New Password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-              />
+              <Input id="new-password" type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm-password">Confirm New Password</Label>
-              <Input
-                id="confirm-password"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-              />
+              <Input id="confirm-password" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} />
             </div>
           </div>
 
@@ -419,11 +291,7 @@ const Profile = () => {
             <Button variant="outline" onClick={() => setIsPasswordDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={handleChangePassword} 
-              disabled={loading}
-              className="bg-hydro-blue hover:bg-blue-700"
-            >
+            <Button onClick={handleChangePassword} disabled={loading} className="bg-hydro-blue hover:bg-blue-700">
               {loading ? "Updating..." : "Update Password"}
             </Button>
           </DialogFooter>
@@ -443,10 +311,7 @@ const Profile = () => {
                   Permanently delete your account and all associated data
                 </p>
               </div>
-              <Button
-                variant="destructive"
-                onClick={() => setIsDeleteDialogOpen(true)}
-              >
+              <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
                 Delete Account
               </Button>
             </div>
@@ -454,13 +319,7 @@ const Profile = () => {
         </CardContent>
       </Card>
 
-      <DeleteAccountDialog
-        isOpen={isDeleteDialogOpen}
-        onClose={() => setIsDeleteDialogOpen(false)}
-        onConfirm={handleDeleteAccount}
-      />
-    </div>
-  );
+      <DeleteAccountDialog isOpen={isDeleteDialogOpen} onClose={() => setIsDeleteDialogOpen(false)} onConfirm={handleDeleteAccount} />
+    </div>;
 };
-
 export default Profile;
