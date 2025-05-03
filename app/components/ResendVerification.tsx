@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 
@@ -11,7 +12,6 @@ interface ResendVerificationProps {
 export default function ResendVerification({ email }: ResendVerificationProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const supabase = createClientComponentClient();
   const router = useRouter();
 
   useEffect(() => {
@@ -89,4 +89,4 @@ export default function ResendVerification({ email }: ResendVerificationProps) {
       </div>
     </div>
   );
-} 
+}
