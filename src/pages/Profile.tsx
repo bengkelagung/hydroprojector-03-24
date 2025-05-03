@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
-import { Camera, Save, Trash2 } from "lucide-react";
+import { Camera, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,9 +28,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
+import { DeleteAccountDialog } from "../components/DeleteAccountDialog";
 
 const Profile = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, deleteAccount } = useAuth();
   const navigate = useNavigate();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -42,6 +43,7 @@ const Profile = () => {
   const [loading, setLoading] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(user?.image || null);
   const [uploading, setUploading] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -111,12 +113,13 @@ const Profile = () => {
       console.log('User metadata updated successfully');
 
       // Update profile in database
+      if (!user?.id) throw new Error("User ID is required");
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           avatar_url: publicUrl
         })
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (profileError) {
         console.error('Profile update error details:', profileError);
@@ -154,13 +157,14 @@ const Profile = () => {
       if (updateError) throw updateError;
 
       // Update profile in database
+      if (!user?.id) throw new Error("User ID is required");
       const { error: profileError } = await supabase
         .from('profiles')
         .update({
           first_name: firstName,
           last_name: lastName || null
         })
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (profileError) throw profileError;
       
@@ -209,10 +213,8 @@ const Profile = () => {
         throw new Error('Please log in again to delete your account');
       }
 
-      // Call the delete-user Edge Function
-      const { error: deleteError } = await supabase.functions.invoke('delete-user', {
-        body: { userId: session.user.id }
-      });
+      // Call the delete_user_account function directly
+      const { error: deleteError } = await supabase.rpc('delete_user_account');
 
       if (deleteError) {
         console.error('Error deleting account:', deleteError);
@@ -362,7 +364,7 @@ const Profile = () => {
                 <AlertDialogFooter>
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
-                    onClick={handleDeleteAccount}
+                    onClick={() => setIsDeleteDialogOpen(true)}
                     className="bg-red-500 hover:bg-red-600"
                   >
                     Delete Account
@@ -427,6 +429,36 @@ const Profile = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-2xl font-bold text-destructive">Danger Zone</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 border rounded-lg border-destructive">
+              <div>
+                <h3 className="font-semibold">Delete Account</h3>
+                <p className="text-sm text-gray-500">
+                  Permanently delete your account and all associated data
+                </p>
+              </div>
+              <Button
+                variant="destructive"
+                onClick={() => setIsDeleteDialogOpen(true)}
+              >
+                Delete Account
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <DeleteAccountDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDeleteAccount}
+      />
     </div>
   );
 };

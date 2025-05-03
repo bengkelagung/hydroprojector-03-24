@@ -10,6 +10,7 @@ const corsHeaders = {
 
 interface ErrorResponse {
   error: string;
+  details?: unknown;
 }
 
 interface SuccessResponse {
@@ -36,65 +37,86 @@ serve(async (req: Request): Promise<Response> => {
   try {
     console.log('Starting user deletion process...')
     
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('No authorization header')
+    // Parse request body
+    let body;
+    try {
+      body = await req.json();
+      console.log('Request body:', body);
+    } catch (e) {
+      console.error('Error parsing request body:', e);
+      throw new Error('Invalid request body');
+    }
+
+    // Validate userId in request body
+    const userId = body?.userId;
+    if (!userId) {
+      console.error('No userId provided in request body');
+      throw new Error('userId is required in request body');
     }
     
-    console.log('Creating Supabase client...')
-    // Create a Supabase client with the Auth context of the logged in user
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    // Validate authorization header
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      console.error('No authorization header provided')
+      throw new Error('No authorization header')
+    }
+
+    // Validate environment variables
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+
+    if (!supabaseUrl || !supabaseServiceKey) {
+      console.error('Missing required environment variables')
+      throw new Error('Server configuration error')
+    }
+    
+    console.log('Creating Supabase admin client...')
+    // Create admin client with service role key
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      supabaseServiceKey,
       {
-        global: {
-          headers: { Authorization: authHeader },
-        },
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false
+        }
       }
     )
 
     console.log('Getting user information...')
-    // Get the current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabaseClient.auth.getUser()
+    // Get the user using admin client
+    const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUserById(userId)
 
-    if (userError) {
+    if (userError || !userData.user) {
       console.error('Error getting user:', userError)
-      throw userError
+      throw new Error(userError?.message || 'User not found')
     }
 
-    if (!user) {
-      console.error('No user found')
-      throw new Error('Could not get user')
-    }
-
-    console.log('User found:', user.id)
+    console.log('User found:', userData.user.id)
     console.log('Calling cleanup function...')
     
     // Call the cleanup function
-    const { error: cleanupError } = await supabaseClient
+    const { error: cleanupError } = await supabaseAdmin
       .rpc('clean_up_user_data', {
-        user_id: user.id
+        user_id: userData.user.id
       })
 
     if (cleanupError) {
       console.error('Error cleaning up user data:', cleanupError)
-      throw cleanupError
+      throw new Error(`Failed to clean up user data: ${cleanupError.message}`)
     }
 
     console.log('User data cleaned up successfully')
     console.log('Deleting user auth record...')
     
     // Delete the user's auth record
-    const { error: deleteError } = await supabaseClient.auth.admin.deleteUser(
-      user.id
+    const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(
+      userData.user.id
     )
 
     if (deleteError) {
       console.error('Error deleting user:', deleteError)
-      throw deleteError
+      throw new Error(`Failed to delete user: ${deleteError.message}`)
     }
 
     console.log('User deleted successfully')
@@ -109,13 +131,14 @@ serve(async (req: Request): Promise<Response> => {
   } catch (error) {
     console.error('Error in delete-user function:', error)
     const errorResponse: ErrorResponse = { 
-      error: error.message || 'An unknown error occurred'
+      error: error.message || 'An unknown error occurred',
+      details: error
     }
     return new Response(
       JSON.stringify(errorResponse),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 400,
+        status: error.message?.includes('Not authorized') ? 403 : 500,
       }
     )
   }

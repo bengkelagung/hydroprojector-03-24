@@ -1,4 +1,3 @@
-
 -- Create essential tables for the hydroprojector application
 
 -- Create the profiles table first as it's referenced by other tables
@@ -302,3 +301,58 @@ GRANT SELECT ON public.data_types TO anon;
 GRANT SELECT ON public.signal_types TO anon;
 GRANT SELECT ON public.modes TO anon;
 GRANT SELECT ON public.label TO anon;
+
+-- Create storage trigger to delete avatar when user is deleted
+CREATE OR REPLACE FUNCTION delete_avatar_on_user_delete()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- Delete avatar from storage
+  PERFORM storage.delete_object('avatars', OLD.user_id || '/*');
+  RETURN OLD;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER tr_delete_avatar_on_user_delete
+  BEFORE DELETE ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION delete_avatar_on_user_delete();
+
+-- Create function to clean up all user data
+CREATE OR REPLACE FUNCTION clean_up_user_data(user_id UUID)
+RETURNS void AS $$
+BEGIN
+  -- Delete all pin data related to user's devices
+  DELETE FROM pin_data
+  WHERE pin_config_id IN (
+    SELECT pc.id
+    FROM pin_configs pc
+    JOIN devices d ON pc.device_id = d.id
+    JOIN projects p ON d.project_id = p.id
+    WHERE p.user_id = user_id
+  );
+
+  -- Delete all pin configurations related to user's devices
+  DELETE FROM pin_configs
+  WHERE device_id IN (
+    SELECT d.id
+    FROM devices d
+    JOIN projects p ON d.project_id = p.id
+    WHERE p.user_id = user_id
+  );
+
+  -- Delete all devices related to user's projects
+  DELETE FROM devices
+  WHERE project_id IN (
+    SELECT id FROM projects WHERE user_id = user_id
+  );
+
+  -- Delete all projects
+  DELETE FROM projects WHERE user_id = user_id;
+
+  -- Delete profile
+  DELETE FROM profiles WHERE user_id = user_id;
+
+  -- Delete avatar from storage
+  PERFORM storage.delete_object('avatars', user_id || '/*');
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;

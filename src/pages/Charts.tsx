@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useHydro } from '@/contexts/HydroContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,9 +21,9 @@ const Charts = () => {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [chartsData, setChartsData] = useState<Record<string, ChartDataPoint[]>>({});
   
-  // Extremely strict limit of 2 pins maximum to prevent any freezing
+  // Filter pins based on selected options
   const filteredPins = useMemo(() => {
-    const filtered = pins.filter(pin => {
+    return pins.filter(pin => {
       if (selectedPinMode !== 'all' && pin.mode !== selectedPinMode) return false;
       if (selectedDeviceId !== 'all' && pin.deviceId !== selectedDeviceId) return false;
       if (selectedProjectId !== 'all') {
@@ -33,9 +32,6 @@ const Charts = () => {
       }
       return true;
     });
-    
-    // Ultra strict limit of 2 pins for maximum performance
-    return filtered.slice(0, 2);
   }, [pins, selectedProjectId, selectedDeviceId, selectedPinMode, devices]);
 
   const projectOptions = useMemo(() => [
@@ -94,7 +90,7 @@ const Charts = () => {
     }
   }, [timeRange]);
 
-  // Ultra-optimized data fetching - only get 2 points per pin
+  // Optimized data fetching - process in batches
   const fetchChartData = useCallback(async () => {
     if (filteredPins.length === 0) {
       setChartsData({});
@@ -107,15 +103,22 @@ const Charts = () => {
       const hours = getTimeRangeHours();
       const results: Record<string, ChartDataPoint[]> = {};
       
-      // Process pins one at a time to minimize load
-      for (const pin of filteredPins) {
-        try {
-          const history = await getPinHistoryData(pin.id, hours);
-          results[pin.id] = history;
-        } catch (error) {
-          console.error(`Error fetching history for pin ${pin.id}:`, error);
-          results[pin.id] = [];
-        }
+      // Process pins in batches of 5 to avoid overwhelming the system
+      const batchSize = 5;
+      for (let i = 0; i < filteredPins.length; i += batchSize) {
+        const batch = filteredPins.slice(i, i + batchSize);
+        const batchPromises = batch.map(pin => 
+          getPinHistoryData(pin.id, hours)
+            .then(history => {
+              results[pin.id] = history;
+            })
+            .catch(error => {
+              console.error(`Error fetching history for pin ${pin.id}:`, error);
+              results[pin.id] = [];
+            })
+        );
+        
+        await Promise.all(batchPromises);
       }
       
       setChartsData(results);

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from '@/integrations/supabase/client';
+import { useToast } from "../components/ui/use-toast";
+import { supabase } from '../integrations/supabase/client';
 import { Session, User } from '@supabase/supabase-js';
 
 interface AuthUser {
@@ -19,6 +19,7 @@ interface AuthContextType {
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshSession: () => Promise<boolean>;
+  deleteAccount: (password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -68,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+      async (_event: string, session: Session | null) => {
         setSession(session);
         setLoading(true);
         updateUserState(session);
@@ -141,22 +142,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) throw error;
 
-      // Create profile
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .insert([
-            {
-              user_id: data.user.id,
-              first_name: firstName,
-              last_name: lastName || null,
-              email: email,
-            },
-          ]);
-
-        if (profileError) throw profileError;
-      }
-
       toast({
         title: "Success",
         description: "Registration successful! Please check your email for verification.",
@@ -190,6 +175,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const deleteAccount = async (password: string) => {
+    try {
+      if (!user?.id) {
+        throw new Error('User not found');
+      }
+
+      // First verify the password
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password,
+      });
+
+      if (signInError) {
+        toast({
+          title: "Error",
+          description: "Invalid password",
+          variant: "destructive",
+        });
+        throw signInError;
+      }
+
+      // Delete user data from profiles table first
+      const { error: profileDeleteError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (profileDeleteError) throw profileDeleteError;
+
+      // Delete the user's auth account
+      const { error: deleteError } = await supabase.auth.updateUser({
+        data: { deleted: true }
+      });
+
+      if (deleteError) throw deleteError;
+
+      toast({
+        title: "Success",
+        description: "Your account has been deleted",
+      });
+
+      // Sign out after deletion
+      await supabase.auth.signOut();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+      throw error;
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -200,6 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         register,
         logout,
         refreshSession,
+        deleteAccount,
       }}
     >
       {children}
