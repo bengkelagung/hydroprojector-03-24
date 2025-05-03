@@ -1,3 +1,4 @@
+
 'use client'
 
 import React from 'react'
@@ -20,4 +21,4 @@ export default function RegistrationSuccessPage() {
   }
 
   return <RegistrationSuccess email={email} />
-} 
+}

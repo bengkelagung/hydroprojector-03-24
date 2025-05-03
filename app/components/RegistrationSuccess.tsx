@@ -1,3 +1,4 @@
+
 'use client'
 
 import React, { useState } from 'react'
@@ -90,4 +91,4 @@ export default function RegistrationSuccess({ email }: RegistrationSuccessProps)
       </div>
     </div>
   )
-} 
+}
